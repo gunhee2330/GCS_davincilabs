@@ -20,6 +20,7 @@ Item {
 
     readonly property bool _is3DMode:       QGCViewer3DManager.displayMode === QGCViewer3DManager.View3D
     readonly property bool _keepSceneAlive: QGroundControl.settingsManager.viewer3DSettings.keepSceneAlive.rawValue
+    readonly property bool _policeDroneLayoutEnabled: true
 
     // These should only be used by MainRootWindow
     property var planController:    _planController
@@ -116,9 +117,13 @@ Item {
             }
         }
 
-        FlyViewVideo {
-            id:         videoControl
-            pipView:    _pipView
+        Loader {
+            id:     standardVideoLoader
+            active: !_policeDroneLayoutEnabled
+
+            sourceComponent: FlyViewVideo {
+                pipView: _pipView
+            }
         }
 
         PipView {
@@ -128,9 +133,10 @@ Item {
             anchors.margins:        _toolsMargin
             item1IsFullSettingsKey: "MainFlyWindowIsMap"
             item1:                  _mapControl
-            item2:                  QGroundControl.videoManager.hasVideo ? videoControl : null
-            show:                   QGroundControl.videoManager.hasVideo && !QGroundControl.videoManager.fullScreen &&
-                                        (videoControl.pipState.state === videoControl.pipState.pipState ||
+            item2:                  !_policeDroneLayoutEnabled && QGroundControl.videoManager.hasVideo ? standardVideoLoader.item : null
+            show:                   !_policeDroneLayoutEnabled && standardVideoLoader.item && QGroundControl.videoManager.hasVideo &&
+                                        !QGroundControl.videoManager.fullScreen &&
+                                        (standardVideoLoader.item.pipState.state === standardVideoLoader.item.pipState.pipState ||
                                          (_mapControl && _mapControl.pipState.state === _mapControl.pipState.pipState))
             z:                      QGroundControl.zOrderWidgets
 
@@ -150,7 +156,7 @@ Item {
             parentToolInsets:       _toolInsets
             mapControl:             _mapControl
             viewer3DCameraController: viewer3DLoader.item ? viewer3DLoader.item.cameraController : null
-            visible:                !QGroundControl.videoManager.fullScreen
+            visible:                !_policeDroneLayoutEnabled && !QGroundControl.videoManager.fullScreen
         }
 
         FlyViewCustomLayer {
@@ -159,7 +165,7 @@ Item {
             z:                  _fullItemZorder + 2
             parentToolInsets:   widgetLayer.totalToolInsets
             mapControl:         _mapControl
-            visible:            !QGroundControl.videoManager.fullScreen
+            visible:            !_policeDroneLayoutEnabled && !QGroundControl.videoManager.fullScreen
         }
 
         // Development tool for visualizing the insets for a paticular layer, show if needed
@@ -199,6 +205,15 @@ Item {
             visible:      _is3DMode
         }
 
+        PoliceDroneDashboard {
+            anchors.fill:     parent
+            guidedController: _guidedController
+            visible:          _policeDroneLayoutEnabled
+            z:                QGroundControl.zOrderTopMost
+
+            onMenuRequested: mainWindow.showToolSelectDialog()
+        }
+
         Connections {
             target: QGCViewer3DManager
             function onDisplayModeChanged() {
@@ -216,6 +231,6 @@ Item {
     FlyViewToolBar {
         id:                 toolbar
         guidedValueSlider:  _guidedValueSlider
-        visible:            !QGroundControl.videoManager.fullScreen
+        visible:            !_policeDroneLayoutEnabled && !QGroundControl.videoManager.fullScreen
     }
 }
