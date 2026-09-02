@@ -469,6 +469,16 @@ ApplicationWindow {
                 anchors.bottom:     parent.bottom
                 spacing:            ScreenTools.defaultFontPixelWidth
 
+                // Keeps the ☰ present in Analyze/Settings/Setup too, so the way back to the
+                // tool list is the same control in every view.
+                QGCToolBarButton {
+                    objectName: "toolbar_mainMenu"
+                    Layout.fillHeight: true
+                    icon.source: "qrc:/qmlimages/Hamburger.svg"
+                    iconHeight: ScreenTools.defaultFontPixelHeight * 1.2
+                    onClicked: mainWindow.showToolSelectDialog()
+                }
+
                 QGCToolBarButton {
                     id: qgcButton
                     objectName: "toolbar_qgcLogo"

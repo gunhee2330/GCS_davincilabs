@@ -6,6 +6,7 @@ import QGC as App
 import QGroundControl
 import QGroundControl.Controls
 import QGroundControl.FactControls
+import QGroundControl.FlyView
 
 Item {
     id: root
@@ -387,6 +388,32 @@ Item {
     CameraWindow {
         id:    sharedWindow
         title: qsTr("IR")
+    }
+
+    // ------------------------------------------------------------- flight instruments
+    //
+    // Airspeed, altitude, attitude and compass are QGC's own widgets. They normally live in
+    // FlyViewWidgetLayer, which this layout disables, so they are re-hosted here rather than
+    // reimplemented — the telemetry bar stays user-configurable and the instrument panel keeps
+    // whatever alternate QML the operator selects.
+    //
+    // These three names are read by the QGC widgets through the QML context chain, which the
+    // police layout bypasses by not instantiating FlyViewWidgetLayer.
+    readonly property var _missionController: globals.planMasterControllerFlyView
+                                              ? globals.planMasterControllerFlyView.missionController
+                                              : null
+    readonly property bool _showSingleVehicleUI: true
+    readonly property real _toolsMargin: ScreenTools.defaultFontPixelWidth * 0.75
+
+    FlyViewBottomRightRowLayout {
+        id:                   flightInstruments
+        anchors.right:        parent.right
+        anchors.rightMargin:  8
+        anchors.bottom:       aiStatusBar.top
+        anchors.bottomMargin: 8
+        // Below the camera windows (z 10) so a window dragged this way passes over the
+        // instruments instead of disappearing behind them.
+        z:                    3
     }
 
     Rectangle {

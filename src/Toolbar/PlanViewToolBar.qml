@@ -33,9 +33,21 @@ Rectangle {
         visible: qgcPal.globalTheme === QGCPalette.Light
     }
 
+    // The Fly view's police dashboard carries its own ☰; without this the button vanishes on
+    // switching to Plan, leaving the logo as the only — undiscoverable — way back.
+    QGCToolBarButton {
+        id: menuButton
+        objectName: "toolbar_mainMenu"
+        height: parent.height
+        icon.source: "qrc:/qmlimages/Hamburger.svg"
+        iconHeight: ScreenTools.defaultFontPixelHeight * 1.2
+        onClicked: mainWindow.showToolSelectDialog()
+    }
+
     QGCToolBarButton {
         id: qgcButton
         objectName: "toolbar_qgcLogo"
+        anchors.left: menuButton.right
         height: parent.height
         icon.source: "/res/DavinciLabsLogo.png"
         iconAspectRatio: 1153 / 122

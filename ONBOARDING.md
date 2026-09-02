@@ -109,21 +109,37 @@ git checkout feat/configuration   # 설정 화면 담당
 
 ## 6. 빌드
 
-```bash
-CMAKE="/c/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe"
+**명령 프롬프트(cmd)에서** 아래 한 줄이면 됩니다. 본인 이름으로 빌드 디렉터리를 지정하세요.
 
-"$CMAKE" -S . -B build/Windows -G Ninja \
-    -DCMAKE_BUILD_TYPE=Debug \
-    -DCMAKE_PREFIX_PATH=C:/Qt/6.11.1/msvc2022_64
-
-"$CMAKE" --build build/Windows
+```
+tools\build-windows.bat Windows-홍길동
 ```
 
 첫 빌드는 30분~1시간, 이후 증분 빌드는 수십 초입니다. 결과물은
-`build/Windows/staging/bin/QGroundControl.exe` 입니다.
+`build/Windows-홍길동/staging/bin/QGroundControl.exe` 입니다.
 
 **빌드 디렉터리는 사람마다 다른 이름을 쓰세요.** 같은 디렉터리를 두 명이 동시에 쓰면
 Ninja 파일 잠금이 충돌하고, 산출물이 섞여 원인을 알 수 없는 크래시가 납니다.
+
+### 스크립트가 하는 일 — 직접 빌드한다면 셋 다 필요합니다
+
+셋 중 하나라도 빠지면 **성공한 것처럼 보이면서 실패**합니다.
+
+**① `vcvars64.bat`을 먼저 호출한다**
+Ninja는 `cl.exe`를 직접 부르는데, vcvars를 거치지 않은 셸에는 `INCLUDE` 경로가 없다.
+그러면 `<functional>`, `<stdint.h>` 같은 **표준 헤더를 못 찾는다** — 툴체인이 깨진 것처럼
+보이지만 환경이 없는 것뿐이다.
+
+**② `cmake --build`**
+`build/<이름>/Debug/` 에 실행 파일을 만든다.
+
+**③ `cmake --install`**
+`build/<이름>/staging/` 으로 복사한다. 여기가 `CMAKE_INSTALL_PREFIX`이고 **바탕화면
+바로가기가 실제로 실행하는 경로**다. 빌드만 하면 바로가기는 이전 바이너리를 계속 띄우므로,
+**수정한 내용이 화면에 안 나타난다.**
+
+> Git Bash에서 `cmd.exe /c "..."`로 vcvars를 부르려 하면 인용부호가 제대로 전달되지 않아
+> **빌드가 실행되지 않았는데도 종료 코드 0**이 나온다. 배치 파일을 쓰는 이유다.
 
 ---
 
