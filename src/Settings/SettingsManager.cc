@@ -17,6 +17,8 @@
 #include "PlanViewSettings.h"
 #include "RemoteIDSettings.h"
 #include "RTKSettings.h"
+#include "SiyiCameraSettings.h"
+#include "SpeakerSettings.h"
 #include "UnitsSettings.h"
 #include "NTRIPSettings.h"
 #include "VideoSettings.h"
@@ -70,6 +72,8 @@ void SettingsManager::init()
     _planViewSettings = new PlanViewSettings(this);
     _remoteIDSettings = new RemoteIDSettings(this);
     _rtkSettings = new RTKSettings(this);
+    _siyiCameraSettings = new SiyiCameraSettings(this);
+    _speakerSettings = new SpeakerSettings(this);
     _ntripSettings = new NTRIPSettings(this);
     _videoSettings = new VideoSettings(this);
     _mavlinkSettings = new MavlinkSettings(this);
@@ -97,6 +101,8 @@ OfflineMapsSettings *SettingsManager::offlineMapsSettings() const { return _offl
 PlanViewSettings *SettingsManager::planViewSettings() const { return _planViewSettings; }
 RemoteIDSettings *SettingsManager::remoteIDSettings() const { return _remoteIDSettings; }
 RTKSettings *SettingsManager::rtkSettings() const { return _rtkSettings; }
+SiyiCameraSettings *SettingsManager::siyiCameraSettings() const { return _siyiCameraSettings; }
+SpeakerSettings *SettingsManager::speakerSettings() const { return _speakerSettings; }
 UnitsSettings *SettingsManager::unitsSettings() const { return _unitsSettings; }
 NTRIPSettings *SettingsManager::ntripSettings() const { return _ntripSettings; }
 VideoSettings *SettingsManager::videoSettings() const { return _videoSettings; }

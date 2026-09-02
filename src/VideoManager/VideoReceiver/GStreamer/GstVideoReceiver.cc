@@ -1043,7 +1043,7 @@ void GstVideoReceiver::_logDecodebin3SelectedCodec(GstElement *decodebin3)
                 GstPluginFeature *feature = GST_PLUGIN_FEATURE(factory);
                 const gchar *featureName = gst_plugin_feature_get_name(feature);
                 const guint rank = gst_plugin_feature_get_rank(feature);
-                bool isHardwareDecoder = GStreamer::isHardwareDecoderFactory(factory);
+                const bool isHardwareDecoder = GStreamer::isHardwareDecoderFactory(factory);
 
                 QString pluginName = featureName;
                 GstPlugin *plugin = gst_plugin_feature_get_plugin(feature);
@@ -1051,7 +1051,14 @@ void GstVideoReceiver::_logDecodebin3SelectedCodec(GstElement *decodebin3)
                     pluginName = gst_plugin_get_name(plugin);
                     gst_object_unref(plugin);
                 }
-                qCDebug(GstVideoReceiverLog) << "Decodebin3 selected codec:rank -" << pluginName << "/" << featureName << "-" << decoderKlass << (isHardwareDecoder ? "(HW)" : "(SW)") << ":" << rank;
+                qCInfo(GstVideoReceiverLog).noquote()
+                    << "[VideoDiagnostics] decoder-selected"
+                    << "stream:" << QUrl(_uri).toString(QUrl::RemovePassword)
+                    << "factory:" << featureName
+                    << "plugin:" << pluginName
+                    << "class:" << decoderKlass
+                    << "hardware:" << isHardwareDecoder
+                    << "rank:" << rank;
 
                 const QString newName = QString::fromUtf8(featureName);
                 bool nameChanged = false;
@@ -1545,6 +1552,11 @@ gboolean GstVideoReceiver::_onBusMessage(GstBus * /* bus */, GstMessage *msg, gp
             gst_structure_get_int(structure, "height", &h);
             const QString format = QString::fromUtf8(fmt ? fmt : "");
             const QSize resolution(w, h);
+            qCInfo(GstVideoReceiverLog).noquote()
+                << "[VideoDiagnostics] caps-negotiated"
+                << "stream:" << QUrl(pThis->_uri).toString(QUrl::RemovePassword)
+                << "format:" << (format.isEmpty() ? QStringLiteral("unknown") : format)
+                << "resolution:" << QStringLiteral("%1x%2").arg(w).arg(h);
             // src compared by address only on the GUI thread; never dereferenced (may be gone by then).
             void *src = GST_MESSAGE_SRC(msg);
             QMetaObject::invokeMethod(pThis, [pThis, format, resolution, src]() {

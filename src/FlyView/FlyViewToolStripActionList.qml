@@ -2,6 +2,7 @@ import QtQml.Models
 
 import QGroundControl
 import QGroundControl.Controls
+import QGroundControl.SiyiCamera
 import QGroundControl.Viewer3D
 
 ToolStripActionList {
@@ -17,6 +18,7 @@ ToolStripActionList {
         GuidedActionRTL { },
         GuidedActionPause { },
         FlyViewAdditionalActionsButton { },
-        FlyViewGripperButton { }
+        FlyViewGripperButton { },
+        SiyiCameraToolStripAction { }
     ]
 }

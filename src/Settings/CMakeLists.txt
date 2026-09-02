@@ -45,6 +45,10 @@ target_sources(${CMAKE_PROJECT_NAME}
         RTKSettings.h
         NTRIPSettings.cc
         NTRIPSettings.h
+        SiyiCameraSettings.cc
+        SiyiCameraSettings.h
+        SpeakerSettings.cc
+        SpeakerSettings.h
         SettingsGroup.cc
         SettingsGroup.h
         SettingsManager.cc

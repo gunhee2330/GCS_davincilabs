@@ -1,0 +1,84 @@
+{
+    "version": 1,
+    "fileType": "FactMetaData",
+    "QGC.MetaData.Facts": [
+        {
+            "name": "enabled",
+            "shortDesc": "Enable SIYI camera control",
+            "longDesc": "Control a SIYI optical pod (ZT30, ZT6, ZR30, ZR10, A8) directly over its own Ethernet link using the SIYI SDK protocol. The ground station must share a network with the camera. Video is configured separately under Video settings.",
+            "type": "bool",
+            "default": false,
+            "label": "Enable SIYI camera control",
+            "keywords": "siyi,zt30,gimbal,camera,payload"
+        },
+        {
+            "name": "ipAddress",
+            "shortDesc": "Camera IP address",
+            "longDesc": "IP address of the SIYI optical pod. Factory default is 192.168.144.25.",
+            "type": "string",
+            "default": "192.168.144.25",
+            "label": "Camera IP address",
+            "keywords": "siyi,address,ip"
+        },
+        {
+            "name": "port",
+            "shortDesc": "Camera SDK port",
+            "longDesc": "UDP port the SIYI pod listens on for SDK commands. Factory default is 37260.",
+            "type": "uint32",
+            "default": 37260,
+            "min": 1,
+            "max": 65535,
+            "decimalPlaces": 0,
+            "label": "Camera SDK port",
+            "keywords": "siyi,port,udp"
+        },
+        {
+            "name": "secondaryRtspUrl",
+            "shortDesc": "Secondary RTSP stream URL",
+            "longDesc": "RTSP URL for the ZT30 sub stream shown in the second camera panel. The path varies by camera firmware, so verify it on the installed payload (for example, rtsp://192.168.144.25:8554/video2).",
+            "type": "string",
+            "default": "",
+            "label": "Secondary RTSP URL",
+            "keywords": "siyi,zt30,secondary,sub stream,rtsp,video2"
+        },
+        {
+            "name": "aiEnabled",
+            "shortDesc": "Enable SIYI AI tracking module",
+            "longDesc": "Talk to a SIYI AI tracking module on its own Ethernet address. The module is separate hardware between the optical pod and the SIYI link; it recognises and tracks one selected target (person, car, bus, truck).",
+            "type": "bool",
+            "default": false,
+            "label": "Enable SIYI AI tracking module",
+            "keywords": "siyi,ai,tracking,recognition"
+        },
+        {
+            "name": "aiIpAddress",
+            "shortDesc": "AI module IP address",
+            "longDesc": "IP address of the SIYI AI tracking module. Factory default is 192.168.144.60.",
+            "type": "string",
+            "default": "192.168.144.60",
+            "label": "AI module IP address",
+            "keywords": "siyi,ai,address,ip"
+        },
+        {
+            "name": "aiPort",
+            "shortDesc": "AI module SDK port",
+            "longDesc": "UDP port the SIYI AI tracking module listens on. Factory default is 37260.",
+            "type": "uint32",
+            "default": 37260,
+            "min": 1,
+            "max": 65535,
+            "decimalPlaces": 0,
+            "label": "AI module SDK port",
+            "keywords": "siyi,ai,port,udp"
+        },
+        {
+            "name": "aiRtspUrl",
+            "shortDesc": "AI module RTSP URL",
+            "longDesc": "RTSP stream published by the SIYI AI tracking module. This is the module's own re-encoded feed, separate from the pod's streams, and is where the AI recognition boxes appear. Factory default is rtsp://192.168.144.60:554/video0.",
+            "type": "string",
+            "default": "",
+            "label": "AI module RTSP URL",
+            "keywords": "siyi,ai,rtsp,video0,tracking,stream"
+        }
+    ]
+}

@@ -307,6 +307,7 @@ set(QGC_APP_RESOURCES
     "${CMAKE_SOURCE_DIR}/resources/BingNoTileBytes.dat"
     "${CMAKE_SOURCE_DIR}/resources/CameraGimbal.png"
     "${CMAKE_SOURCE_DIR}/resources/chevron-double-right.svg"
+    "${CMAKE_SOURCE_DIR}/resources/DavinciLabsLogo.png"
     "${CMAKE_SOURCE_DIR}/resources/GeoFence.svg"
     "${CMAKE_SOURCE_DIR}/resources/QGCLogoFull.svg"
     "${CMAKE_SOURCE_DIR}/resources/QGCLogoWhite.svg"

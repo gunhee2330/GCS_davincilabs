@@ -9,6 +9,7 @@
 #include "QGCLoggingCategory.h"
 #include "QGCVideoStreamInfo.h"
 #include "SettingsManager.h"
+#include "SiyiCameraSettings.h"
 #include "SubtitleWriter.h"
 #include "Vehicle.h"
 #include "VehicleLinkManager.h"
@@ -178,6 +179,10 @@ void VideoManager::init(QQuickWindow *mainWindow)
     (void) connect(_videoSettings->udpUrl(), &Fact::rawValueChanged, this, &VideoManager::_videoSourceChanged);
     (void) connect(_videoSettings->rtspUrl(), &Fact::rawValueChanged, this, &VideoManager::_videoSourceChanged);
     (void) connect(_videoSettings->tcpUrl(), &Fact::rawValueChanged, this, &VideoManager::_videoSourceChanged);
+    (void) connect(SettingsManager::instance()->siyiCameraSettings()->secondaryRtspUrl(), &Fact::rawValueChanged,
+                   this, &VideoManager::_videoSourceChanged);
+    (void) connect(SettingsManager::instance()->siyiCameraSettings()->aiRtspUrl(), &Fact::rawValueChanged,
+                   this, &VideoManager::_videoSourceChanged);
     (void) connect(_videoSettings->aspectRatio(), &Fact::rawValueChanged, this, &VideoManager::aspectRatioChanged);
     (void) connect(_videoSettings->lowLatencyMode(), &Fact::rawValueChanged, this, [this](const QVariant &value) { Q_UNUSED(value); _restartAllVideos(); });
     // rtpJitterLatencyMs needs a pipeline restart; route through _videoSourceChanged so _updateSettings
@@ -686,6 +691,21 @@ bool VideoManager::_updateSettings(VideoReceiver *receiver)
     }
 
     if (receiver->isThermal()) {
+        const QGCVideoStreamInfo *const streamInfo = receiver->videoStreamInfo();
+        if (streamInfo && !streamInfo->uri().isEmpty()) {
+            settingsChanged |= _updateAutoStream(receiver);
+        } else {
+            SiyiCameraSettings *const siyiSettings = SettingsManager::instance()->siyiCameraSettings();
+            // The AI tracking module re-encodes the pod feed with its recognition boxes drawn in,
+            // so when it is configured its stream takes this panel over from the pod sub stream.
+            const QString aiRtspUrl = siyiSettings->aiEnabled()->rawValue().toBool()
+                                          ? siyiSettings->aiRtspUrl()->rawValue().toString().trimmed()
+                                          : QString();
+            const QString secondaryUri = aiRtspUrl.isEmpty()
+                                             ? siyiSettings->secondaryRtspUrl()->rawValue().toString().trimmed()
+                                             : aiRtspUrl;
+            settingsChanged |= _updateVideoUri(receiver, secondaryUri);
+        }
         return settingsChanged;
     }
 

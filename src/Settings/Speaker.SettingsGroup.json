@@ -1,0 +1,45 @@
+{
+    "version": 1,
+    "fileType": "FactMetaData",
+    "QGC.MetaData.Facts": [
+        {
+            "name": "enabled",
+            "shortDesc": "Enable loudspeaker payload",
+            "longDesc": "Control a loudspeaker payload that answers on the aircraft network. The payload stores the audio files; the ground station only selects which one to play.",
+            "type": "bool",
+            "default": false,
+            "label": "Enable loudspeaker payload",
+            "keywords": "speaker,broadcast,loudspeaker,payload,warning"
+        },
+        {
+            "name": "ipAddress",
+            "shortDesc": "Loudspeaker IP address",
+            "longDesc": "IP address of the loudspeaker payload on the aircraft network.",
+            "type": "string",
+            "default": "192.168.144.70",
+            "label": "Loudspeaker IP address",
+            "keywords": "speaker,address,ip"
+        },
+        {
+            "name": "port",
+            "shortDesc": "Loudspeaker command port",
+            "longDesc": "UDP port the loudspeaker payload listens on for playback commands.",
+            "type": "uint32",
+            "default": 37270,
+            "min": 1,
+            "max": 65535,
+            "decimalPlaces": 0,
+            "label": "Loudspeaker command port",
+            "keywords": "speaker,port,udp"
+        },
+        {
+            "name": "messageNames",
+            "shortDesc": "Broadcast message names",
+            "longDesc": "Comma separated labels for the stored audio files, in track order. The first name is track 1. These are only labels for the buttons; the audio itself lives on the payload.",
+            "type": "string",
+            "default": "해산 안내,위험 경고,접근 금지,경찰 안내",
+            "label": "Broadcast message names",
+            "keywords": "speaker,message,track,broadcast"
+        }
+    ]
+}

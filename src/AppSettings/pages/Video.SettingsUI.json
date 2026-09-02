@@ -11,7 +11,11 @@
     "groups": [
         {
             "heading": "Video Source",
-            "keywords": ["video source", "camera", "stream"],
+            "keywords": [
+                "video source",
+                "camera",
+                "stream"
+            ],
             "enableWhen": "!autoStreamConfig",
             "headingDescription": "autoStreamConfig ? qsTr(\"Mavlink camera stream is automatically configured\") : \"\"",
             "controls": [
@@ -23,7 +27,14 @@
         },
         {
             "heading": "Connection",
-            "keywords": ["rtsp", "tcp", "udp", "mpegts", "video url", "stream url"],
+            "keywords": [
+                "rtsp",
+                "tcp",
+                "udp",
+                "mpegts",
+                "video url",
+                "stream url"
+            ],
             "showWhen": "!sourceDisabled && !autoStreamConfig",
             "controls": [
                 {
@@ -42,7 +53,15 @@
         },
         {
             "heading": "Settings",
-            "keywords": ["aspect ratio", "low latency", "decoder", "hardware decode", "disable when disarmed", "gpu", "zero-copy"],
+            "keywords": [
+                "aspect ratio",
+                "low latency",
+                "decoder",
+                "hardware decode",
+                "disable when disarmed",
+                "gpu",
+                "zero-copy"
+            ],
             "showWhen": "!sourceDisabled",
             "controls": [
                 {
@@ -75,8 +94,91 @@
             ]
         },
         {
+            "heading": "SIYI Camera Control",
+            "keywords": [
+                "siyi",
+                "zt30",
+                "zt6",
+                "zr30",
+                "a8",
+                "gimbal",
+                "optical pod",
+                "payload",
+                "ai",
+                "tracking"
+            ],
+            "showWhen": "QGroundControl.settingsManager.siyiCameraSettings.userVisible",
+            "controls": [
+                {
+                    "setting": "siyiCameraSettings.enabled"
+                },
+                {
+                    "setting": "siyiCameraSettings.ipAddress",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.port",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.secondaryRtspUrl",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.aiEnabled"
+                },
+                {
+                    "setting": "siyiCameraSettings.aiIpAddress",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.aiPort",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.aiRtspUrl",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue"
+                }
+            ]
+        },
+        {
+            "heading": "Loudspeaker Payload",
+            "keywords": [
+                "speaker",
+                "loudspeaker",
+                "broadcast",
+                "warning",
+                "announcement",
+                "경고방송"
+            ],
+            "controls": [
+                {
+                    "setting": "speakerSettings.enabled"
+                },
+                {
+                    "setting": "speakerSettings.ipAddress",
+                    "enableWhen": "QGroundControl.settingsManager.speakerSettings.enabled.rawValue"
+                },
+                {
+                    "setting": "speakerSettings.port",
+                    "enableWhen": "QGroundControl.settingsManager.speakerSettings.enabled.rawValue"
+                },
+                {
+                    "setting": "speakerSettings.messageNames",
+                    "enableWhen": "QGroundControl.settingsManager.speakerSettings.enabled.rawValue"
+                }
+            ]
+        },
+        {
             "heading": "Local Video Storage",
-            "keywords": ["record", "recording format", "mp4", "mkv", "storage limit", "video file"],
+            "keywords": [
+                "record",
+                "recording format",
+                "mp4",
+                "mkv",
+                "storage limit",
+                "video file"
+            ],
             "showWhen": "!sourceDisabled",
             "controls": [
                 {

@@ -38,6 +38,9 @@
 #include "QGCLoggingCategoryManager.h"
 #include "QGCNetworkHelper.h"
 #include "SettingsManager.h"
+#include "SiyiAiController.h"
+#include "SiyiCameraController.h"
+#include "SpeakerController.h"
 #include "Vehicle.h"
 #include "VideoManager.h"
 #include "qgc_version.h"
@@ -307,6 +310,9 @@ void QGCApplication::_initForNormalAppBoot()
     NTRIPManager::instance()->init();
     LinkManager::instance()->init();
     VideoManager::instance()->init(mainRootWindow());
+    SiyiCameraController::instance()->init();
+    SiyiAiController::instance()->init();
+    SpeakerController::instance()->init();
 
     // Set the window icon now that custom plugin has a chance to override it
 #ifdef Q_OS_LINUX

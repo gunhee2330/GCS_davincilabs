@@ -1,0 +1,23 @@
+[Unit]
+Description=Police drone loudspeaker payload
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/speaker_daemon.py
+Environment=SPEAKER_AUDIO_DIR=/opt/speaker/audio
+Environment=SPEAKER_PORT=37270
+# A broadcast keeps playing through a brief link drop, but stops if contact is lost for
+# this long. Set to 0 in a bench setup where an unattended speaker is not a hazard.
+Environment=SPEAKER_DEADMAN_SECONDS=120
+Restart=always
+RestartSec=3
+# The daemon only reads audio files and opens one UDP socket.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/speaker
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
