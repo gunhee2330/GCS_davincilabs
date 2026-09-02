@@ -114,3 +114,22 @@ tests/**        export-ignore
 *.ui            text
 *.qrc           text
 CMakeLists.txt  text=auto
+
+# ──────────────────────────────────────────────────────────────
+# 8. View-branch integration (police drone GCS fork)
+#    feat/main, feat/plan and feat/configuration each add source files, so they
+#    all append to the same two lists. Both files are nothing but sorted names,
+#    so keeping both sides is always the right answer and a conflict here is
+#    pure friction. Union merge does that automatically.
+#
+#    The catch: union never reports a conflict, so a line one branch DELETED can
+#    survive because another branch kept it. tools/integrate.sh builds the merged
+#    result, which is what catches that.
+#
+#    Deliberately NOT applied to SettingsManager.{cc,h} -- that file has
+#    structure, not just a list, and silently interleaving two sides would
+#    produce something that compiles but registers the wrong facts.
+# ─────────────────────────────────────────────────────────────────
+src/CMakeLists.txt          merge=union
+src/Settings/CMakeLists.txt merge=union
+test/CMakeLists.txt         merge=union
