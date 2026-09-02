@@ -220,5 +220,9 @@ QT_FORCE_STDERR_LOGGING=1 QT_LOGGING_RULES="*.warning=true" \
     build/Windows/staging/bin/QGroundControl.exe
 ```
 
-**빌드 중 `Permission denied`** — 다른 사람이 같은 빌드 디렉터리를 쓰고 있거나,
-QGroundControl이 이미 실행 중입니다. 프로세스를 먼저 종료하세요.
+**빌드는 성공했는데 `Permission denied`로 끝남** — QGroundControl이 실행 중이면
+설치 단계에서 GStreamer DLL을 덮어쓰지 못합니다. **컴파일은 이미 끝난 뒤라 빌드 문제처럼
+보이지만 아닙니다.** 앱을 닫고 다시 실행하세요 (스크립트가 미리 잡아줍니다).
+
+**빌드 중 파일 잠금 오류** — 다른 사람이 같은 빌드 디렉터리를 쓰고 있습니다.
+`tools\build-windows.bat Windows-본인이름`으로 각자 다른 디렉터리를 쓰세요.

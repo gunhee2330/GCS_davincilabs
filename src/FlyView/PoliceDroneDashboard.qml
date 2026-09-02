@@ -7,6 +7,7 @@ import QGroundControl
 import QGroundControl.Controls
 import QGroundControl.FactControls
 import QGroundControl.FlyView
+import QGroundControl.Toolbar
 
 Item {
     id: root
@@ -113,7 +114,9 @@ Item {
     readonly property var _activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
     readonly property var _battery:       _activeVehicle && _activeVehicle.batteries.count > 0 ? _activeVehicle.batteries.get(0) : null
     readonly property real _touchHeight:  Math.max(48, ScreenTools.defaultFontPixelHeight * 2.8)
-    readonly property real _statusHeight: Math.max(42, ScreenTools.defaultFontPixelHeight * 2.2)
+    // The top bar hosts QGC's own toolbar indicators, which are laid out against
+    // ScreenTools.toolbarHeight; anything shorter clips them.
+    readonly property real _statusHeight: Math.max(42, ScreenTools.toolbarHeight)
     readonly property color _panelColor:  "#e5121b24"
     readonly property color _accentColor: "#33c7ff"
 
@@ -247,60 +250,55 @@ Item {
             anchors.rightMargin: 12
             spacing:             10
 
+            // A plain Button paints the style's own opaque background, which read as a white
+            // slab on this dark bar. Transparent background plus an explicitly light icon
+            // matches how the toolbars in the other views render theirs.
             Button {
                 Layout.preferredWidth:  root._touchHeight
                 Layout.fillHeight:      true
-                text:                   "☰"
-                font.pixelSize:         Math.max(20, Screen.pixelDensity * 4.5)
                 onClicked:              root.menuRequested()
+
+                background: Rectangle {
+                    color: parent.down ? "#33ffffff" : "transparent"
+                }
+
+                contentItem: QGCColoredImage {
+                    source:            "qrc:/qmlimages/Hamburger.svg"
+                    color:             "white"
+                    fillMode:          Image.PreserveAspectFit
+                    sourceSize.height: ScreenTools.defaultFontPixelHeight * 1.4
+                }
             }
 
             // The police layout replaces FlyViewToolBar, so the brand mark lives here.
             Image {
-                Layout.preferredHeight: root._statusHeight * 0.45
+                Layout.preferredHeight: root._statusHeight * 0.4
                 Layout.preferredWidth:  Layout.preferredHeight * (1153 / 122)
                 source:                 "/res/DavinciLabsLogo.png"
                 fillMode:               Image.PreserveAspectFit
                 smooth:                 true
             }
 
-            Rectangle {
-                Layout.preferredWidth:  9
-                Layout.preferredHeight: 9
-                radius: width / 2
-                color:  root._activeVehicle ? "#42d66b" : "#ff554d"
+            // QGC's own status indicators rather than a hand-rolled subset: these carry the
+            // arming/health state and open detail popups on click (satellite counts, per-cell
+            // battery, RC and telemetry signal), which a row of labels cannot do. Altitude and
+            // ground speed are deliberately absent — the telemetry bar bottom right owns those.
+            MainStatusIndicator {
+                objectName:        "toolbar_mainStatusIndicator"
+                Layout.fillHeight: true
             }
 
-            Text {
-                color:          "white"
-                font.pixelSize: Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
-                text:           root._activeVehicle ? qsTr("기체 연결") : qsTr("기체 미연결")
+            FlightModeIndicator {
+                objectName:        "toolbar_flightModeIndicator"
+                Layout.fillHeight: true
+                visible:           root._activeVehicle
             }
 
             Item { Layout.fillWidth: true }
 
-            Text {
-                color:          "white"
-                font.pixelSize: Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
-                text:           qsTr("고도 %1").arg(root._factText(root._activeVehicle ? root._activeVehicle.altitudeRelative : null, "--"))
-            }
-
-            Text {
-                color:          "white"
-                font.pixelSize: Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
-                text:           qsTr("속도 %1").arg(root._factText(root._activeVehicle ? root._activeVehicle.groundSpeed : null, "--"))
-            }
-
-            Text {
-                color:          "white"
-                font.pixelSize: Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
-                text:           qsTr("GPS %1").arg(root._activeVehicle ? root._activeVehicle.gps.count.valueString : "--")
-            }
-
-            Text {
-                color:          root._battery && root._battery.percentRemaining.rawValue < 25 ? "#ffcc33" : "white"
-                font.pixelSize: Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
-                text:           qsTr("배터리 %1").arg(root._battery ? root._battery.percentRemaining.valueString + root._battery.percentRemaining.units : "--")
+            FlyViewToolBarIndicators {
+                Layout.fillHeight:     true
+                Layout.preferredWidth: implicitWidth
             }
         }
     }

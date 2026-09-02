@@ -38,6 +38,16 @@ if errorlevel 1 (
   exit /b 1
 )
 
+rem A running instance holds its GStreamer DLLs open, and the install step then fails on
+rem "Permission denied" after the build has already succeeded — which reads as a build
+rem problem rather than an open app. Catch it before spending the compile time.
+tasklist /FI "IMAGENAME eq QGroundControl.exe" 2>nul | find /I "QGroundControl.exe" >nul
+if not errorlevel 1 (
+  echo [ERROR] QGroundControl is running - close it first, or the install step cannot
+  echo         overwrite its DLLs.
+  exit /b 1
+)
+
 if not exist "%BUILDDIR%\CMakeCache.txt" (
   echo [1b/3] Configuring ^(first run, several minutes^)
   %CMAKE% -S "%REPO%" -B "%BUILDDIR%" -G Ninja ^

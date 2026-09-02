@@ -226,7 +226,8 @@
             "type": "uint32",
             "enumStrings": "Indoor,Outdoor",
             "enumValues": "1,0",
-            "default": 0,
+            "comment": "Dark by default in this fork: the Fly view dashboard is a fixed dark design, so a light global theme leaves QGC's own toolbar indicators drawing near-black text onto it. Switchable in Settings if glare demands otherwise.",
+            "default": 1,
             "label": "Color Scheme",
             "keywords": "palette,dark mode,theme,color scheme"
         },
