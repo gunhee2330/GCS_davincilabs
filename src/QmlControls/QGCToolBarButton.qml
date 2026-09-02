@@ -15,6 +15,11 @@ Button {
     checkable:          false
 
     property bool logo: false
+    property real iconAspectRatio: 1
+
+    // Wide wordmark logos override this smaller: their width is derived from the height via
+    // iconAspectRatio, so the default icon height would make them span much of the toolbar.
+    property real iconHeight: ScreenTools.defaultFontPixelHeight * 2
 
     property real _horizontalMargin: ScreenTools.defaultFontPixelWidth
 
@@ -34,15 +39,15 @@ Button {
         // tint their monochrome icon through QGCColoredImage. Plain `Row` skips visible:false items.
         QGCVectorImage {
             visible:                button.logo
-            height:                 ScreenTools.defaultFontPixelHeight * 2
-            width:                  height
+            height:                 button.iconHeight
+            width:                  height * button.iconAspectRatio
             source:                 visible ? button.icon.source : ""
             anchors.verticalCenter: parent.verticalCenter
         }
         QGCColoredImage {
             visible:                !button.logo
-            height:                 ScreenTools.defaultFontPixelHeight * 2
-            width:                  height
+            height:                 button.iconHeight
+            width:                  height * button.iconAspectRatio
             sourceSize.height:      parent.height
             fillMode:               Image.PreserveAspectFit
             color:                  button.checked ? qgcPal.buttonHighlightText : qgcPal.buttonText

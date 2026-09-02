@@ -78,8 +78,9 @@ Item {
                             id:                 qgcButton
                             objectName:         "toolbar_qgcLogo"
                             Layout.fillHeight:  true
-                            icon.source:        "/res/QGCLogoFull.svg"
-                            logo:               true
+                            icon.source:        "/res/DavinciLabsLogo.png"
+                            iconAspectRatio:    1153 / 122
+                            iconHeight:         ScreenTools.defaultFontPixelHeight
                             onClicked:          mainWindow.showToolSelectDialog()
                         }
 

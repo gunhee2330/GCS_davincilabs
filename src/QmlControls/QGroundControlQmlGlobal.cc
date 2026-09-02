@@ -36,8 +36,10 @@
 
 QGC_LOGGING_CATEGORY(GuidedActionsControllerLog, "QMLControls.GuidedActionsController")
 
-QGeoCoordinate QGroundControlQmlGlobal::_coord = QGeoCoordinate(0.0,0.0);
-double QGroundControlQmlGlobal::_zoom = 2;
+// Default map view for a fresh install. Overwritten by the last position the user left the
+// map at, which is restored from QSettings in the constructor.
+QGeoCoordinate QGroundControlQmlGlobal::_coord = QGeoCoordinate(36.1733919, 128.4641366);
+double QGroundControlQmlGlobal::_zoom = 17;
 
 QGroundControlQmlGlobal::QGroundControlQmlGlobal(QObject *parent)
     : QObject(parent)
@@ -65,7 +67,9 @@ QGroundControlQmlGlobal::QGroundControlQmlGlobal(QObject *parent)
     settings.beginGroup(_flightMapPositionSettingsGroup);
     _coord.setLatitude(settings.value(_flightMapPositionLatitudeSettingsKey,    _coord.latitude()).toDouble());
     _coord.setLongitude(settings.value(_flightMapPositionLongitudeSettingsKey,  _coord.longitude()).toDouble());
-    _zoom = settings.value(_flightMapZoomSettingsKey, _zoom).toDouble();
+    // Clamp restored zoom: past this Bing aerial has no imagery and every tile request
+    // errors out (QGeoMapReplyQGC "Bing Tile Above Zoom Level"), leaving a blank map.
+    _zoom = qBound(2.0, settings.value(_flightMapZoomSettingsKey, _zoom).toDouble(), 19.0);
     _flightMapPositionSettledTimer.setSingleShot(true);
     _flightMapPositionSettledTimer.setInterval(1000);
     (void) connect(&_flightMapPositionSettledTimer, &QTimer::timeout, this, []() {
@@ -272,6 +276,7 @@ void QGroundControlQmlGlobal::setFlightMapPosition(QGeoCoordinate& coordinate)
 
 void QGroundControlQmlGlobal::setFlightMapZoom(double zoom)
 {
+    zoom = qBound(2.0, zoom, 19.0);
     if (zoom != flightMapZoom()) {
         _zoom = zoom;
         emit flightMapZoomChanged(zoom);
