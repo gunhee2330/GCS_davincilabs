@@ -208,11 +208,14 @@ Item {
     readonly property real _gripHeight: Math.max(24, ScreenTools.defaultFontPixelHeight * 1.3)
 
     // The three windows stack down the right edge, so the width driving their 16:9 bodies is
-    // bounded by the height left between the top bar and the flight instruments — sized on
-    // width alone the third window would run off the bottom.
+    // bounded by the height left between the top bar and the control panel below them — sized
+    // on width alone the third window would run off the bottom.
     readonly property real _windowWidth: {
         const gap = 8
-        const avail = height - _bottomInset - topBar.height - flightInstruments.height - gap * 5
+        // Collapsed height, not the current one: sizing against the expanded panel would
+        // shrink all three windows every time the operator opened the buttons. Expanded, the
+        // panel simply overlays them — it sits above in z order.
+        const avail = height - _bottomInset - topBar.height - controlPanel.collapsedHeight - gap * 5
         const byHeight = (avail - _gripHeight * 3) * 16 / 27
         return Math.max(180, Math.min(width * 0.24, 360, byHeight))
     }
@@ -563,10 +566,12 @@ Item {
     readonly property bool _showSingleVehicleUI: true
     readonly property real _toolsMargin: ScreenTools.defaultFontPixelWidth * 0.75
 
+    // Bottom left, opposite the control panel: the camera windows own the right edge, and
+    // stacking the instruments under them would leave the compass hidden behind a window.
     FlyViewBottomRightRowLayout {
         id:                   flightInstruments
-        anchors.right:        parent.right
-        anchors.rightMargin:  8
+        anchors.left:         parent.left
+        anchors.leftMargin:   8
         anchors.bottom:       parent.bottom
         anchors.bottomMargin: root._bottomInset
         // Below the camera windows (z 10) so a window dragged this way passes over the
@@ -583,16 +588,16 @@ Item {
     Item {
         id:      controlPanel
         width:   Math.max(150, ScreenTools.defaultFontPixelWidth * 20)
-        height:  panelGrip.height + statusColumn.height + 10 +
-                 (expanded ? panelBody.height + 6 : 0)
+        height:  collapsedHeight + (expanded ? panelBody.height + 6 : 0)
         z:       12
 
+        readonly property real collapsedHeight: panelGrip.height + statusColumn.height + 10
         property bool expanded: false
 
         // Plain bindings rather than an imperative dock(): they keep the panel pinned to the
-        // bottom-left through window resizes, and DragHandler assigning x/y replaces them, so
+        // bottom-right through window resizes, and DragHandler assigning x/y replaces them, so
         // a panel the operator has moved stays where they put it.
-        x: 8
+        x: root.width - width - 8
         y: root.height - height - 8
 
         Rectangle {
