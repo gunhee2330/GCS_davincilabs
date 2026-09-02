@@ -126,7 +126,8 @@
             "type": "string",
             "enumStrings": "Integrated Compass & Attitude,Horizontal Compass & Attitude,Large Vertical",
             "enumValues": "qrc:/qml/QGroundControl/FlightMap/Widgets/IntegratedCompassAttitude.qml,qrc:/qml/QGroundControl/FlightMap/Widgets/HorizontalCompassAttitude.qml,qrc:/qml/QGroundControl/FlightMap/Widgets/VerticalCompassAttitude.qml",
-            "default": "qrc:/qml/QGroundControl/FlightMap/Widgets/IntegratedCompassAttitude.qml",
+            "comment": "Horizontal by default in this fork: it draws a full artificial horizon beside the compass, where the integrated style reduces attitude to two thin arcs around the compass rim. Operators reading bank and pitch at a glance need the horizon.",
+            "default": "qrc:/qml/QGroundControl/FlightMap/Widgets/HorizontalCompassAttitude.qml",
             "label": "Qml file for instrument panel",
             "keywords": "instrument,hud"
         },

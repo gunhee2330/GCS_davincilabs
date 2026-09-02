@@ -6,6 +6,7 @@ import QGC as App
 import QGroundControl
 import QGroundControl.Controls
 import QGroundControl.FactControls
+import QGroundControl.FlightMap
 import QGroundControl.FlyView
 import QGroundControl.Toolbar
 
@@ -82,8 +83,8 @@ Item {
         property alias text: toastLabel.text
 
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom:           aiStatusBar.top
-        anchors.bottomMargin:     12
+        anchors.bottom:           parent.bottom
+        anchors.bottomMargin:     root._bottomInset + 12
         width:   toastLabel.implicitWidth + 28
         height:  toastLabel.implicitHeight + 16
         radius:  4
@@ -113,11 +114,38 @@ Item {
 
     readonly property var _activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
     readonly property var _battery:       _activeVehicle && _activeVehicle.batteries.count > 0 ? _activeVehicle.batteries.get(0) : null
+
+    QGCPalette { id: qgcPal }
+
+    // MainStatusIndicator assigns its own background tint while computing the status label and
+    // reads the link state, both off the QML context chain that FlyViewToolBar provides. Without
+    // them the assignment throws "Invalid write to global property", the label function aborts
+    // part-way, and the indicator renders as an empty zero-width item.
+    property color _mainStatusBGColor: qgcPal.brandingPurple
+    readonly property bool _communicationLost: _activeVehicle
+                                               ? _activeVehicle.vehicleLinkManager.communicationLost
+                                               : false
+
+    // ------------------------------------------------------------------ link loss warning
+    //
+    // The autopilot reports the receiver through the SYS_STATUS sensor bits: present says the
+    // airframe has one at all, unhealthy says it is currently not receiving. Checking present
+    // first keeps an airframe flown without RC from warning permanently.
+    // MAV_SYS_STATUS_SENSOR_RC_RECEIVER. The generated MAVLinkEnums namespace exposes the
+    // MAV_SYS_STATUS_SENSOR type but not this member, so the symbolic form resolves to
+    // undefined; the protocol value is fixed by the MAVLink spec.
+    readonly property int _rcSensorBit: 0x10000
+    readonly property bool _rcLinkLost: _activeVehicle
+                                        && (_activeVehicle.sensorsPresentBits & _rcSensorBit)
+                                        && (_activeVehicle.sensorsUnhealthyBits & _rcSensorBit)
     readonly property real _touchHeight:  Math.max(48, ScreenTools.defaultFontPixelHeight * 2.8)
     // The top bar hosts QGC's own toolbar indicators, which are laid out against
     // ScreenTools.toolbarHeight; anything shorter clips them.
     readonly property real _statusHeight: Math.max(42, ScreenTools.toolbarHeight)
     readonly property color _panelColor:  "#e5121b24"
+    /// Gap kept clear along the bottom edge now that the control panel floats rather than
+    /// occupying two full-width bars.
+    readonly property real _bottomInset:  8
     readonly property color _accentColor: "#33c7ff"
 
     signal menuRequested()
@@ -177,16 +205,29 @@ Item {
         }
     }
 
-    readonly property real _windowWidth: Math.max(200, Math.min(width * 0.24, 360))
+    readonly property real _gripHeight: Math.max(24, ScreenTools.defaultFontPixelHeight * 1.3)
+
+    // The three windows stack down the right edge, so the width driving their 16:9 bodies is
+    // bounded by the height left between the top bar and the flight instruments — sized on
+    // width alone the third window would run off the bottom.
+    readonly property real _windowWidth: {
+        const gap = 8
+        const avail = height - _bottomInset - topBar.height - flightInstruments.height - gap * 5
+        const byHeight = (avail - _gripHeight * 3) * 16 / 27
+        return Math.max(180, Math.min(width * 0.24, 360, byHeight))
+    }
+
     property bool _userMovedWindows: false
 
     function _dockWindows() {
         const gap = 8
-        const yDock = aiStatusBar.y - primaryWindow.height - gap
         const windows = [primaryWindow, secondaryWindow, sharedWindow]
+        const xDock = width - _windowWidth - gap
+        let y = topBar.height + gap
         for (let i = 0; i < windows.length; ++i) {
-            windows[i].x = gap + i * (_windowWidth + gap)
-            windows[i].y = yDock
+            windows[i].x = xDock
+            windows[i].y = y
+            y += windows[i].height + gap
         }
     }
 
@@ -194,7 +235,7 @@ Item {
     // triggers matter: the bar settles vertically after load, and the window width used for
     // the x spacing follows the root width.
     function _redockIfPristine() {
-        if (!_userMovedWindows && aiStatusBar.y > 100) {
+        if (!_userMovedWindows && height > 200) {
             _dockWindows()
         }
     }
@@ -209,8 +250,8 @@ Item {
     }
 
     Connections {
-        target: aiStatusBar
-        function onYChanged() { root._redockIfPristine() }
+        target: root
+        function onHeightChanged() { root._redockIfPristine() }
     }
 
     function _factText(fact, fallback) {
@@ -283,9 +324,21 @@ Item {
             // arming/health state and open detail popups on click (satellite counts, per-cell
             // battery, RC and telemetry signal), which a row of labels cannot do. Altitude and
             // ground speed are deliberately absent — the telemetry bar bottom right owns those.
-            MainStatusIndicator {
-                objectName:        "toolbar_mainStatusIndicator"
-                Layout.fillHeight: true
+            // Carries the status tint the indicator computes — red on comms lost, green when
+            // ready, yellow on a warning — the way the stock toolbar's gradient does.
+            Rectangle {
+                Layout.fillHeight:     true
+                Layout.preferredWidth: mainStatus.implicitWidth + ScreenTools.defaultFontPixelWidth * 2
+                color:                 root._mainStatusBGColor
+                opacity:               0.55
+                radius:                4
+
+                MainStatusIndicator {
+                    id:               mainStatus
+                    objectName:       "toolbar_mainStatusIndicator"
+                    anchors.centerIn: parent
+                    height:           parent.height
+                }
             }
 
             FlightModeIndicator {
@@ -293,8 +346,6 @@ Item {
                 Layout.fillHeight: true
                 visible:           root._activeVehicle
             }
-
-            Item { Layout.fillWidth: true }
 
             FlyViewToolBarIndicators {
                 Layout.fillHeight:     true
@@ -316,7 +367,7 @@ Item {
         property alias slot: contentSlot
 
         width:  root._windowWidth
-        height: gripBar.height + (root._windowWidth * 9 / 16)
+        height: root._gripHeight + (root._windowWidth * 9 / 16)
         z:      10
 
         Rectangle {
@@ -333,7 +384,7 @@ Item {
             anchors.right:   parent.right
             anchors.top:     parent.top
             anchors.margins: 1
-            height:          Math.max(24, ScreenTools.defaultFontPixelHeight * 1.3)
+            height:          root._gripHeight
             radius:          5
             color:           "#5a3a4a5c"
 
@@ -357,7 +408,7 @@ Item {
                         root._userMovedWindows = true
                     } else {
                         win.x = Math.max(4, Math.min(win.x, root.width - win.width - 4))
-                        win.y = Math.max(topBar.height + 4, Math.min(win.y, aiStatusBar.y - win.height - 4))
+                        win.y = Math.max(topBar.height + 4, Math.min(win.y, root.height - root._bottomInset - win.height - 4))
                     }
                 }
             }
@@ -388,6 +439,115 @@ Item {
         title: qsTr("IR")
     }
 
+    // ------------------------------------------------------------------- fly tools
+    //
+    // Takeoff, land, return, pause, gripper and the pre-flight checklist. QGC keeps these down
+    // the left edge; the police layout dropped them with FlyViewWidgetLayer and left nothing
+    // there. The guided actions resolve _guidedController off the QML context chain, which the
+    // widget layer would have supplied.
+    readonly property var _guidedController: guidedController
+
+    FlyViewToolStrip {
+        id:                toolStrip
+        anchors.left:      parent.left
+        anchors.leftMargin: 8
+        anchors.top:       topBar.bottom
+        anchors.topMargin: 8
+        z:                 4
+        maxHeight:         root.height - root._bottomInset - y - 8
+
+        onDisplayPreFlightChecklist: {
+            if (!preFlightChecklistLoader.active) {
+                preFlightChecklistLoader.active = true
+            }
+            preFlightChecklistLoader.item.open()
+        }
+    }
+
+    Loader {
+        id:              preFlightChecklistLoader
+        active:          false
+        sourceComponent: preFlightChecklistPopup
+    }
+
+    Component {
+        id: preFlightChecklistPopup
+        FlyViewPreFlightChecklistPopup {}
+    }
+
+    // ------------------------------------------------------- MAVLink camera capture
+    //
+    // The gimbal's own shutter is the 촬영 button on the control bar; this is QGC's control for
+    // a MAVLink camera reporting through the autopilot — photo/video mode, storage and stream
+    // selection. Loaded only once a camera manager exists, which is what lets PhotoVideoControl
+    // dereference it without null checks throughout.
+    Loader {
+        id:                  photoVideoLoader
+        anchors.right:       parent.right
+        anchors.rightMargin: 8
+        anchors.top:         topBar.bottom
+        anchors.topMargin:   8
+        z:                   3
+        sourceComponent:     root._activeVehicle && root._activeVehicle.cameraManager
+                                 ? photoVideoComponent
+                                 : undefined
+
+        Component {
+            id: photoVideoComponent
+            PhotoVideoControl {}
+        }
+    }
+
+    // ------------------------------------------------------------------ link loss banner
+    //
+    // Losing the pilot's radio is the one failure an operator must not miss, so it takes the
+    // centre of the map rather than a corner badge, and it stays up until the link returns.
+    Rectangle {
+        id:      linkLostBanner
+        visible: root._rcLinkLost || root._communicationLost
+        z:       25
+
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top:              topBar.bottom
+        anchors.topMargin:        ScreenTools.defaultFontPixelHeight * 2
+        width:                    linkLostColumn.width + ScreenTools.defaultFontPixelWidth * 6
+        height:                   linkLostColumn.height + ScreenTools.defaultFontPixelHeight * 1.4
+        radius:                   6
+        color:                    "#d31f1f"
+        border.color:             "#ffffff"
+        border.width:             2
+
+        SequentialAnimation on opacity {
+            running: linkLostBanner.visible
+            loops:   Animation.Infinite
+            NumberAnimation { to: 0.45; duration: 550 }
+            NumberAnimation { to: 1.0;  duration: 550 }
+        }
+
+        Column {
+            id:               linkLostColumn
+            anchors.centerIn: parent
+            spacing:          4
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                color:                    "white"
+                font.bold:                true
+                font.pixelSize:           Math.max(20, ScreenTools.defaultFontPixelHeight * 1.5)
+                text:                     root._rcLinkLost ? qsTr("RC 링크 끊김") : qsTr("통신 두절")
+            }
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                color:                    "white"
+                font.pixelSize:           Math.max(13, ScreenTools.defaultFontPixelHeight * 0.85)
+                text:                     root._rcLinkLost
+                                              ? qsTr("조종기 신호가 수신되지 않습니다 — 페일세이프 동작을 확인하십시오")
+                                              : qsTr("기체와의 통신이 끊겼습니다")
+            }
+        }
+    }
+
     // ------------------------------------------------------------- flight instruments
     //
     // Airspeed, altitude, attitude and compass are QGC's own widgets. They normally live in
@@ -407,29 +567,96 @@ Item {
         id:                   flightInstruments
         anchors.right:        parent.right
         anchors.rightMargin:  8
-        anchors.bottom:       aiStatusBar.top
-        anchors.bottomMargin: 8
+        anchors.bottom:       parent.bottom
+        anchors.bottomMargin: root._bottomInset
         // Below the camera windows (z 10) so a window dragged this way passes over the
         // instruments instead of disappearing behind them.
         z:                    3
     }
 
-    Rectangle {
-        id: aiStatusBar
-        anchors.left:   parent.left
-        anchors.right:  parent.right
-        anchors.bottom: controlBar.top
-        height:         Math.max(34, ScreenTools.defaultFontPixelHeight * 1.7)
-        color:          "#eb101820"
-        z:              4
+    // ------------------------------------------------------------------ control panel
+    //
+    // Status strip and buttons used to span the full width along the bottom, costing the map
+    // two bands of screen for controls that are idle most of a sortie. They are one floating
+    // panel now: the status line always shows, the buttons fold away, and the whole thing
+    // drags. Sized to its content rather than the window so it stays out of the map's way.
+    Item {
+        id:      controlPanel
+        width:   Math.max(150, ScreenTools.defaultFontPixelWidth * 20)
+        height:  panelGrip.height + statusColumn.height + 10 +
+                 (expanded ? panelBody.height + 6 : 0)
+        z:       12
 
-        MouseArea { anchors.fill: parent }
+        property bool expanded: false
 
-        RowLayout {
-            anchors.fill:        parent
-            anchors.leftMargin:  14
-            anchors.rightMargin: 14
-            spacing:             18
+        // Plain bindings rather than an imperative dock(): they keep the panel pinned to the
+        // bottom-left through window resizes, and DragHandler assigning x/y replaces them, so
+        // a panel the operator has moved stays where they put it.
+        x: 8
+        y: root.height - height - 8
+
+        Rectangle {
+            anchors.fill: parent
+            radius:       6
+            color:        root._panelColor
+            border.color: "#526675"
+            border.width: 1
+        }
+
+        Rectangle {
+            id:              panelGrip
+            anchors.left:    parent.left
+            anchors.right:   parent.right
+            anchors.top:     parent.top
+            anchors.margins: 1
+            height:          root._gripHeight
+            radius:          5
+            color:           "#5a3a4a5c"
+
+            // Tap toggles the buttons, drag moves the panel. DragHandler claims the press only
+            // once it passes the drag threshold, so a stationary tap still reaches the tap
+            // handler underneath.
+            TapHandler {
+                onTapped: controlPanel.expanded = !controlPanel.expanded
+            }
+
+            DragHandler {
+                id:     panelDrag
+                target: controlPanel
+
+                // active goes false once at startup too, and clamping then would assign x/y
+                // over the anchoring bindings while the window still has its restored size —
+                // freezing the panel mid-screen. Only clamp after a drag has really happened.
+                property bool everDragged: false
+
+                onActiveChanged: {
+                    if (active) {
+                        everDragged = true
+                    } else if (everDragged) {
+                        controlPanel.x = Math.max(4, Math.min(controlPanel.x, root.width - controlPanel.width - 4))
+                        controlPanel.y = Math.max(topBar.height + 4, Math.min(controlPanel.y, root.height - controlPanel.height - 4))
+                    }
+                }
+            }
+
+            Text {
+                anchors.left:           parent.left
+                anchors.leftMargin:     8
+                anchors.verticalCenter: parent.verticalCenter
+                color:                  "white"
+                font.pixelSize:         Math.max(11, ScreenTools.defaultFontPixelHeight * 0.7)
+                text:                   (controlPanel.expanded ? "▾  " : "▸  ") + qsTr("제어")
+            }
+        }
+
+        Column {
+            id:                 statusColumn
+            anchors.left:       parent.left
+            anchors.right:      parent.right
+            anchors.top:        panelGrip.bottom
+            anchors.margins:    8
+            anchors.topMargin:  5
+            spacing:            2
 
             Text {
                 color:          root._accentColor
@@ -494,23 +721,22 @@ Item {
                                 : qsTr("LRF --")
             }
         }
-    }
 
-    Rectangle {
-        id: controlBar
-        anchors.left:   parent.left
-        anchors.right:  parent.right
-        anchors.bottom: parent.bottom
-        height:         root._touchHeight + 10
-        color:          root._panelColor
-        z:              4
+        Item {
+            id:                 panelBody
+            anchors.left:       parent.left
+            anchors.right:      parent.right
+            anchors.top:        statusColumn.bottom
+            anchors.margins:    5
+            height:             visible ? buttonColumn.implicitHeight : 0
+            visible:            controlPanel.expanded
 
-        MouseArea { anchors.fill: parent }
-
-        RowLayout {
-            anchors.fill:        parent
-            anchors.margins:     5
-            spacing:             6
+            ColumnLayout {
+                id:           buttonColumn
+                anchors.left:  parent.left
+                anchors.right: parent.right
+                anchors.top:   parent.top
+                spacing:      4
 
             Repeater {
                 model: [
@@ -524,7 +750,7 @@ Item {
                 delegate: Button {
                     required property var modelData
                     Layout.fillWidth:  true
-                    Layout.fillHeight: true
+                    Layout.preferredHeight: root._touchHeight
                     text:              modelData.label
                     enabled:           App.SiyiCameraController.connected
                     onClicked: {
@@ -547,7 +773,7 @@ Item {
 
             Button {
                 Layout.fillWidth:  true
-                Layout.fillHeight: true
+                Layout.preferredHeight: root._touchHeight
                 enabled:           App.SiyiAiController.connected
                 text:              App.SiyiAiController.hasTarget
                                        ? qsTr("추적 해제")
@@ -564,7 +790,7 @@ Item {
             Button {
                 id:                broadcastButton
                 Layout.fillWidth:  true
-                Layout.fillHeight: true
+                Layout.preferredHeight: root._touchHeight
                 visible:           QGroundControl.settingsManager.speakerSettings.enabled.rawValue
                 enabled:           App.SpeakerController.connected
                 text:              App.SpeakerController.playing ? qsTr("방송 정지") : qsTr("경고방송")
@@ -639,9 +865,11 @@ Item {
             Button {
                 id:                rtlButton
                 Layout.fillWidth:  true
-                Layout.fillHeight: true
+                Layout.preferredHeight: root._touchHeight
                 text:              qsTr("RTL")
-                enabled:           root.guidedController && root.guidedController.showRTL
+                // Ternary rather than &&: the controller is null before the guided layer is
+                // built, and `null && x` yields undefined, which will not assign to a bool.
+                enabled:           root.guidedController ? root.guidedController.showRTL : false
                 onClicked:         rtlAltPopup.open()
 
                 Popup {
@@ -716,6 +944,7 @@ Item {
                         }
                     }
                 }
+            }
             }
         }
     }
