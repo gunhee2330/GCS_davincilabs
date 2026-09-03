@@ -5,6 +5,9 @@ import QtQuick.Layouts
 import QGroundControl
 import QGroundControl.Controls
 
+// The view menu of the police GCS: Korean names and line icons drawn for this product,
+// in place of QGC's paper plane, gear and logo, so the menu reads as this station's
+// rather than the upstream tool's.
 ToolIndicatorPage {
     id: root
 
@@ -20,8 +23,8 @@ ToolIndicatorPage {
                 objectName: "toolbar_viewFly"
                 implicitHeight: root._toolButtonHeight
                 Layout.fillWidth: true
-                text: qsTr("Fly")
-                imageResource: "/res/FlyingPaperPlane.svg"
+                text: qsTr("비행")
+                imageResource: "/res/police_menu_fly.svg"
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
                         mainWindow.closeIndicatorDrawer()
@@ -34,8 +37,8 @@ ToolIndicatorPage {
                 objectName: "toolbar_viewPlan"
                 implicitHeight: root._toolButtonHeight
                 Layout.fillWidth: true
-                text: qsTr("Plan")
-                imageResource: "/qmlimages/Plan.svg"
+                text: qsTr("미션")
+                imageResource: "/res/police_menu_mission.svg"
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
                         mainWindow.closeIndicatorDrawer()
@@ -63,8 +66,8 @@ ToolIndicatorPage {
                 objectName: "toolbar_viewAnalyze"
                 implicitHeight: root._toolButtonHeight
                 Layout.fillWidth: true
-                text: qsTr("Analyze")
-                imageResource: "/qmlimages/Analyze.svg"
+                text: qsTr("분석")
+                imageResource: "/res/police_menu_analyze.svg"
                 visible: QGroundControl.corePlugin.showAdvancedUI
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
@@ -79,8 +82,8 @@ ToolIndicatorPage {
                 objectName: "toolbar_viewConfigure"
                 implicitHeight: root._toolButtonHeight
                 Layout.fillWidth: true
-                text: qsTr("Configure")
-                imageResource: "/res/GearWithPaperPlane.svg"
+                text: qsTr("기체 설정")
+                imageResource: "/res/police_menu_vehicle.svg"
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
                         mainWindow.closeIndicatorDrawer()
@@ -94,8 +97,8 @@ ToolIndicatorPage {
                 objectName: "toolbar_viewSettings"
                 implicitHeight: root._toolButtonHeight
                 Layout.fillWidth: true
-                text: qsTr("Settings")
-                imageResource: "/res/QGCLogoWhite.svg"
+                text: qsTr("환경설정")
+                imageResource: "/res/police_menu_settings.svg"
                 visible: !QGroundControl.corePlugin.options.combineSettingsAndSetup
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
@@ -110,8 +113,8 @@ ToolIndicatorPage {
                 objectName: "toolbar_viewClose"
                 implicitHeight: root._toolButtonHeight
                 Layout.fillWidth: true
-                text: qsTr("Close")
-                imageResource: "/res/OpenDoor.svg"
+                text: qsTr("종료")
+                imageResource: "/res/police_menu_power.svg"
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
                         mainWindow.closeIndicatorDrawer()
@@ -133,7 +136,7 @@ ToolIndicatorPage {
                     id: versionLabel
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
-                    text: qsTr("%1 Version").arg(QGroundControl.appName)
+                    text: qsTr("%1 버전").arg(QGroundControl.appName)
                     font.pointSize: ScreenTools.smallFontPointSize
                     wrapMode: QGCLabel.WordWrap
                 }

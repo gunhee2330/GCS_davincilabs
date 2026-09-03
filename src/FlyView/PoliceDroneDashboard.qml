@@ -8,6 +8,7 @@ import QGroundControl.Controls
 import QGroundControl.FactControls
 import QGroundControl.FlightMap
 import QGroundControl.FlyView
+import QGroundControl.SiyiCamera
 import QGroundControl.Toolbar
 
 Item {
@@ -139,6 +140,9 @@ Item {
                                         && (_activeVehicle.sensorsPresentBits & _rcSensorBit)
                                         && (_activeVehicle.sensorsUnhealthyBits & _rcSensorBit)
     readonly property real _touchHeight:  Math.max(48, ScreenTools.defaultFontPixelHeight * 2.8)
+    // QGCToolBarButton's icon height: the ☰ in the Plan and Configuration toolbars is drawn
+    // at this size, and the menu button should be one size everywhere.
+    readonly property real _menuIconSize: ScreenTools.defaultFontPixelHeight * 1.2
     // The top bar hosts QGC's own toolbar indicators, which are laid out against
     // ScreenTools.toolbarHeight; anything shorter clips them.
     readonly property real _statusHeight: Math.max(42, ScreenTools.toolbarHeight)
@@ -218,9 +222,9 @@ Item {
     // alone the last window would run off the bottom. Adding the FPV window narrows all of them.
     readonly property real _windowWidth: {
         const gap = 8
-        // The right edge belongs to the windows alone now that the control panel berths under
-        // the fly tools, so the column may use the full height between the top bar and the
-        // bottom inset.
+        // The right edge belongs to the windows alone now that the controls live in the tool
+        // strip, so the column may use the full height between the top bar and the bottom
+        // inset.
         const avail = height - _bottomInset - topBar.height - gap * (_windowCount + 1)
         const byHeight = (avail - _gripHeight * _windowCount) * 16 / (9 * _windowCount)
         return Math.max(180, Math.min(width * 0.24, 360, byHeight))
@@ -354,8 +358,10 @@ Item {
             // A plain Button paints the style's own opaque background, which read as a white
             // slab on this dark bar. Transparent background plus an explicitly light icon
             // matches how the toolbars in the other views render theirs.
+            // The icon is sized explicitly rather than filling the button: as the content item
+            // it stretched to the bar height and came out larger than the ☰ elsewhere.
             Button {
-                Layout.preferredWidth:  root._touchHeight
+                Layout.preferredWidth:  root._menuIconSize + ScreenTools.defaultFontPixelWidth * 2
                 Layout.fillHeight:      true
                 onClicked:              root.menuRequested()
 
@@ -363,11 +369,16 @@ Item {
                     color: parent.down ? "#33ffffff" : "transparent"
                 }
 
-                contentItem: QGCColoredImage {
-                    source:            "qrc:/qmlimages/Hamburger.svg"
-                    color:             "white"
-                    fillMode:          Image.PreserveAspectFit
-                    sourceSize.height: ScreenTools.defaultFontPixelHeight * 1.4
+                contentItem: Item {
+                    QGCColoredImage {
+                        anchors.centerIn:  parent
+                        width:             root._menuIconSize
+                        height:            root._menuIconSize
+                        source:            "qrc:/qmlimages/Hamburger.svg"
+                        color:             "white"
+                        fillMode:          Image.PreserveAspectFit
+                        sourceSize.height: height
+                    }
                 }
             }
 
@@ -566,23 +577,51 @@ Item {
     // widget layer would have supplied.
     readonly property var _guidedController: guidedController
 
-    FlyViewToolStrip {
-        id:                toolStrip
-        anchors.left:      parent.left
-        anchors.leftMargin: 8
-        anchors.top:       topBar.bottom
-        anchors.topMargin: 8
-        z:                 4
-        // Leaves the collapsed control panel its berth underneath even on a short window:
-        // the strip scrolls before the panel is pushed off screen.
-        maxHeight:         root.height - root._bottomInset - y - controlPanel.collapsedHeight - 16
+    // Text-only buttons in Korean: the stock strip's pictograms are QGC's own and read as
+    // such. 제어 folds the camera, AI, speaker and return controls into this column as a
+    // drop panel, so the aircraft and its payload are driven from the one place.
+    ToolStripActionList {
+        id: policeToolActions
 
-        onDisplayPreFlightChecklist: {
-            if (!preFlightChecklistLoader.active) {
-                preFlightChecklistLoader.active = true
+        model: [
+            PreFlightCheckListShowAction {
+                text:        qsTr("점검표")
+                iconSource:  ""
+                onTriggered: root._showPreFlightChecklist()
+            },
+            GuidedActionTakeoff            { text: qsTr("이륙");     iconSource: "" },
+            GuidedActionLand               { text: qsTr("착륙");     iconSource: "" },
+            GuidedActionRTL                { text: qsTr("복귀");     iconSource: "" },
+            GuidedActionPause              { text: qsTr("일시정지"); iconSource: "" },
+            FlyViewAdditionalActionsButton { text: qsTr("동작");     iconSource: "" },
+            FlyViewGripperButton           { text: qsTr("그리퍼");   iconSource: "" },
+            SiyiCameraToolStripAction      { text: qsTr("카메라");   iconSource: "" },
+            ToolStripAction {
+                text:               qsTr("제어")
+                iconSource:         ""
+                dropPanelComponent: controlPanelComponent
             }
-            preFlightChecklistLoader.item.open()
+        ]
+    }
+
+    ToolStrip {
+        id:                 toolStrip
+        anchors.left:       parent.left
+        anchors.leftMargin: 8
+        anchors.top:        topBar.bottom
+        anchors.topMargin:  8
+        z:                  4
+        // Wide enough for four Korean characters at the strip's small font.
+        width:              ScreenTools.defaultFontPixelWidth * 8
+        maxHeight:          root.height - root._bottomInset - y - 8
+        model:              policeToolActions.model
+    }
+
+    function _showPreFlightChecklist() {
+        if (!preFlightChecklistLoader.active) {
+            preFlightChecklistLoader.active = true
         }
+        preFlightChecklistLoader.item.open()
     }
 
     Loader {
@@ -716,89 +755,16 @@ Item {
 
     // ------------------------------------------------------------------ control panel
     //
-    // Status strip and buttons used to span the full width along the bottom, costing the map
-    // two bands of screen for controls that are idle most of a sortie. They are one floating
-    // panel now: the status line always shows, the buttons fold away, and the whole thing
-    // drags. Sized to its content rather than the window so it stays out of the map's way.
-    Item {
-        id:      controlPanel
-        width:   Math.max(150, ScreenTools.defaultFontPixelWidth * 20)
-        height:  collapsedHeight + (expanded ? panelBody.height + 6 : 0)
-        z:       12
+    // Opened from the 제어 button in the fly tool strip and drawn beside it by the strip's
+    // own drop panel, which also closes it on a press anywhere else. Status lines first,
+    // then the buttons; the whole column is sized to its content.
+    Component {
+        id: controlPanelComponent
 
-        readonly property real collapsedHeight: panelGrip.height + statusColumn.height + 10
-        property bool expanded: false
-
-        // Berthed under the fly tools at the top left, where the operator already looks for
-        // takeoff and return; the right edge belongs to the camera windows. Plain bindings
-        // rather than an imperative dock(): they follow the strip through window resizes, and
-        // DragHandler assigning x/y replaces them, so a panel the operator has moved stays
-        // where they put it.
-        x: toolStrip.x
-        y: toolStrip.y + toolStrip.height + 8
-
-        Rectangle {
-            anchors.fill: parent
-            radius:       6
-            color:        root._panelColor
-            border.color: "#526675"
-            border.width: 1
-        }
-
-        Rectangle {
-            id:              panelGrip
-            anchors.left:    parent.left
-            anchors.right:   parent.right
-            anchors.top:     parent.top
-            anchors.margins: 1
-            height:          root._gripHeight
-            radius:          5
-            color:           "#5a3a4a5c"
-
-            // Tap toggles the buttons, drag moves the panel. DragHandler claims the press only
-            // once it passes the drag threshold, so a stationary tap still reaches the tap
-            // handler underneath.
-            TapHandler {
-                onTapped: controlPanel.expanded = !controlPanel.expanded
-            }
-
-            DragHandler {
-                id:     panelDrag
-                target: controlPanel
-
-                // active goes false once at startup too, and clamping then would assign x/y
-                // over the anchoring bindings while the window still has its restored size —
-                // freezing the panel mid-screen. Only clamp after a drag has really happened.
-                property bool everDragged: false
-
-                onActiveChanged: {
-                    if (active) {
-                        everDragged = true
-                    } else if (everDragged) {
-                        controlPanel.x = Math.max(4, Math.min(controlPanel.x, root.width - controlPanel.width - 4))
-                        controlPanel.y = Math.max(topBar.height + 4, Math.min(controlPanel.y, root.height - controlPanel.height - 4))
-                    }
-                }
-            }
-
-            Text {
-                anchors.left:           parent.left
-                anchors.leftMargin:     8
-                anchors.verticalCenter: parent.verticalCenter
-                color:                  "white"
-                font.pixelSize:         Math.max(11, ScreenTools.defaultFontPixelHeight * 0.7)
-                text:                   (controlPanel.expanded ? "▾  " : "▸  ") + qsTr("제어")
-            }
-        }
-
-        Column {
-            id:                 statusColumn
-            anchors.left:       parent.left
-            anchors.right:      parent.right
-            anchors.top:        panelGrip.bottom
-            anchors.margins:    8
-            anchors.topMargin:  5
-            spacing:            2
+        ColumnLayout {
+            id:      controlPanel
+            width:   Math.max(170, ScreenTools.defaultFontPixelWidth * 22)
+            spacing: 4
 
             Text {
                 color:          root._accentColor
@@ -830,8 +796,6 @@ Item {
                 }
             }
 
-            Item { Layout.fillWidth: true }
-
             Text {
                 color:          App.SiyiCameraController.connected ? "#42d66b" : "#ff9c46"
                 font.pixelSize: Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
@@ -862,23 +826,8 @@ Item {
                                 ? qsTr("LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
                                 : qsTr("LRF --")
             }
-        }
 
-        Item {
-            id:                 panelBody
-            anchors.left:       parent.left
-            anchors.right:      parent.right
-            anchors.top:        statusColumn.bottom
-            anchors.margins:    5
-            height:             visible ? buttonColumn.implicitHeight : 0
-            visible:            controlPanel.expanded
-
-            ColumnLayout {
-                id:           buttonColumn
-                anchors.left:  parent.left
-                anchors.right: parent.right
-                anchors.top:   parent.top
-                spacing:      4
+            Item { Layout.preferredHeight: 2 }
 
             Repeater {
                 model: [
@@ -891,10 +840,10 @@ Item {
 
                 delegate: Button {
                     required property var modelData
-                    Layout.fillWidth:  true
+                    Layout.fillWidth:       true
                     Layout.preferredHeight: root._touchHeight
-                    text:              modelData.label
-                    enabled:           App.SiyiCameraController.connected
+                    text:                   modelData.label
+                    enabled:                App.SiyiCameraController.connected
                     onClicked: {
                         if (modelData.action === "triple") {
                             root._applyTripleView()
@@ -914,12 +863,12 @@ Item {
             }
 
             Button {
-                Layout.fillWidth:  true
+                Layout.fillWidth:       true
                 Layout.preferredHeight: root._touchHeight
-                enabled:           App.SiyiAiController.connected
-                text:              App.SiyiAiController.hasTarget
-                                       ? qsTr("추적 해제")
-                                       : (App.SiyiAiController.recognitionEnabled ? qsTr("AI 끄기") : qsTr("AI 켜기"))
+                enabled:                App.SiyiAiController.connected
+                text:                   App.SiyiAiController.hasTarget
+                                            ? qsTr("추적 해제")
+                                            : (App.SiyiAiController.recognitionEnabled ? qsTr("AI 끄기") : qsTr("AI 켜기"))
                 onClicked: {
                     if (App.SiyiAiController.hasTarget) {
                         App.SiyiAiController.cancelTracking()
@@ -930,12 +879,12 @@ Item {
             }
 
             Button {
-                id:                broadcastButton
-                Layout.fillWidth:  true
+                id:                     broadcastButton
+                Layout.fillWidth:       true
                 Layout.preferredHeight: root._touchHeight
-                visible:           QGroundControl.settingsManager.speakerSettings.enabled.rawValue
-                enabled:           App.SpeakerController.connected
-                text:              App.SpeakerController.playing ? qsTr("방송 정지") : qsTr("경고방송")
+                visible:                QGroundControl.settingsManager.speakerSettings.enabled.rawValue
+                enabled:                App.SpeakerController.connected
+                text:                   App.SpeakerController.playing ? qsTr("방송 정지") : qsTr("경고방송")
                 onClicked: {
                     if (App.SpeakerController.playing) {
                         App.SpeakerController.stopPlayback()
@@ -1005,22 +954,22 @@ Item {
             }
 
             Button {
-                id:                rtlButton
-                Layout.fillWidth:  true
+                id:                     rtlButton
+                Layout.fillWidth:       true
                 Layout.preferredHeight: root._touchHeight
-                text:              qsTr("RTL")
+                text:                   qsTr("복귀 고도")
                 // Ternary rather than &&: the controller is null before the guided layer is
                 // built, and `null && x` yields undefined, which will not assign to a bool.
-                enabled:           root.guidedController ? root.guidedController.showRTL : false
-                onClicked:         rtlAltPopup.open()
+                enabled:                root.guidedController ? root.guidedController.showRTL : false
+                onClicked:              rtlAltPopup.open()
 
                 Popup {
-                    id:     rtlAltPopup
-                    y:      -height - 6
-                    x:      (rtlButton.width - width) / 2
+                    id:      rtlAltPopup
+                    y:       -height - 6
+                    x:       (rtlButton.width - width) / 2
                     padding: 6
-                    modal:  true
-                    dim:    false
+                    modal:   true
+                    dim:     false
 
                     background: Rectangle {
                         color:        "#f2121b24"
@@ -1065,12 +1014,12 @@ Item {
                             spacing: 5
 
                             TextField {
-                                id:                    customAltField
-                                Layout.preferredWidth: Math.max(74, ScreenTools.defaultFontPixelWidth * 9)
+                                id:                     customAltField
+                                Layout.preferredWidth:  Math.max(74, ScreenTools.defaultFontPixelWidth * 9)
                                 Layout.preferredHeight: root._touchHeight
-                                placeholderText:       qsTr("사용자 설정")
-                                inputMethodHints:      Qt.ImhFormattedNumbersOnly
-                                validator:             DoubleValidator { bottom: 1; top: 1000; decimals: 0 }
+                                placeholderText:        qsTr("사용자 설정")
+                                inputMethodHints:       Qt.ImhFormattedNumbersOnly
+                                validator:              DoubleValidator { bottom: 1; top: 1000; decimals: 0 }
                             }
 
                             Button {
@@ -1086,7 +1035,6 @@ Item {
                         }
                     }
                 }
-            }
             }
         }
     }
