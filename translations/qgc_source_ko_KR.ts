@@ -6559,7 +6559,7 @@ Click Ok to start the auto-tuning process.
       <location filename="../src/PlanView/FWLandingPatternEditor.qml" line="99"/>
       <location filename="../src/PlanView/FWLandingPatternEditor.qml" line="321"/>
       <source>Loiter clockwise</source>
-      <translation>시계 방향 선회</translation>
+      <translation>시계 방향 로이터</translation>
     </message>
     <message>
       <location filename="../src/PlanView/FWLandingPatternEditor.qml" line="115"/>
@@ -6604,7 +6604,7 @@ Click Ok to start the auto-tuning process.
     <message>
       <location filename="../src/PlanView/FWLandingPatternEditor.qml" line="55"/>
       <source>Use loiter to altitude</source>
-      <translation>고도까지 선회 사용</translation>
+      <translation>고도까지 로이터 사용</translation>
     </message>
     <message>
       <location filename="../src/PlanView/FWLandingPatternEditor.qml" line="148"/>
@@ -8129,17 +8129,17 @@ VTOL</translation>
     <message>
       <location filename="../src/MissionManager/GeoFenceController.cc" line="130"/>
       <source>GeoFence supports version %1</source>
-      <translation>GeoFence는 버젼 %1을 지원합니다</translation>
+      <translation>비행제한구역은 버전 %1을 지원합니다</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/GeoFenceController.cc" line="137"/>
       <source>GeoFence polygon not stored as object</source>
-      <translation>GeoFence 다각형이 오브젝트로 저장되지 않았습니다</translation>
+      <translation>비행제한구역 다각형이 오브젝트로 저장되지 않았습니다</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/GeoFenceController.cc" line="151"/>
       <source>GeoFence circle not stored as object</source>
-      <translation>GeoFence circle이 오브젝트로 저장되어있지 않습니다</translation>
+      <translation>비행제한구역 원이 오브젝트로 저장되어 있지 않습니다</translation>
     </message>
   </context>
   <context>
@@ -8147,7 +8147,7 @@ VTOL</translation>
     <message>
       <location filename="../src/PlanView/GeoFenceEditor.qml" line="28"/>
       <source>GeoFence</source>
-      <translation>비행제한구역(GeoFence)</translation>
+      <translation>비행제한구역</translation>
     </message>
     <message>
       <location filename="../src/PlanView/GeoFenceEditor.qml" line="56"/>
@@ -8157,12 +8157,12 @@ VTOL</translation>
     <message>
       <location filename="../src/PlanView/GeoFenceEditor.qml" line="57"/>
       <source>This vehicle does not support GeoFence.</source>
-      <translation>기체가 GeoFence를 지원하지 않습니다.</translation>
+      <translation>기체가 비행제한구역을 지원하지 않습니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/GeoFenceEditor.qml" line="107"/>
       <source>Insert GeoFence</source>
-      <translation>GeoFence 삽입</translation>
+      <translation>비행제한구역 삽입</translation>
     </message>
     <message>
       <location filename="../src/PlanView/GeoFenceEditor.qml" line="112"/>
@@ -8245,22 +8245,22 @@ VTOL</translation>
     <message>
       <location filename="../src/MissionManager/GeoFenceManager.cc" line="146"/>
       <source>GeoFence load: Vertex count change mid-polygon - actual:expected</source>
-      <translation>GeoFence 불러오기: 중간 다각형의 꼭지점 수 변경 - 실제:예상</translation>
+      <translation>비행제한구역 불러오기: 중간 다각형의 꼭지점 수 변경 - 실제:예상</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/GeoFenceManager.cc" line="150"/>
       <source>GeoFence load: Polygon type changed before last load complete - actual:expected</source>
-      <translation>GeoFence 불러오기: 마지막 불러오기가 완료되기 전에 다각형 유형이 변경되었습니다 - 실제:예상</translation>
+      <translation>비행제한구역 불러오기: 마지막 불러오기가 완료되기 전에 다각형 유형이 변경되었습니다 - 실제:예상</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/GeoFenceManager.cc" line="163"/>
       <source>GeoFence load: Incomplete polygon loaded</source>
-      <translation>GeoFence 불러오기: 불완전한 다각형을 열었습니다</translation>
+      <translation>비행제한구역 불러오기: 불완전한 다각형을 열었습니다</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/GeoFenceManager.cc" line="171"/>
       <source>GeoFence load: Unsupported command %1</source>
-      <translation>GeoFence 불러오기: 명령 %1이(가) 지원되지 않습니다</translation>
+      <translation>비행제한구역 불러오기: 명령 %1이(가) 지원되지 않습니다</translation>
     </message>
   </context>
   <context>
@@ -12699,7 +12699,7 @@ VTOL</translation>
     <message>
       <location filename="../src/MissionManager/MissionController.cc" line="1265"/>
       <source>GeoFence</source>
-      <translation>지오펜스</translation>
+      <translation>비행제한구역</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/MissionController.cc" line="1274"/>
@@ -12932,7 +12932,7 @@ VTOL</translation>
     <message>
       <location filename="../src/PlanView/MissionStats.qml" line="137"/>
       <source>Heading:</source>
-      <translation>기수 방향:</translation>
+      <translation>진행방향:</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionStats.qml" line="151"/>
@@ -16116,7 +16116,7 @@ Note that this will also completely reset everything, including UAVCAN nodes, al
     <message>
       <location filename="../src/PlanView/PlanEditLayers.qml" line="15"/>
       <source>GeoFence</source>
-      <translation>지오펜스</translation>
+      <translation>비행제한구역</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanEditLayers.qml" line="16"/>
@@ -16597,7 +16597,7 @@ Note that this will also completely reset everything, including UAVCAN nodes, al
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="474"/>
       <source>Cancel ROI</source>
-      <translation>관심 지점 해제</translation>
+      <translation>관심영역 해제</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="496"/>
@@ -16652,12 +16652,12 @@ Note that this will also completely reset everything, including UAVCAN nodes, al
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="838"/>
       <source>Insert ROI</source>
-      <translation>관심 지점 삽입</translation>
+      <translation>관심영역 삽입</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="848"/>
       <source>Insert Cancel ROI</source>
-      <translation>관심 지점 해제 삽입</translation>
+      <translation>관심영역 해제 삽입</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="119"/>
@@ -18191,7 +18191,7 @@ sudo apt-get remove modemmanager</translation>
     <message>
       <location filename="../src/MissionManager/RallyPointController.cc" line="92"/>
       <source>Rally Points supports version %1</source>
-      <translation>랠리 포인트는 버전 %1을(를) 지원합니다</translation>
+      <translation>대기지점은 버전 %1을(를) 지원합니다</translation>
     </message>
   </context>
   <context>
@@ -18199,12 +18199,12 @@ sudo apt-get remove modemmanager</translation>
     <message>
       <location filename="../src/PlanView/RallyPointEditorHeader.qml" line="23"/>
       <source>Rally Points</source>
-      <translation>랠리 포인트:</translation>
+      <translation>대기지점</translation>
     </message>
     <message>
       <location filename="../src/PlanView/RallyPointEditorHeader.qml" line="44"/>
       <source>Rally Points provide alternate landing points when performing a Return to Launch (RTL).</source>
-      <translation>랠리 포인트는 RTL을 실행할 때 착륙지점의 대안이 될 수 있습니다</translation>
+      <translation>대기지점은 RTL을 실행할 때 착륙지점의 대안이 될 수 있습니다</translation>
     </message>
   </context>
   <context>
@@ -18212,7 +18212,7 @@ sudo apt-get remove modemmanager</translation>
     <message>
       <location filename="../src/PlanView/RallyPointItemEditor.qml" line="38"/>
       <source>Rally Point</source>
-      <translation>랠리 포인트 </translation>
+      <translation>대기지점</translation>
     </message>
   </context>
   <context>
@@ -20061,7 +20061,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/MissionManager/SimpleMissionItem.cc" line="394"/>
       <source>Loiter</source>
-      <translation>선회</translation>
+      <translation>로이터</translation>
     </message>
   </context>
   <context>
@@ -20370,7 +20370,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/SurveyItemEditor.qml" line="14"/>
       <source>Transects</source>
-      <translation>교차점</translation>
+      <translation>격자선</translation>
     </message>
     <message>
       <location filename="../src/PlanView/SurveyItemEditor.qml" line="30"/>
@@ -20400,7 +20400,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/SurveyItemEditor.qml" line="85"/>
       <source>Fly alternate transects</source>
-      <translation>다른 교차점 비행하기</translation>
+      <translation>다른 격자선 비행하기</translation>
     </message>
     <message>
       <location filename="../src/PlanView/SurveyItemEditor.qml" line="97"/>
@@ -20663,7 +20663,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
       <location filename="../src/MissionManager/TransectStyleComplexItem.h" line="89"/>
       <location filename="../src/MissionManager/TransectStyleComplexItem.h" line="90"/>
       <source>Transect</source>
-      <translation>교차점</translation>
+      <translation>격자선</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/TransectStyleComplexItem.h" line="91"/>
@@ -21301,7 +21301,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/VTOLLandingPatternEditor.qml" line="55"/>
       <source>Use loiter to altitude</source>
-      <translation>고도까지 선회 사용</translation>
+      <translation>고도까지 로이터 사용</translation>
     </message>
     <message>
       <location filename="../src/PlanView/VTOLLandingPatternEditor.qml" line="64"/>
@@ -21317,7 +21317,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/VTOLLandingPatternEditor.qml" line="87"/>
       <source>Loiter clockwise</source>
-      <translation>시계 방향 선회</translation>
+      <translation>시계 방향 로이터</translation>
     </message>
     <message>
       <location filename="../src/PlanView/VTOLLandingPatternEditor.qml" line="103"/>
@@ -21372,7 +21372,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/VTOLLandingPatternEditor.qml" line="284"/>
       <source>Drag the loiter point to adjust landing direction for wind and obstacles as well as distance to land point.</source>
-      <translation>선회 지점을 끌어 바람과 장애물에 맞게 착륙 방향과 착륙 지점까지의 거리를 조정합니다.</translation>
+      <translation>로이터 지점을 끌어 바람과 장애물에 맞게 착륙 방향과 착륙 지점까지의 거리를 조정합니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/VTOLLandingPatternEditor.qml" line="288"/>
