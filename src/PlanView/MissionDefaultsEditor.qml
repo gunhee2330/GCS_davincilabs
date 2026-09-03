@@ -110,6 +110,8 @@ Rectangle {
             Layout.fillWidth: true
             text: qsTr("Expected Vehicle Speeds")
             visible: _root._showCruiseSpeed || _root._showHoverSpeed || _root._showAscentDescentSpeed
+            // 비행시간 추정용 값이라 소티마다 고치지 않는다. 7인치에서는 접어 두고 필요할 때 편다.
+            checked: false
         }
 
         ColumnLayout {

@@ -201,7 +201,8 @@ TreeView {
     delegate: Item {
         id: delegateRoot
         implicitWidth: root.width
-        implicitHeight: (loader.item ? loader.item.height : 1) + (separatorLine.visible ? separatorLine.height + root.rowSpacing : 0)
+        implicitHeight: _hiddenGroup ? 0 : (loader.item ? loader.item.height : 1) + (separatorLine.visible ? separatorLine.height + root.rowSpacing : 0)
+        visible: !_hiddenGroup
         enabled: !root._createNewPlanMode || _enabledInCreateMode
         opacity: enabled ? 1 : root.editorMap._nonInteractiveOpacity
         width: root.width
@@ -217,6 +218,9 @@ TreeView {
         readonly property var nodeObject: model.object
         readonly property string nodeType: model.nodeType
         readonly property bool separator: model.separator ?? false
+
+        // 순찰 코스를 통째로 옮기거나 회전시키는 일은 없다. 7인치 트리에서 그룹 하나를 덜어낸다.
+        readonly property bool _hiddenGroup: nodeType === "transformGroup" || nodeType === "transformEditor"
 
         // In create-new-plan mode, only the Plan Info and Defaults groups and their children are enabled
         readonly property bool _enabledInCreateMode: nodeType === "planFileGroup" || nodeType === "planFileInfo"

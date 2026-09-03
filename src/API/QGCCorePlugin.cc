@@ -398,6 +398,8 @@ void QGCCorePlugin::_setShowAdvancedUI(bool show)
 
 QVariantList QGCCorePlugin::complexMissionItemNames(Vehicle *vehicle)
 {
+    Q_UNUSED(vehicle);
+
     auto makeEntry = [](const char* canonical, const QString& translated) {
         QVariantMap entry;
         entry[QStringLiteral("canonicalName")]  = QString(canonical);
@@ -408,9 +410,8 @@ QVariantList QGCCorePlugin::complexMissionItemNames(Vehicle *vehicle)
     QVariantList items;
     items.append(makeEntry(SurveyComplexItem::canonicalName,       SurveyComplexItem::tr(SurveyComplexItem::canonicalName)));
     items.append(makeEntry(CorridorScanComplexItem::canonicalName, CorridorScanComplexItem::tr(CorridorScanComplexItem::canonicalName)));
-    if (vehicle->multiRotor() || vehicle->vtol()) {
-        items.append(makeEntry(StructureScanComplexItem::canonicalName, StructureScanComplexItem::tr(StructureScanComplexItem::canonicalName)));
-    }
+    // Structure Scan is gone on purpose: it emits DO_SET_ROI_WPNEXT_OFFSET and DO_SET_ROI_NONE,
+    // neither of which ArduPilot accepts and neither of which has a fallback path.
     // Note: Landing pattern items are not added here — they have their own dedicated button
     return items;
 }
@@ -420,7 +421,6 @@ QList<PlanCreator*> QGCCorePlugin::planCreators(PlanMasterController *planMaster
     return {
         new SurveyPlanCreator(planMasterController),
         new CorridorScanPlanCreator(planMasterController),
-        new StructureScanPlanCreator(planMasterController),
         new BlankPlanCreator(planMasterController),
     };
 }

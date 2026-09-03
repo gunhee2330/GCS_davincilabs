@@ -10,7 +10,8 @@ import QGroundControl.PlanView
 Rectangle {
     id: _root
     width: parent.width
-    height: ScreenTools.toolbarHeight
+    // 7인치(1280x800)에서 상류 기본 높이는 지도 세로의 6% 를 먹는다. 이 화면에서만 줄인다.
+    height: Math.round(ScreenTools.toolbarHeight * 0.8)
     color: qgcPal.toolbarBackground
 
     property var planMasterController

@@ -215,6 +215,34 @@ void ArduCopterFirmwarePlugin::updateAvailableFlightModes(FlightModeList &modeLi
 
 }
 
+/// Trims the APM command list down to what a police patrol sortie actually flies.
+///
+/// The base APM list offers around forty commands — relays, servos, gripper, autotune, fixed wing
+/// only entries — and all of them land in the command picker on a seven inch touch panel. None of
+/// them apply to this airframe. Keeping DO_SET_HOME matters beyond this screen: Vehicle.cc gates
+/// "set home from map" in the flight view on it. Leaving DO_SET_ROI_LOCATION out is deliberate as
+/// well — MissionController falls back to the legacy DO_SET_ROI when it is absent, which is what
+/// ArduPilot actually executes.
+QList<MAV_CMD> ArduCopterFirmwarePlugin::supportedMissionCommands(QGCMAVLink::VehicleClass_t vehicleClass) const
+{
+    Q_UNUSED(vehicleClass);
+
+    return {
+        MAV_CMD_NAV_TAKEOFF,
+        MAV_CMD_NAV_WAYPOINT,
+        MAV_CMD_NAV_SPLINE_WAYPOINT,
+        MAV_CMD_NAV_LOITER_TIME,
+        MAV_CMD_NAV_RETURN_TO_LAUNCH,
+        MAV_CMD_NAV_LAND,
+        MAV_CMD_DO_JUMP,
+        MAV_CMD_DO_CHANGE_SPEED,
+        MAV_CMD_DO_SET_ROI,
+        MAV_CMD_CONDITION_YAW,
+        MAV_CMD_VIDEO_START_CAPTURE, MAV_CMD_VIDEO_STOP_CAPTURE,
+        MAV_CMD_DO_SET_HOME,
+    };
+}
+
 uint32_t ArduCopterFirmwarePlugin::_convertToCustomFlightModeEnum(uint32_t val) const
 {
     switch (val) {

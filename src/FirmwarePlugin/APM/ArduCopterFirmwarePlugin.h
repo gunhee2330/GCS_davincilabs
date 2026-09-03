@@ -62,6 +62,7 @@ public:
     bool supportsSmartRTL() const override { return true; }
 
     void updateAvailableFlightModes(FlightModeList &modeList) override;
+    QList<MAV_CMD> supportedMissionCommands(QGCMAVLink::VehicleClass_t vehicleClass) const override;
 
 protected:
     uint32_t _convertToCustomFlightModeEnum(uint32_t val) const override;

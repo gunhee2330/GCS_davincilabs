@@ -557,7 +557,8 @@ Item {
             width:                  layerRow.width
             height:                 _layerButtonSize
             z:                      QGroundControl.zOrderWidgets
-            visible:                !_planMasterController.showCreateFromTemplate
+            // 우측 패널 트리의 그룹 헤더가 같은 selectLayer() 를 부른다. 7인치에서 지도를 두 번 가릴 이유가 없다.
+            visible:                false
 
             property bool   expanded: false
             property real   _layerButtonSize: ScreenTools.defaultFontPixelHeight * 2.0
@@ -700,7 +701,9 @@ Item {
                     implicitHeight: implicitWidth
                     color: checked ? QGroundControl.globalPalette.buttonHighlight : QGroundControl.globalPalette.button
 
-                    property bool checked: true
+                    // 7인치에서 지형 프로파일은 밴드를 112px 로 키운다. 지형 경고는 우측 패널에도 뜨므로
+                    // 기본은 거리·시간이 보이는 통계 탭으로 둔다.
+                    property bool checked: false
 
                     QGCColoredImage {
                         anchors.margins: missionStatsButtonLayout._buttonImageMargins
@@ -724,7 +727,7 @@ Item {
                     implicitHeight: implicitWidth
                     color: checked ? QGroundControl.globalPalette.buttonHighlight : QGroundControl.globalPalette.button
 
-                    property bool checked: false
+                    property bool checked: true
 
                     QGCColoredImage {
                         anchors.margins: missionStatsButtonLayout._buttonImageMargins
