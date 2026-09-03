@@ -183,6 +183,8 @@ void VideoManager::init(QQuickWindow *mainWindow)
                    this, &VideoManager::_videoSourceChanged);
     (void) connect(SettingsManager::instance()->siyiCameraSettings()->aiRtspUrl(), &Fact::rawValueChanged,
                    this, &VideoManager::_videoSourceChanged);
+    (void) connect(SettingsManager::instance()->siyiCameraSettings()->fpvRtspUrl(), &Fact::rawValueChanged,
+                   this, &VideoManager::_videoSourceChanged);
     (void) connect(_videoSettings->aspectRatio(), &Fact::rawValueChanged, this, &VideoManager::aspectRatioChanged);
     (void) connect(_videoSettings->lowLatencyMode(), &Fact::rawValueChanged, this, [this](const QVariant &value) { Q_UNUSED(value); _restartAllVideos(); });
     // rtpJitterLatencyMs needs a pipeline restart; route through _videoSourceChanged so _updateSettings
@@ -285,7 +287,10 @@ void VideoManager::_createVideoReceivers()
 #endif
     static const QStringList videoStreamList = {
         "videoContent",
-        "thermalVideo"
+        "thermalVideo",
+        // FPV camera on the air unit's second LAN port. Idle unless an RTSP address is set,
+        // so the receiver costs nothing when no FPV camera is fitted.
+        "fpvVideo"
     };
 
     QStringList existing;
@@ -688,6 +693,16 @@ bool VideoManager::_updateSettings(VideoReceiver *receiver)
     if (autoReconnect != receiver->autoReconnect()) {
         receiver->setAutoReconnect(autoReconnect);
         // No settingsChanged: autoReconnect is live, doesn't require pipeline restart.
+    }
+
+    // The FPV camera hangs off the air unit's second LAN port and is addressed only by its
+    // RTSP URL, so this receiver takes neither the autopilot's advertised stream nor the
+    // global video source setting. An empty URL leaves it idle.
+    if (receiver->isFpv()) {
+        const QString fpvUri = SettingsManager::instance()->siyiCameraSettings()
+                                   ->fpvRtspUrl()->rawValue().toString().trimmed();
+        settingsChanged |= _updateVideoUri(receiver, fpvUri);
+        return settingsChanged;
     }
 
     if (receiver->isThermal()) {

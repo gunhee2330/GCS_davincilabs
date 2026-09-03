@@ -207,16 +207,23 @@ Item {
 
     readonly property real _gripHeight: Math.max(24, ScreenTools.defaultFontPixelHeight * 1.3)
 
-    // The three windows stack down the right edge, so the width driving their 16:9 bodies is
-    // bounded by the height left between the top bar and the control panel below them — sized
-    // on width alone the third window would run off the bottom.
+    /// The FPV window only exists once an address is set, so window count is not fixed.
+    readonly property bool _fpvConfigured:
+        QGroundControl.settingsManager.siyiCameraSettings.fpvRtspUrl.rawValue.trim() !== ""
+
+    readonly property int _windowCount: _fpvConfigured ? 4 : 3
+
+    // The windows stack down the right edge, so the width driving their 16:9 bodies is bounded
+    // by the height left between the top bar and the control panel below them — sized on width
+    // alone the last window would run off the bottom. Adding the FPV window narrows all of them.
     readonly property real _windowWidth: {
         const gap = 8
         // Collapsed height, not the current one: sizing against the expanded panel would
-        // shrink all three windows every time the operator opened the buttons. Expanded, the
-        // panel simply overlays them — it sits above in z order.
-        const avail = height - _bottomInset - topBar.height - controlPanel.collapsedHeight - gap * 5
-        const byHeight = (avail - _gripHeight * 3) * 16 / 27
+        // shrink every window each time the operator opened the buttons. Expanded, the panel
+        // simply overlays them — it sits above in z order.
+        const avail = height - _bottomInset - topBar.height - controlPanel.collapsedHeight
+                      - gap * (_windowCount + 2)
+        const byHeight = (avail - _gripHeight * _windowCount) * 16 / (9 * _windowCount)
         return Math.max(180, Math.min(width * 0.24, 360, byHeight))
     }
 
@@ -224,10 +231,13 @@ Item {
 
     function _dockWindows() {
         const gap = 8
-        const windows = [primaryWindow, secondaryWindow, sharedWindow]
+        const windows = [primaryWindow, secondaryWindow, sharedWindow, fpvWindow]
         const xDock = width - _windowWidth - gap
         let y = topBar.height + gap
         for (let i = 0; i < windows.length; ++i) {
+            if (!windows[i].visible) {
+                continue
+            }
             windows[i].x = xDock
             windows[i].y = y
             y += windows[i].height + gap
@@ -260,6 +270,54 @@ Item {
     function _factText(fact, fallback) {
         return fact ? fact.valueString + (fact.units.length > 0 ? " " + fact.units : "") : fallback
     }
+
+    // ------------------------------------------------------------------- flight log
+    //
+    // Procurement requires the operator to read the flight's date, duration and distance from
+    // the video screen in flight. Duration and distance are Vehicle facts; the wall-clock
+    // takeoff instant is not tracked anywhere, so it is captured here on the arm transition.
+    //
+    // Deriving it from flightTime alone would jitter: that fact ticks once a second, so
+    // now - flightTime lands on a different second each update.
+    // Signal handlers, not an on<Prop>Changed on a readonly property: QML rejects those and
+    // the whole component then fails to load, taking the Fly view with it.
+    property var _takeoffTime: null
+
+    Connections {
+        target: root._activeVehicle
+        ignoreUnknownSignals: true
+
+        function onArmedChanged(armed) {
+            if (armed) {
+                root._takeoffTime = new Date()
+            }
+            // Kept after disarm so the completed flight stays readable on the ground; the
+            // next arm overwrites it.
+        }
+    }
+
+    // Attaching to a vehicle already in the air misses the arm transition. flightTime still
+    // carries the elapsed seconds, which places the takeoff to the second.
+    Connections {
+        target: QGroundControl.multiVehicleManager
+
+        function onActiveVehicleChanged(vehicle) {
+            if (vehicle && vehicle.armed) {
+                const elapsed = vehicle.getFact("flightTime")
+                root._takeoffTime = new Date(Date.now() - (elapsed ? elapsed.rawValue : 0) * 1000)
+            } else {
+                root._takeoffTime = null
+            }
+        }
+    }
+
+    readonly property string _takeoffText:
+        _takeoffTime ? Qt.formatDateTime(_takeoffTime, "yyyy-MM-dd HH:mm:ss") : qsTr("이륙 전")
+
+    // flightTime is registered on the fact group but, unlike its sibling flightDistance, has
+    // no Q_PROPERTY accessor — so vehicle.flightTime is undefined and only the name lookup
+    // reaches it. Bound once per vehicle rather than called from the delegate binding.
+    readonly property var _flightTimeFact: _activeVehicle ? _activeVehicle.getFact("flightTime") : null
 
     function _toggleExpanded(panelName) {
         expandedPanel = expandedPanel === panelName ? "" : panelName
@@ -349,6 +407,55 @@ Item {
                 Layout.fillHeight: true
                 visible:           root._activeVehicle
             }
+
+            Item { Layout.fillWidth: true }
+
+            // Flight log: takeoff instant, elapsed time, distance flown. Elides rather than
+            // squeezing the indicators when the window is narrow.
+            RowLayout {
+                id:                    flightLog
+                Layout.fillHeight:     true
+                Layout.maximumWidth:   implicitWidth
+                spacing:               ScreenTools.defaultFontPixelWidth
+                visible:               root._activeVehicle && root.width > 900
+
+                Repeater {
+                    model: [
+                        { label: qsTr("이륙"), value: root._takeoffText },
+                        { label: qsTr("비행"), value: root._flightTimeFact
+                                                          ? root._flightTimeFact.valueString
+                                                          : "--" },
+                        { label: qsTr("이동"), value: root._factText(root._activeVehicle
+                                                          ? root._activeVehicle.flightDistance : null, "--") }
+                    ]
+
+                    delegate: Row {
+                        id: logItem
+                        required property var modelData
+                        Layout.alignment: Qt.AlignVCenter
+                        spacing:          4
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            color:                  root._accentColor
+                            font.pixelSize:         Math.max(11, ScreenTools.defaultFontPixelHeight * 0.68)
+                            text:                   logItem.modelData.label
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            color:                  "white"
+                            font.pixelSize:         Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
+                            // Monospace keeps the clock and counters from shifting the row
+                            // sideways as digits change.
+                            font.family:            "Consolas, monospace"
+                            text:                   logItem.modelData.value
+                        }
+                    }
+                }
+            }
+
+            Item { Layout.fillWidth: true }
 
             FlyViewToolBarIndicators {
                 Layout.fillHeight:     true
@@ -440,6 +547,14 @@ Item {
     CameraWindow {
         id:    sharedWindow
         title: qsTr("IR")
+    }
+
+    // Forward-looking FPV camera on the air unit's second LAN port. Only appears once an RTSP
+    // address is configured, so an airframe flown without one keeps the three-window layout.
+    CameraWindow {
+        id:      fpvWindow
+        title:   qsTr("FPV")
+        visible: root._fpvConfigured
     }
 
     // ------------------------------------------------------------------- fly tools
@@ -1038,5 +1153,16 @@ Item {
         targetPickEnabled:    root._aiPickEnabled
         onActivated:          root._toggleExpanded("shared")
         onTargetPicked:       (nx, ny) => App.SiyiAiController.trackPoint(nx, ny)
+    }
+
+    PoliceDroneCameraPanel {
+        id:               fpvPanel
+        parent:           root.expandedPanel === "fpv" ? fullscreenLayer : fpvWindow.slot
+        anchors.fill:     parent
+        panelTitle:       qsTr("FPV · 전방")
+        panelDetail:      qsTr("에어유닛 LAN2")
+        streamObjectName: "fpvVideo"
+        // No gimbal drag and no AI picking: this is a fixed forward camera, not the pod.
+        onActivated:      root._toggleExpanded("fpv")
     }
 }

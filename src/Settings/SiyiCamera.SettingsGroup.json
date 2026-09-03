@@ -79,6 +79,15 @@
             "default": "",
             "label": "AI module RTSP URL",
             "keywords": "siyi,ai,rtsp,video0,tracking,stream"
+        },
+        {
+            "name": "fpvRtspUrl",
+            "shortDesc": "RTSP address of the FPV camera on the air unit LAN2 port.",
+            "longDesc": "RTSP address of the forward-looking FPV camera. Left empty the FPV window stays closed. A SIYI camera on LAN2 must be readdressed away from the pod default, e.g. rtsp://192.168.144.26:8554/video1; a third-party camera uses its own address.",
+            "type": "string",
+            "default": "",
+            "label": "AI module RTSP URL",
+            "keywords": "siyi,ai,rtsp,video0,tracking,stream"
         }
     ]
 }
