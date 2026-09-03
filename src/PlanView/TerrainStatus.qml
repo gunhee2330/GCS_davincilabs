@@ -26,22 +26,24 @@ Rectangle {
 
     QGCPalette { id: qgcPal }
 
+    // 세로로 돌린 제목은 폭 한 줄과 밴드 높이를 함께 먹는다. 7인치에서는 둘 다 아깝다.
+    // 축 눈금이 이미 숫자를 보여주므로 기준(해발)만 가로로 짧게 적는다.
     QGCLabel {
-        id:                     titleLabel
-        anchors.top:            parent.bottom
-        width:                  parent.height
-        font.pointSize:         ScreenTools.smallFontPointSize
-        text:                   qsTr("Height AMSL (%1)").arg(_unitsConversion.appSettingsVerticalDistanceUnitsString)
-        horizontalAlignment:    Text.AlignHCenter
-        rotation:               -90
-        transformOrigin:        Item.TopLeft
+        id:                 titleLabel
+        anchors.top:        parent.top
+        anchors.left:       parent.left
+        anchors.leftMargin: _margins
+        font.pointSize:     ScreenTools.smallFontPointSize
+        color:              qgcPal.text
+        opacity:            0.7
+        text:               qsTr("AMSL %1").arg(_unitsConversion.appSettingsVerticalDistanceUnitsString)
     }
 
     QGCFlickable {
         id:                 terrainProfileFlickable
         anchors.top:        parent.top
         anchors.bottom:     parent.bottom
-        anchors.leftMargin: titleLabel.contentHeight
+        anchors.leftMargin: 0
         anchors.left:       parent.left
         anchors.right:      parent.right
         clip:               true

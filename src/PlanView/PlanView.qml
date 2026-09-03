@@ -686,22 +686,26 @@ Item {
                 _planViewSettings.showMissionItemStatus.rawValue = _planViewSettings.showMissionItemStatus.rawValue ? false : true
             }
 
-            // 접기 버튼. 밴드가 92px 이므로 세로를 꽉 채워 7mm 이상의 터치 영역을 확보한다.
+            // 접기 버튼. 세로를 꽉 채우면 밴드 왼쪽이 통째로 회색 판이 된다.
+            // 7인치 손가락 최소치(7mm = 60px)만 정사각형으로 잡고 나머지는 비운다.
             Rectangle {
                 id: bottomStatusOpenCloseButton
-                Layout.fillHeight: true
-                implicitWidth: ScreenTools.defaultFontPixelHeight * 3.75
-                color: QGroundControl.globalPalette.button
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth: Math.max(60, ScreenTools.defaultFontPixelHeight * 3.75)
+                implicitHeight: implicitWidth
+                radius: ScreenTools.defaultBorderRadius
+                color: collapseArea.pressed ? QGroundControl.globalPalette.button : "transparent"
 
                 QGCColoredImage {
                     anchors.centerIn: parent
                     width: ScreenTools.defaultFontPixelHeight * 1.25
                     height: width
                     source: "/res/chevron-double-left.svg"
-                    color: QGroundControl.globalPalette.buttonText
+                    color: QGroundControl.globalPalette.text
                 }
 
                 QGCMouseArea {
+                    id: collapseArea
                     anchors.fill: parent
                     onClicked: missionStatus._toggleMissionStatusVisibility()
                 }
@@ -724,8 +728,7 @@ Item {
                 TerrainStatus {
                     id: terrainStatus
                     Layout.fillWidth: true
-                                    // TerrainStatus 는 세로 회전 제목과 눈금 라벨을 그린다. 56px 에서는 겹쳐 읽히지 않는다.
-                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 5.0
+                                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 4.0
                     missionController: _missionController
                     onSetCurrentSeqNum: _missionController.setCurrentPlanViewSeqNum(seqNum, true)
                 }
