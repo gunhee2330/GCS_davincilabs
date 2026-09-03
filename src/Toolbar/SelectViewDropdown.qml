@@ -14,8 +14,9 @@ ToolIndicatorPage {
     property real _toolButtonHeight: ScreenTools.defaultFontPixelHeight * 3
 
     contentComponent: Component {
+        // One column: the operator reads the list top to bottom rather than scanning a grid.
         GridLayout {
-            columns: 2
+            columns: 1
             columnSpacing: ScreenTools.defaultFontPixelWidth
             rowSpacing: columnSpacing
 
@@ -129,7 +130,7 @@ ToolIndicatorPage {
             ColumnLayout {
                 id: versionColumnLayout
                 Layout.fillWidth: true
-                Layout.columnSpan: 2
+                Layout.columnSpan: 1
                 spacing: 0
 
                 QGCLabel {
