@@ -40,6 +40,7 @@
 #include "SettingsManager.h"
 #include "SiyiAiController.h"
 #include "SiyiCameraController.h"
+#include "PoliceLinkDefaults.h"
 #include "TakeoffCounter.h"
 #include "SpeakerController.h"
 #include "Vehicle.h"
@@ -368,6 +369,10 @@ void QGCApplication::_initForNormalAppBoot()
                           "Your saved settings have been reset to defaults.")
                            .arg(applicationName()));
     }
+
+    // The UniRC 7 handheld's UDP link ships pre-configured so the first start on the
+    // controller connects without the operator adding anything.
+    PoliceLinkDefaults::ensureUniRcLink();
 
     // Connect links with flag AutoconnectLink
     LinkManager::instance()->startAutoConnectedLinks();

@@ -29,11 +29,11 @@ class TakeoffCounter : public QObject
     Q_PROPERTY(int takeoffCount READ takeoffCount NOTIFY takeoffCountChanged)
 
 public:
-    explicit TakeoffCounter(QObject *parent = nullptr);
+    explicit TakeoffCounter(QObject* parent = nullptr);
     ~TakeoffCounter() override;
 
-    static TakeoffCounter *instance();
-    static TakeoffCounter *create(QQmlEngine *qmlEngine, QJSEngine *jsEngine);
+    static TakeoffCounter* instance();
+    static TakeoffCounter* create(QQmlEngine* qmlEngine, QJSEngine* jsEngine);
 
     /// Starts following the active vehicle. Call once, after MultiVehicleManager::init().
     void init();
@@ -44,14 +44,14 @@ signals:
     void takeoffCountChanged();
 
 private slots:
-    void _activeVehicleChanged(Vehicle *vehicle);
+    void _activeVehicleChanged(Vehicle* vehicle);
     void _armedChanged(bool armed);
     void _flyingChanged(bool flying);
-    void _altitudeChanged(const QVariant &value);
+    void _altitudeChanged(const QVariant& value);
     void _uidChanged();
 
 private:
-    void _follow(Vehicle *vehicle);
+    void _follow(Vehicle* vehicle);
     void _markAirborne();
     void _load();
     void _store() const;

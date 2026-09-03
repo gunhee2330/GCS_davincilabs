@@ -13,52 +13,48 @@ QGC_LOGGING_CATEGORY(TakeoffCounterLog, "PoliceDrone.TakeoffCounter")
 
 namespace {
 
-constexpr const char *kSettingsGroup = "PoliceDrone/TakeoffCount";
+constexpr const char* kSettingsGroup = "PoliceDrone/TakeoffCount";
 
 /// Relative altitude that counts as airborne when the autopilot never sends a landed state.
 /// Two metres clears barometric drift on the pad without waiting for cruise height.
 constexpr double kAirborneAltitudeM = 2.0;
 
-} // namespace
+}  // namespace
 
 Q_APPLICATION_STATIC(TakeoffCounter, _takeoffCounterInstance);
 
-TakeoffCounter::TakeoffCounter(QObject *parent)
-    : QObject(parent)
-{
-}
+TakeoffCounter::TakeoffCounter(QObject* parent) : QObject(parent) {}
 
 TakeoffCounter::~TakeoffCounter() = default;
 
-TakeoffCounter *TakeoffCounter::instance()
+TakeoffCounter* TakeoffCounter::instance()
 {
     return _takeoffCounterInstance();
 }
 
-TakeoffCounter *TakeoffCounter::create(QQmlEngine *qmlEngine, QJSEngine *jsEngine)
+TakeoffCounter* TakeoffCounter::create(QQmlEngine* qmlEngine, QJSEngine* jsEngine)
 {
     Q_UNUSED(qmlEngine);
     Q_UNUSED(jsEngine);
 
-    TakeoffCounter *const counter = instance();
+    TakeoffCounter* const counter = instance();
     QJSEngine::setObjectOwnership(counter, QJSEngine::CppOwnership);
     return counter;
 }
 
 void TakeoffCounter::init()
 {
-    MultiVehicleManager *const manager = MultiVehicleManager::instance();
-    (void) connect(manager, &MultiVehicleManager::activeVehicleChanged,
-                   this, &TakeoffCounter::_activeVehicleChanged);
+    MultiVehicleManager* const manager = MultiVehicleManager::instance();
+    (void) connect(manager, &MultiVehicleManager::activeVehicleChanged, this, &TakeoffCounter::_activeVehicleChanged);
     _follow(manager->activeVehicle());
 }
 
-void TakeoffCounter::_activeVehicleChanged(Vehicle *vehicle)
+void TakeoffCounter::_activeVehicleChanged(Vehicle* vehicle)
 {
     _follow(vehicle);
 }
 
-void TakeoffCounter::_follow(Vehicle *vehicle)
+void TakeoffCounter::_follow(Vehicle* vehicle)
 {
     if (_vehicle) {
         (void) disconnect(_vehicle, nullptr, this, nullptr);
@@ -77,8 +73,7 @@ void TakeoffCounter::_follow(Vehicle *vehicle)
     (void) connect(_vehicle, &Vehicle::armedChanged, this, &TakeoffCounter::_armedChanged);
     (void) connect(_vehicle, &Vehicle::flyingChanged, this, &TakeoffCounter::_flyingChanged);
     (void) connect(_vehicle, &Vehicle::vehicleUIDChanged, this, &TakeoffCounter::_uidChanged);
-    (void) connect(_vehicle->altitudeRelative(), &Fact::rawValueChanged,
-                   this, &TakeoffCounter::_altitudeChanged);
+    (void) connect(_vehicle->altitudeRelative(), &Fact::rawValueChanged, this, &TakeoffCounter::_altitudeChanged);
 
     // Joining a vehicle already in the air is not a takeoff this station saw.
     _airborneThisCycle = _vehicle->flying();
@@ -100,7 +95,7 @@ void TakeoffCounter::_flyingChanged(bool flying)
     }
 }
 
-void TakeoffCounter::_altitudeChanged(const QVariant &value)
+void TakeoffCounter::_altitudeChanged(const QVariant& value)
 {
     if (_vehicle && _vehicle->armed() && (value.toDouble() > kAirborneAltitudeM)) {
         _markAirborne();

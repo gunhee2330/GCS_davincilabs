@@ -1,11 +1,13 @@
 # ============================================================================
 # Police Drone Module
 # Ground-station bookkeeping the procurement spec asks for and no autopilot
-# reports: currently the per-airframe takeoff count.
+# reports: the per-airframe takeoff count, and the links a fresh install starts with.
 # ============================================================================
 
 target_sources(${CMAKE_PROJECT_NAME}
     PRIVATE
+        PoliceLinkDefaults.cc
+        PoliceLinkDefaults.h
         TakeoffCounter.cc
         TakeoffCounter.h
 )

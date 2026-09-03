@@ -483,29 +483,90 @@ Item {
             }
 
             // Link state at the far right: a plug in or out of its socket, with the word the
-            // operator asked for. Green once a vehicle is connected and talking.
-            Row {
-                Layout.fillHeight: true
-                spacing:           6
+            // operator asked for. Green once a vehicle is connected and talking. Clicking it
+            // is the connect button: without a vehicle it opens QGC's link chooser, the page
+            // the status label on the left also opens; with one, the links now up, each with
+            // its own disconnect.
+            Item {
+                id:                    linkIndicator
+                Layout.fillHeight:     true
+                Layout.preferredWidth: linkRow.implicitWidth
 
                 readonly property color tint: root._linkUp ? "#42d66b" : "#ff9c46"
 
-                QGCColoredImage {
+                Row {
+                    id:                     linkRow
                     anchors.verticalCenter: parent.verticalCenter
-                    width:                  root._menuIconSize * 1.15
-                    height:                 width
-                    source:                 root._linkUp ? "/res/police_plug_on.svg" : "/res/police_plug_off.svg"
-                    color:                  parent.tint
-                    fillMode:               Image.PreserveAspectFit
-                    sourceSize.height:      height
+                    spacing:                6
+
+                    QGCColoredImage {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width:                  root._menuIconSize * 1.15
+                        height:                 width
+                        source:                 root._linkUp ? "/res/police_plug_on.svg" : "/res/police_plug_off.svg"
+                        color:                  linkIndicator.tint
+                        fillMode:               Image.PreserveAspectFit
+                        sourceSize.height:      height
+                    }
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        color:                  linkIndicator.tint
+                        font.bold:              true
+                        font.pixelSize:         Math.max(12, ScreenTools.defaultFontPixelHeight * 0.75)
+                        text:                   root._linkUp ? qsTr("Connect") : qsTr("Disconnect")
+                    }
                 }
 
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    color:                  parent.tint
-                    font.bold:              true
-                    font.pixelSize:         Math.max(12, ScreenTools.defaultFontPixelHeight * 0.75)
-                    text:                   root._linkUp ? qsTr("Connect") : qsTr("Disconnect")
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked:    mainWindow.showIndicatorDrawer(root._activeVehicle ? linkConnectedPage : linkSelectPage,
+                                                                 linkIndicator)
+                }
+            }
+        }
+    }
+
+    // Pages behind the plug indicator.
+    Component {
+        id: linkSelectPage
+
+        MainStatusIndicatorOfflinePage {}
+    }
+
+    Component {
+        id: linkConnectedPage
+
+        ToolIndicatorPage {
+            contentComponent: Component {
+                SettingsGroupLayout {
+                    heading: qsTr("연결된 링크")
+
+                    Repeater {
+                        model: QGroundControl.linkManager.linkConfigurations
+
+                        // Auto-connected links (a Pixhawk on USB, say) carry a dynamic
+                        // configuration; they are listed too, since they are what the
+                        // operator most often wants to drop.
+                        delegate: RowLayout {
+                            Layout.fillWidth: true
+                            spacing:          ScreenTools.defaultFontPixelWidth
+                            visible:          !!object.link
+
+                            QGCLabel {
+                                Layout.fillWidth: true
+                                text:             object.name
+                            }
+
+                            QGCButton {
+                                text: qsTr("연결 해제")
+                                onClicked: {
+                                    QGroundControl.linkManager.disconnectLinkConfiguration(object)
+                                    mainWindow.closeIndicatorDrawer()
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
