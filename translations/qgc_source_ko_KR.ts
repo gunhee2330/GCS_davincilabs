@@ -12835,7 +12835,7 @@ VTOL</translation>
     <message>
       <location filename="../src/PlanView/MissionItemEditor.qml" line="295"/>
       <source>Item #%1</source>
-      <translation>항목 1</translation>
+      <translation>항목 %1</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionItemEditor.qml" line="341"/>
@@ -16429,7 +16429,7 @@ Note that this will also completely reset everything, including UAVCAN nodes, al
     <message>
       <location filename="../src/MissionManager/PlanMasterController.cc" line="691"/>
       <source>Plan Files (*.%1)</source>
-      <translation>계획 파일 (*.*)</translation>
+      <translation>계획 파일 (*.%1)</translation>
     </message>
   </context>
   <context>
@@ -16666,7 +16666,7 @@ Note that this will also completely reset everything, including UAVCAN nodes, al
 Click &apos;Ok&apos; to upload the Plan anyway.</source>
       <translation>이 플랜은 업로드 중인 차량의 펌웨어/기체 유형과 다른 펌웨어 또는 기체 유형에 대해 생성되었습니다. 이로 인해 오류 또는 잘못된 동작이 발생할 수 있습니다. 올바른 펌웨어/기체 유형에 대한 플랜을 다시 생성하는 것이 좋습니다.
 
-&apos;Ok&apos;를 클릭하면 플랜을 업로드합니다.</translation>
+&apos;확인&apos;을 클릭하면 플랜을 업로드합니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="116"/>
@@ -16713,7 +16713,7 @@ Click &apos;Ok&apos; to upload the Plan anyway.</source>
       <location filename="../src/PlanView/PlanView.qml" line="90"/>
       <location filename="../src/PlanView/PlanView.qml" line="95"/>
       <source>Unable to %1</source>
-      <translation>라이딩 종료 불가</translation>
+      <translation>%1할 수 없습니다</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="90"/>
@@ -17647,43 +17647,43 @@ sudo apt-get remove modemmanager</translation>
     <message>
       <location filename="../src/QmlControls/QGroundControlQmlGlobal.cc" line="274"/>
       <source>Rel</source>
-      <translation type="unfinished">Rel</translation>
+      <translation>상대</translation>
     </message>
     <message>
       <location filename="../src/QmlControls/QGroundControlQmlGlobal.cc" line="278"/>
       <source>AGLC</source>
-      <translation type="unfinished">AGLC</translation>
+      <translation>지형계산</translation>
     </message>
     <message>
       <location filename="../src/QmlControls/QGroundControlQmlGlobal.cc" line="280"/>
       <source>AGL</source>
-      <translation type="unfinished">AGL</translation>
+      <translation>지형</translation>
     </message>
     <message>
       <location filename="../src/QmlControls/QGroundControlQmlGlobal.cc" line="282"/>
       <location filename="../src/QmlControls/QGroundControlQmlGlobal.cc" line="303"/>
       <source>Mixed</source>
-      <translation type="unfinished">Mixed</translation>
+      <translation>혼합</translation>
     </message>
     <message>
       <location filename="../src/QmlControls/QGroundControlQmlGlobal.cc" line="295"/>
       <source>Relative (%1)</source>
-      <translation type="unfinished">Relative (%1)</translation>
+      <translation>상대 고도 (%1)</translation>
     </message>
     <message>
       <location filename="../src/QmlControls/QGroundControlQmlGlobal.cc" line="297"/>
       <source>Absolute (%1)</source>
-      <translation type="unfinished">Absolute (%1)</translation>
+      <translation>절대 고도 (%1)</translation>
     </message>
     <message>
       <location filename="../src/QmlControls/QGroundControlQmlGlobal.cc" line="299"/>
       <source>Above Terrain Calced (%1)</source>
-      <translation type="unfinished">Above Terrain Calced (%1)</translation>
+      <translation>지형 기준 계산 고도 (%1)</translation>
     </message>
     <message>
       <location filename="../src/QmlControls/QGroundControlQmlGlobal.cc" line="301"/>
       <source>Above Terrain (%1)</source>
-      <translation type="unfinished">Above Terrain (%1)</translation>
+      <translation>지형 기준 고도 (%1)</translation>
     </message>
     <message>
       <location filename="../src/QmlControls/QGroundControlQmlGlobal.cc" line="276"/>
@@ -19941,6 +19941,21 @@ If a vehicle still has this key configured, you will no longer be able to commun
   <context>
     <name>SimpleItemEditor</name>
     <message>
+      <location filename="../src/PlanView/SimpleItemEditor.qml" line="168"/>
+      <source>Settings</source>
+      <translation>설정</translation>
+    </message>
+    <message>
+      <location filename="../src/PlanView/SimpleItemEditor.qml" line="176"/>
+      <source>Camera</source>
+      <translation>카메라</translation>
+    </message>
+    <message>
+      <location filename="../src/PlanView/SimpleItemEditor.qml" line="184"/>
+      <source>Advanced</source>
+      <translation>고급</translation>
+    </message>
+    <message>
       <location filename="../src/PlanView/SimpleItemEditor.qml" line="49"/>
       <source>Move &apos;%1&apos; %2 to the %3 location. %4</source>
       <translation>%3 %2 위치로 &apos;%1&apos; 을(를) 옮기십시오. %4</translation>
@@ -20635,6 +20650,11 @@ If a vehicle still has this key configured, you will no longer be able to commun
       <location filename="../src/PlanView/TerrainStatus.qml" line="34"/>
       <source>Height AMSL (%1)</source>
       <translation>AMSL 고도 (%1)</translation>
+    </message>
+    <message>
+      <location filename="../src/PlanView/TerrainStatus.qml" line="44"/>
+      <source>AMSL %1</source>
+      <translation>해발 %1</translation>
     </message>
   </context>
   <context>

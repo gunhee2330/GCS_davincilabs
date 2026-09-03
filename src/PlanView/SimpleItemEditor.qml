@@ -40,14 +40,51 @@ Rectangle {
 
     // FactTextFieldSlider 안에서 실제로 눌리는 것은 TextField 하나뿐이라 바깥 사각형만 키우면
     // 보기만 커지고 탭 영역은 그대로다. 공용 컨트롤(QmlControls)을 건드리지 않기 위해
-    // 인스턴스마다 노출된 alias 로 그 TextField 의 상하 여백만 늘린다.
-    function _growTouchField(fieldSlider) {
-        var textField = fieldSlider.textField
+    // 인스턴스마다 노출된 alias 로 그 TextField 의 상하 여백과 배경색만 손댄다.
+    // alias 는 FactTextFieldSlider.textField(= LabelledFactTextField) → .textField(= QGCTextField) 로
+    // 두 단계다. 한 단계만 타면 padding 이 없는 RowLayout 에 대입해 여백이 붙지 않는다.
+    function _setupTextField(fieldSlider) {
+        var textField = fieldSlider.textField.textField
         textField.topPadding = Math.max(textField.topPadding, _touchFieldPadding)
         textField.bottomPadding = Math.max(textField.bottomPadding, _touchFieldPadding)
+        PolicePalette.styleTextField(textField)
     }
 
     QGCPalette { id: qgcPal; colorGroupEnabled: root.enabled }
+
+    // 탭 3개가 채워진 사각 버튼이라 7인치에서 아이콘만으로는 구분이 안 된다. 글자 탭 + 밑줄로 바꾼다.
+    // QGCTabButton 은 전 화면 공용이라 손대지 않고, 인스턴스마다 background 만 덮어쓴다.
+    // currentIndex 연동(ButtonGroup)과 키보드 포커스는 QGCTabButton 쪽 그대로다.
+    component TabUnderline: Rectangle {
+        id: tabUnderline
+
+        property bool selected: false
+
+        color: "transparent"
+        // 순정 배경을 걷어내면 높이를 정하던 implicitButtonHeight 도 같이 사라진다.
+        // 편집기 안에서 가장 자주 눌리는 스위치이므로 입력 필드와 같은 52px(6.1mm)로 잡는다.
+        implicitHeight: Math.max(52, ScreenTools.defaultFontPixelHeight * 3.25)
+
+        Rectangle {
+            anchors.left:   parent.left
+            anchors.right:  parent.right
+            anchors.bottom: parent.bottom
+            // 미선택 밑줄은 어두운 배경에서 대비 1.5:1 이라 보이지 않는다. 선택된 탭에만 선을 긋는다.
+            height:         PolicePalette.accentWidth
+            color:          tabUnderline.selected ? qgcPal.buttonHighlight : "transparent"
+        }
+    }
+
+    /// 탭 글자.
+    ///
+    /// QGCTabButton 의 기본 글자색은 checked 일 때 buttonHighlightText 다. 그 색은 원래 배경이
+    /// buttonHighlight 로 꽉 찼을 때를 전제로 하므로, 배경을 걷어낸 지금은 Light 팔레트에서
+    /// 흰 배경 위 흰 글자가 된다. 배경을 덮었으면 글자색도 같이 덮어야 한다.
+    component TabLabel: QGCLabel {
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment:   Text.AlignVCenter
+        color:               qgcPal.text
+    }
 
     Column {
         id: editorColumn
@@ -143,19 +180,28 @@ Rectangle {
 
                 QGCTabButton {
                     id: basicItemsTab
-                    icon.source: "/res/PlanSimpleItemBasic.svg"
+                    text: qsTr("Settings")
+                    opacity: basicItemsTab.checked ? 1 : 0.6
+                    background: TabUnderline { selected: basicItemsTab.checked }
+                    contentItem: TabLabel { text: basicItemsTab.text }
                     visible: tabBar._basicItemsAvailable
                 }
 
                 QGCTabButton {
                     id: cameraTab
-                    icon.source: "/res/PlanSimpleItemCamera.svg"
+                    text: qsTr("Camera")
+                    opacity: cameraTab.checked ? 1 : 0.6
+                    background: TabUnderline { selected: cameraTab.checked }
+                    contentItem: TabLabel { text: cameraTab.text }
                     visible: tabBar._cameraAvailable
                 }
 
                 QGCTabButton {
                     id: advancedItemsTab
-                    icon.source: "/res/PlanSimpleItemAdvanced.svg"
+                    text: qsTr("Advanced")
+                    opacity: advancedItemsTab.checked ? 1 : 0.6
+                    background: TabUnderline { selected: advancedItemsTab.checked }
+                    contentItem: TabLabel { text: advancedItemsTab.text }
                     visible: tabBar._advancedItemsAvailable
                 }
             }
@@ -194,7 +240,7 @@ Rectangle {
                         label: qsTr("Altitude%1").arg(_extraLabelText())
                         fact: missionItem.altitude
 
-                        Component.onCompleted: root._growTouchField(altField)
+                        Component.onCompleted: root._setupTextField(altField)
 
                         function _extraLabelText() {
                             return qsTr(" (%1)").arg(QGroundControl.altitudeFrameExtraUnits(missionItem.altitudeFrame))
@@ -248,7 +294,7 @@ Rectangle {
                         enabled: !object.readOnly
                         warnOnUserMinMaxInvalid: false
 
-                        Component.onCompleted: root._growTouchField(textFieldFactRow)
+                        Component.onCompleted: root._setupTextField(textFieldFactRow)
                     }
                 }
 
@@ -266,7 +312,7 @@ Rectangle {
 
                         onEnableCheckboxClicked: object.rawValue = enableCheckBoxChecked ? 0 : NaN
 
-                        Component.onCompleted: root._growTouchField(nanFactRow)
+                        Component.onCompleted: root._setupTextField(nanFactRow)
                     }
                 }
 
@@ -281,7 +327,7 @@ Rectangle {
 
                     onEnableCheckboxClicked: missionItem.speedSection.specifyFlightSpeed = enableCheckBoxChecked
 
-                    Component.onCompleted: root._growTouchField(flightSpeedRow)
+                    Component.onCompleted: root._setupTextField(flightSpeedRow)
                 }
             }
 
@@ -339,7 +385,7 @@ Rectangle {
                         enabled: !object.readOnly
                         warnOnUserMinMaxInvalid: false
 
-                        Component.onCompleted: root._growTouchField(advancedTextFieldFactRow)
+                        Component.onCompleted: root._setupTextField(advancedTextFieldFactRow)
                     }
                 }
 
@@ -357,7 +403,7 @@ Rectangle {
 
                         onEnableCheckboxClicked: object.rawValue = enableCheckBoxChecked ? 0 : NaN
 
-                        Component.onCompleted: root._growTouchField(advancedNanFactRow)
+                        Component.onCompleted: root._setupTextField(advancedNanFactRow)
                     }
                 }
             }

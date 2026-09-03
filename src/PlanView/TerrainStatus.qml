@@ -7,8 +7,9 @@ import QGroundControl.Controls
 Rectangle {
     id:         root
     radius:     ScreenTools.defaultFontPixelWidth * 0.5
-    color:      qgcPal.window
-    opacity:    0.80
+    // opacity 를 루트에 걸면 축 눈금·제목 글자까지 흐려져 위 숫자줄과 밝기가 어긋난다.
+    // 배경만 반투명하게 하고 글자는 온전한 밝기로 둔다.
+    color:      Qt.rgba(qgcPal.window.r, qgcPal.window.g, qgcPal.window.b, 0.80)
     clip:       true
 
     property var missionController
@@ -24,16 +25,23 @@ Rectangle {
     property real _missionTotalDistance:    isNaN(missionController.missionTotalDistance) ? 100 : missionController.missionTotalDistance
     property var  _unitsConversion:         QGroundControl.unitsConversion
 
+    // 글꼴 정책은 MissionStats.qml 상단 주석 참조. 4파일 공통, 나중에 한 곳으로 모을 것.
+    readonly property real _fontCaption:    ScreenTools.smallFontPointSize
+
     QGCPalette { id: qgcPal }
 
     // 세로로 돌린 제목은 폭 한 줄과 밴드 높이를 함께 먹는다. 7인치에서는 둘 다 아깝다.
     // 축 눈금이 이미 숫자를 보여주므로 기준(해발)만 가로로 짧게 적는다.
     QGCLabel {
-        id:                 titleLabel
-        anchors.top:        parent.top
-        anchors.left:       parent.left
-        anchors.leftMargin: _margins
-        font.pointSize:     ScreenTools.smallFontPointSize
+        id:                  titleLabel
+        // 아래 QGCFlickable 보다 먼저 선언돼 있어 그대로 두면 차트 배경에 덮인다.
+        z:                   1
+        anchors.top:         parent.top
+        // 왼쪽에 두면 Y축 최상단 눈금 숫자와 겹쳐 읽힌다.
+        anchors.right:       parent.right
+        anchors.rightMargin: _margins * 2
+        anchors.topMargin:   _margins
+        font.pointSize:      root._fontCaption
         color:              qgcPal.text
         opacity:            0.7
         text:               qsTr("AMSL %1").arg(_unitsConversion.appSettingsVerticalDistanceUnitsString)
@@ -65,15 +73,17 @@ Rectangle {
                     backgroundColor:            "transparent"
                     backgroundVisible:          false
                     plotAreaBackgroundColor:     qgcPal.window
-                    grid.mainColor:             applyOpacity(qgcPal.text, 0.5)
-                    grid.subColor:              applyOpacity(qgcPal.text, 0.3)
+                    grid.mainColor:             applyOpacity(qgcPal.text, 0.18)
+                    grid.subColor:              applyOpacity(qgcPal.text, 0.10)
                     grid.mainWidth:             1
                     labelBackgroundVisible:     false
                     labelTextColor:             qgcPal.text
-                    axisXLabelFont.family:      ScreenTools.fixedFontFamily
-                    axisXLabelFont.pointSize:   ScreenTools.smallFontPointSize
-                    axisYLabelFont.family:      ScreenTools.fixedFontFamily
-                    axisYLabelFont.pointSize:   ScreenTools.smallFontPointSize
+                    // GraphsTheme 는 QGCLabel 이 아니라 글꼴을 물려받지 못한다. 축 눈금 숫자가
+                    // 아래 숫자 밴드와 같아 보이도록 본문 글꼴을 그대로 지정한다.
+                    axisXLabelFont.family:      ScreenTools.normalFontFamily
+                    axisXLabelFont.pointSize:   root._fontCaption
+                    axisYLabelFont.family:      ScreenTools.normalFontFamily
+                    axisYLabelFont.pointSize:   root._fontCaption
                 }
 
                 axisX: ValueAxis {

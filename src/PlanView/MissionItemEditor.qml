@@ -47,6 +47,10 @@ Rectangle {
     readonly property real  _trashSize:         ScreenTools.defaultFontPixelHeight * 1.75
     readonly property bool  _waypointsOnlyMode: QGroundControl.corePlugin.options.missionWaypointsOnly
 
+    // 글꼴 정책은 MissionStats.qml 상단 주석 참조. 4파일 공통, 나중에 한 곳으로 모을 것.
+    readonly property real  _fontEmphasis:      ScreenTools.defaultFontPointSize * 1.15
+    readonly property real  _fontCaption:       ScreenTools.smallFontPointSize
+
     // setSource() injects missionItem before internal bindings activate
     function _loadEditor() {
         if (missionItem.isCurrentItem) {
@@ -129,7 +133,7 @@ Rectangle {
                 //: Indicator in Plan view to show mission item is not ready for save/send
                 text:               qsTr("?")
                 color:              qgcPal.warningText
-                font.pointSize:     ScreenTools.smallFontPointSize
+                font.pointSize:     _root._fontCaption
             }
         }
 
@@ -171,7 +175,7 @@ Rectangle {
                 QGCLabel {
                     text:           missionItem.commandName
                     // 본문 13px(1.5mm) → 15px(1.8mm)
-                    font.pointSize: ScreenTools.defaultFontPointSize * 1.15
+                    font.pointSize: _root._fontEmphasis
                 }
 
                 QGCColoredImage {
@@ -219,7 +223,7 @@ Rectangle {
             text:                   missionItem.commandName
             color:                  _outerTextColor
             // 본문 13px(1.5mm) → 15px(1.8mm)
-            font.pointSize:         ScreenTools.defaultFontPointSize * 1.15
+            font.pointSize:         _root._fontEmphasis
         }
     }
 

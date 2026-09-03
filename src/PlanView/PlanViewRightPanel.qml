@@ -4,6 +4,7 @@ import QtQuick.Layouts
 
 import QGroundControl
 import QGroundControl.Controls
+import QGroundControl.PlanView
 
 Item {
     required property var editorMap
@@ -47,19 +48,24 @@ Item {
 
         property bool _expanded: root.anchors.right == root.parent.right
 
+        // 7인치에서 1mm = 8.49px. 순정 폭 18px 은 2.1mm 라 손가락으로 잡히지 않는다.
+        // 손잡이는 반쯤 잘려 보이므로 폭은 잘린 뒤에도 28px 이상 남게 잡는다.
         Rectangle {
             id:             toggleButtonRect
-            width:          ScreenTools.defaultFontPixelWidth * 2.25
-            height:         width * 3
-            radius:         ScreenTools.defaultBorderRadius
+            width:          Math.max(40, ScreenTools.defaultFontPixelWidth * 4.5)
+            height:         Math.max(76, width * 2)
+            radius:         ScreenTools.defaultBorderRadius * 2
             color:          rightPanelBackground.color
             opacity:        rightPanelBackground.opacity
+            border.width:   PolicePalette.borderWidth
+            border.color:   PolicePalette.blue
 
             QGCLabel {
                 id:                 toggleButtonLabel
                 anchors.centerIn:   parent
                 text:               panelOpenCloseButton._expanded ? ">" : "<"
-                color:              qgcPal.buttonText
+                font.pointSize:     ScreenTools.mediumFontPointSize
+                color:              qgcPal.text
             }
 
         }

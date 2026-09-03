@@ -90,12 +90,18 @@ Rectangle {
         }
 
         FactTextFieldSlider {
+            id: waypointAltField
             Layout.fillWidth: true
             label: qsTr("Waypoints Altitude")
             fact: QGroundControl.settingsManager.appSettings.defaultMissionItemAltitude
+
+            // QGCTextField 의 배경은 dark 테마에서도 흰색이다. 그 팔레트는 전 화면 공용이라
+            // 인스턴스마다 alias(FactTextFieldSlider → LabelledFactTextField → QGCTextField)로만 덮어쓴다.
+            Component.onCompleted: PolicePalette.styleTextField(waypointAltField.textField.textField)
         }
 
         FactTextFieldSlider {
+            id: flightSpeedField
             Layout.fillWidth: true
             label: qsTr("Flight Speed")
             fact: _root._settingsItem ? _root._settingsItem.speedSection.flightSpeed : null
@@ -108,6 +114,8 @@ Rectangle {
                     _root._settingsItem.speedSection.specifyFlightSpeed = enableCheckBoxChecked
                 }
             }
+
+            Component.onCompleted: PolicePalette.styleTextField(flightSpeedField.textField.textField)
         }
 
         // ── Vehicle Speeds ──
@@ -133,33 +141,45 @@ Rectangle {
             }
 
             FactTextFieldSlider {
+                id: cruiseSpeedField
                 Layout.fillWidth: true
                 label: _root._isVtol ? qsTr("FW - Flight speed") : qsTr("Flight speed")
                 fact: QGroundControl.settingsManager.appSettings.offlineEditingCruiseSpeed
                 visible: _root._showCruiseSpeed
                 enabled: !_root._flightSpeedSpecified
+
+                Component.onCompleted: PolicePalette.styleTextField(cruiseSpeedField.textField.textField)
             }
 
             FactTextFieldSlider {
+                id: hoverSpeedField
                 Layout.fillWidth: true
                 label: _root._isVtol ? qsTr("MR - Flight speed") : qsTr("Flight speed")
                 fact: QGroundControl.settingsManager.appSettings.offlineEditingHoverSpeed
                 visible: _root._showHoverSpeed
                 enabled: !_root._flightSpeedSpecified
+
+                Component.onCompleted: PolicePalette.styleTextField(hoverSpeedField.textField.textField)
             }
 
             FactTextFieldSlider {
+                id: ascentSpeedField
                 Layout.fillWidth: true
                 label: _root._isVtol ? qsTr("MR - Ascent speed") : qsTr("Ascent speed")
                 fact: QGroundControl.settingsManager.appSettings.offlineEditingAscentSpeed
                 visible: _root._showAscentDescentSpeed
+
+                Component.onCompleted: PolicePalette.styleTextField(ascentSpeedField.textField.textField)
             }
 
             FactTextFieldSlider {
+                id: descentSpeedField
                 Layout.fillWidth: true
                 label: _root._isVtol ? qsTr("MR - Descent speed") : qsTr("Descent speed")
                 fact: QGroundControl.settingsManager.appSettings.offlineEditingDescentSpeed
                 visible: _root._showAscentDescentSpeed
+
+                Component.onCompleted: PolicePalette.styleTextField(descentSpeedField.textField.textField)
             }
         }
     }

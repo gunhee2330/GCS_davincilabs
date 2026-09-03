@@ -154,10 +154,15 @@ Rectangle {
                 font.pointSize: ScreenTools.smallFontPointSize
             }
             FactTextField {
+                id: homeAltitudeField
                 fact: _root._settingsItem ? _root._settingsItem.plannedHomePositionAltitude : null
                 Layout.fillWidth: true
                 font.pointSize: ScreenTools.smallFontPointSize
                 visible: _root._settingsItem && _root._settingsItem.terrainQueryFailed
+
+                // QGCTextField 의 배경은 dark 테마에서도 흰색이다. 그 팔레트는 전 화면 공용이라
+                // 계획 화면 안에서 인스턴스별로만 덮어쓴다.
+                Component.onCompleted: PolicePalette.styleTextField(homeAltitudeField)
             }
             QGCLabel {
                 text: _root._settingsItem ? _root._settingsItem.plannedHomePositionAltitude.valueString + " " + _root._settingsItem.plannedHomePositionAltitude.units : ""

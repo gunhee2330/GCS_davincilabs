@@ -686,15 +686,17 @@ Item {
                 _planViewSettings.showMissionItemStatus.rawValue = _planViewSettings.showMissionItemStatus.rawValue ? false : true
             }
 
-            // 접기 버튼. 세로를 꽉 채우면 밴드 왼쪽이 통째로 회색 판이 된다.
-            // 7인치 손가락 최소치(7mm = 60px)만 정사각형으로 잡고 나머지는 비운다.
+            // 접기 버튼. 투명하게 두면 이 자리만 지도가 비쳐서 밴드가 두 조각으로 끊겨 보인다.
+            // 밴드와 같은 바닥색으로 채워 한 판으로 잇고, 눌림은 밝기로만 알린다.
+            // 폭은 7인치 손가락 최소치(7mm = 60px)를 지킨다.
             Rectangle {
                 id: bottomStatusOpenCloseButton
-                Layout.alignment: Qt.AlignVCenter
+                Layout.fillHeight: true
                 implicitWidth: Math.max(60, ScreenTools.defaultFontPixelHeight * 3.75)
-                implicitHeight: implicitWidth
-                radius: ScreenTools.defaultBorderRadius
-                color: collapseArea.pressed ? QGroundControl.globalPalette.button : "transparent"
+                color: Qt.rgba(QGroundControl.globalPalette.window.r,
+                               QGroundControl.globalPalette.window.g,
+                               QGroundControl.globalPalette.window.b,
+                               collapseArea.pressed ? 0.95 : 0.8)
 
                 QGCColoredImage {
                     anchors.centerIn: parent
@@ -728,7 +730,7 @@ Item {
                 TerrainStatus {
                     id: terrainStatus
                     Layout.fillWidth: true
-                                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 4.0
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 4.0
                     missionController: _missionController
                     onSetCurrentSeqNum: _missionController.setCurrentPlanViewSeqNum(seqNum, true)
                 }

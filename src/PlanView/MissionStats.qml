@@ -47,9 +47,22 @@ Rectangle {
     readonly property real   _margins:      ScreenTools.defaultFontPixelWidth
     readonly property real   _itemSpacing:  ScreenTools.defaultFontPixelWidth * 0.4
 
-    // 7인치 터치 기준 숫자 약 18px, 라벨 약 12px. 기기 폰트 배율 설정을 따라가도록 기본 크기 비율로 잡는다.
-    readonly property real _valuePointSize: ScreenTools.defaultFontPointSize * 1.125
-    readonly property real _labelPointSize: ScreenTools.smallFontPointSize
+    // ── 글꼴 정책 (레인 A). 배정 4파일 공통 ──────────────────────────────────
+    // 1) 글꼴은 QGCLabel 기본값인 ScreenTools.normalFontFamily 한 벌만 쓴다. 한국어 로케일에서는
+    //    앱에 내장된 NanumGothic 이다(ScreenToolsController::normalFontFamily).
+    //    숫자에만 주던 ScreenTools.fixedFontFamily 는 내장 글꼴이 아니라 QFontDatabase 가 돌려주는
+    //    OS 기본 고정폭이다. 기기마다 다르고 한글 라벨과 획 굵기·글자 높이가 어긋난다 — 이것이
+    //    "글꼴이 따로 논다" 의 원인이었다.
+    // 2) 고정폭을 버려도 자릿수는 흔들리지 않는다. NanumGothic 은 0~9 advance 가 모두 606/1000em 로
+    //    이미 tabular 다(Open Sans 도 1171/2048em 로 동일). Qt 6.11 의 font.features 로 tnum 을 켤
+    //    이유도 없다 — NanumGothic 에는 GSUB 테이블 자체가 없어 tnum 은 아무 일도 하지 않는다.
+    // 3) 크기는 3단만. 기기 폰트 배율을 따라가도록 항상 기본 크기의 비율로 잡는다.
+    //      캡션(단위·부제·축 눈금) = smallFontPointSize (기본 ×0.75)
+    //      본문                    = defaultFontPointSize (QGCLabel 기본값이라 따로 적지 않음)
+    //      강조(값·제목·커맨드명)  = defaultFontPointSize × 1.15
+    // TODO: 같은 상수가 배정 4파일에 중복돼 있다. 나중에 공용 싱글턴 한 곳으로 모을 것.
+    readonly property real _fontEmphasis: ScreenTools.defaultFontPointSize * 1.15
+    readonly property real _fontCaption:  ScreenTools.smallFontPointSize
 
     function missionTimeText() {
         var totalSeconds = Math.round(Number(_missionTime))
@@ -82,25 +95,24 @@ Rectangle {
             QGCLabel {
                 text:               "\u00b7"
                 opacity:            0.5
-                font.pointSize:     missionStats._labelPointSize
+                font.pointSize:     missionStats._fontCaption
                 visible:            !parent.first
                 Layout.rightMargin: missionStats._itemSpacing
             }
 
             QGCLabel {
                 text:           parent.label
-                font.pointSize: missionStats._labelPointSize
+                font.pointSize: missionStats._fontCaption
             }
 
             QGCLabel {
                 text:           parent.value
-                font.family:    ScreenTools.fixedFontFamily
-                font.pointSize: missionStats._valuePointSize
+                font.pointSize: missionStats._fontEmphasis
             }
 
             QGCLabel {
                 text:           parent.unit
-                font.pointSize: missionStats._labelPointSize
+                font.pointSize: missionStats._fontCaption
                 visible:        parent.unit !== ""
             }
         }

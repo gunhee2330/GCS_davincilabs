@@ -26,6 +26,10 @@ TreeView {
 
     readonly property bool _createNewPlanMode: planMasterController.showCreateFromTemplate
 
+    // 글꼴 정책은 MissionStats.qml 상단 주석 참조. 4파일 공통, 나중에 한 곳으로 모을 것.
+    readonly property real _fontEmphasis: ScreenTools.defaultFontPointSize * 1.15
+    readonly property real _fontCaption:  ScreenTools.smallFontPointSize
+
     on_CreateNewPlanModeChanged: {
         if (_createNewPlanMode) {
             var planFileRow = _rowFor(_missionController.planFileGroupIndex)
@@ -386,7 +390,7 @@ TreeView {
                         text: delegateRoot.nodeObject ? delegateRoot.nodeObject.objectName : ""
                         font.bold: true
                         // 본문 13px(1.5mm) → 15px(1.8mm). 7인치를 팔 길이에서 볼 때의 가독 하한.
-                        font.pointSize: ScreenTools.defaultFontPointSize * 1.15
+                        font.pointSize: root._fontEmphasis
                     }
 
                     QGCColoredImage {
@@ -404,7 +408,7 @@ TreeView {
                         text: root._groupSubtitle(delegateRoot.nodeType)
                         elide: Text.ElideRight
                         textFormat: Text.PlainText
-                        font.pointSize: ScreenTools.smallFontPointSize
+                        font.pointSize: root._fontCaption
                         color: qgcPal.colorGrey
                     }
                 }
