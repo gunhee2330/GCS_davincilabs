@@ -52,10 +52,10 @@ void PoliceLinkDefaults::ensureUniRcLink()
         return;
     }
 
-    // Port 0 is what SIYI's own instructions ask for: the socket takes an ephemeral port and
-    // the ground unit answers to whichever port our heartbeats come from.
+    // SIYI's instructions say local port 0, but QGC ties an auto-connect UDP link to its
+    // standard listen port (setAutoConnect rewrites it to 14550). Either works: the ground
+    // unit answers to whichever port our heartbeats come from.
     udp->addHost(QLatin1String(kUniRcHost), kUniRcPort);
-    udp->setLocalPort(0);
     udp->setAutoConnect(true);
     manager->endCreateConfiguration(udp);
     qCDebug(PoliceLinkDefaultsLog) << "created" << name << kUniRcHost << kUniRcPort;
