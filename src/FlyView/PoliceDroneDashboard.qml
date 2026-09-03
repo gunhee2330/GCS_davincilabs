@@ -218,11 +218,10 @@ Item {
     // alone the last window would run off the bottom. Adding the FPV window narrows all of them.
     readonly property real _windowWidth: {
         const gap = 8
-        // Collapsed height, not the current one: sizing against the expanded panel would
-        // shrink every window each time the operator opened the buttons. Expanded, the panel
-        // simply overlays them — it sits above in z order.
-        const avail = height - _bottomInset - topBar.height - controlPanel.collapsedHeight
-                      - gap * (_windowCount + 2)
+        // The right edge belongs to the windows alone now that the control panel berths under
+        // the fly tools, so the column may use the full height between the top bar and the
+        // bottom inset.
+        const avail = height - _bottomInset - topBar.height - gap * (_windowCount + 1)
         const byHeight = (avail - _gripHeight * _windowCount) * 16 / (9 * _windowCount)
         return Math.max(180, Math.min(width * 0.24, 360, byHeight))
     }
@@ -410,8 +409,9 @@ Item {
 
             Item { Layout.fillWidth: true }
 
-            // Flight log: takeoff instant, elapsed time, distance flown. Elides rather than
-            // squeezing the indicators when the window is narrow.
+            // Flight log: takeoff instant, elapsed time, distance flown and the airframe's
+            // takeoff count. Elides rather than squeezing the indicators when the window is
+            // narrow.
             RowLayout {
                 id:                    flightLog
                 Layout.fillHeight:     true
@@ -426,7 +426,8 @@ Item {
                                                           ? root._flightTimeFact.valueString
                                                           : "--" },
                         { label: qsTr("이동"), value: root._factText(root._activeVehicle
-                                                          ? root._activeVehicle.flightDistance : null, "--") }
+                                                          ? root._activeVehicle.flightDistance : null, "--") },
+                        { label: qsTr("이륙 횟수"), value: qsTr("%1회").arg(App.TakeoffCounter.takeoffCount) }
                     ]
 
                     delegate: Row {
@@ -572,7 +573,9 @@ Item {
         anchors.top:       topBar.bottom
         anchors.topMargin: 8
         z:                 4
-        maxHeight:         root.height - root._bottomInset - y - 8
+        // Leaves the collapsed control panel its berth underneath even on a short window:
+        // the strip scrolls before the panel is pushed off screen.
+        maxHeight:         root.height - root._bottomInset - y - controlPanel.collapsedHeight - 16
 
         onDisplayPreFlightChecklist: {
             if (!preFlightChecklistLoader.active) {
@@ -681,17 +684,34 @@ Item {
     readonly property bool _showSingleVehicleUI: true
     readonly property real _toolsMargin: ScreenTools.defaultFontPixelWidth * 0.75
 
-    // Bottom left, opposite the control panel: the camera windows own the right edge, and
-    // stacking the instruments under them would leave the compass hidden behind a window.
-    FlyViewBottomRightRowLayout {
+    // Bottom left: the camera windows own the right edge, and stacking the instruments under
+    // them would leave the compass hidden behind a window. Attitude and compass sit at the
+    // edge with the telemetry values inboard of them. QGC's FlyViewBottomRightRowLayout puts
+    // the values first and slides their background under the instrument pill, a seam that
+    // only works in that order, so the row is assembled here rather than reused.
+    RowLayout {
         id:                   flightInstruments
         anchors.left:         parent.left
         anchors.leftMargin:   8
         anchors.bottom:       parent.bottom
         anchors.bottomMargin: root._bottomInset
+        spacing:              6
         // Below the camera windows (z 10) so a window dragged this way passes over the
         // instruments instead of disappearing behind them.
         z:                    3
+
+        FlyViewInstrumentPanel {
+            id:               instrumentPanel
+            Layout.alignment: Qt.AlignBottom
+            visible:          QGroundControl.corePlugin.options.flyView.showInstrumentPanel
+                              && root._showSingleVehicleUI
+        }
+
+        TelemetryValuesBar {
+            Layout.alignment:       Qt.AlignBottom
+            settingsGroup:          factValueGrid.telemetryBarSettingsGroup
+            specificVehicleForCard: null // Tracks the active vehicle
+        }
     }
 
     // ------------------------------------------------------------------ control panel
@@ -709,11 +729,13 @@ Item {
         readonly property real collapsedHeight: panelGrip.height + statusColumn.height + 10
         property bool expanded: false
 
-        // Plain bindings rather than an imperative dock(): they keep the panel pinned to the
-        // bottom-right through window resizes, and DragHandler assigning x/y replaces them, so
-        // a panel the operator has moved stays where they put it.
-        x: root.width - width - 8
-        y: root.height - height - 8
+        // Berthed under the fly tools at the top left, where the operator already looks for
+        // takeoff and return; the right edge belongs to the camera windows. Plain bindings
+        // rather than an imperative dock(): they follow the strip through window resizes, and
+        // DragHandler assigning x/y replaces them, so a panel the operator has moved stays
+        // where they put it.
+        x: toolStrip.x
+        y: toolStrip.y + toolStrip.height + 8
 
         Rectangle {
             anchors.fill: parent

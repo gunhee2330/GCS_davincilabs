@@ -40,6 +40,7 @@
 #include "SettingsManager.h"
 #include "SiyiAiController.h"
 #include "SiyiCameraController.h"
+#include "TakeoffCounter.h"
 #include "SpeakerController.h"
 #include "Vehicle.h"
 #include "VideoManager.h"
@@ -313,6 +314,7 @@ void QGCApplication::_initForNormalAppBoot()
     SiyiCameraController::instance()->init();
     SiyiAiController::instance()->init();
     SpeakerController::instance()->init();
+    TakeoffCounter::instance()->init();
 
     // Set the window icon now that custom plugin has a chance to override it
 #ifdef Q_OS_LINUX
