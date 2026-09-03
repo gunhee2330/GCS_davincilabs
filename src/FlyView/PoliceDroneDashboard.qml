@@ -28,6 +28,21 @@ Item {
     readonly property real _aiRefWidth:  1280
     readonly property real _aiRefHeight: 720
 
+    // One line the operator can read off: what the module is tracking, where its box centre
+    // sits in the module's 1280×720 frame, how big it is, and the laser range if the pod has
+    // one. Empty when nothing is tracked, so the panels can key visibility on it.
+    readonly property string aiTargetInfo: aiTargetVisible
+        ? qsTr("%1 · 위치 (%2, %3) · 크기 %4×%5 px%6")
+              .arg(aiTargetLabel)
+              .arg(Math.round(App.SiyiAiController.targetCentreX * _aiRefWidth))
+              .arg(Math.round(App.SiyiAiController.targetCentreY * _aiRefHeight))
+              .arg(Math.round(aiTargetWidth))
+              .arg(Math.round(aiTargetHeight))
+              .arg(App.SiyiCameraController.rangefinderAvailable
+                   ? qsTr(" · LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
+                   : "")
+        : ""
+
     /// Target picking only makes sense once the module is up and recognising.
     readonly property bool _aiPickEnabled: App.SiyiAiController.connected && App.SiyiAiController.recognitionEnabled
 
@@ -674,7 +689,7 @@ Item {
 
     CameraWindow {
         id:    primaryWindow
-        title: qsTr("MAIN")
+        title: qsTr("CAM")
     }
 
     CameraWindow {
@@ -920,6 +935,15 @@ Item {
                             : qsTr("추적 중: %1").arg(App.SiyiAiController.targetTypeName))
                         : qsTr("인식 중 · 길게 눌러 표적 지정")
                 }
+            }
+
+            Text {
+                visible:        root.aiTargetInfo.length > 0
+                color:          "#ffd166"
+                font.pixelSize: Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
+                wrapMode:       Text.WordWrap
+                Layout.fillWidth: true
+                text:           qsTr("표적 %1").arg(root.aiTargetInfo)
             }
 
             Text {
@@ -1273,7 +1297,7 @@ Item {
         id:                   primaryPanel
         parent:               root.expandedPanel === "primary" ? fullscreenLayer : primaryWindow.slot
         anchors.fill:         parent
-        panelTitle:           qsTr("MAIN · 줌")
+        panelTitle:           qsTr("CAM · 줌")
         panelDetail:          qsTr("드래그: 짐벌 · 터치: 전체화면")
         streamObjectName:     "videoContent"
         // Image mode 2 packs zoom|wide side by side on the main stream. This surface holds
@@ -1285,6 +1309,7 @@ Item {
         aiTargetWidth:        root.aiTargetWidth
         aiTargetHeight:       root.aiTargetHeight
         aiTargetLabel:        root.aiTargetLabel
+        aiTargetInfo:         root.aiTargetInfo
         targetPickEnabled:    root._aiPickEnabled
         onActivated:          root._toggleExpanded("primary")
         onTargetPicked:       (nx, ny) => App.SiyiAiController.trackPoint(nx, ny)
@@ -1297,7 +1322,7 @@ Item {
         panelTitle:           qsTr("EO · 광각")
         panelDetail:          root.splitMainStream
                                   ? qsTr("분할 스트림 우측")
-                                  : (root._aiNeedsFullZoomMain ? qsTr("AI 추적 중 사용 불가") : qsTr("MAIN 미러"))
+                                  : (root._aiNeedsFullZoomMain ? qsTr("AI 추적 중 사용 불가") : qsTr("CAM 미러"))
         mirrorSource:         primaryPanel.videoSurface
         mirrorHalf:           root.splitMainStream ? 1 : 0
         gimbalControlEnabled: true
@@ -1307,6 +1332,7 @@ Item {
         aiTargetWidth:        root.aiTargetWidth
         aiTargetHeight:       root.aiTargetHeight
         aiTargetLabel:        root.aiTargetLabel
+        aiTargetInfo:         root.aiTargetInfo
         targetPickEnabled:    root._aiPickEnabled
         onActivated:          root._toggleExpanded("secondary")
         onTargetPicked:       (nx, ny) => App.SiyiAiController.trackPoint(nx, ny)

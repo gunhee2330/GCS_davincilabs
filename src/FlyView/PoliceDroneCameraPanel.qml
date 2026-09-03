@@ -30,6 +30,9 @@ Item {
     property real aiTargetWidth:        0
     property real aiTargetHeight:       0
     property string aiTargetLabel:      qsTr("TARGET")
+    /// Readout drawn along the bottom edge while a target is tracked: class, position, size,
+    /// laser range. Empty hides it.
+    property string aiTargetInfo:       ""
 
     readonly property alias videoSurface: videoOutput
     readonly property bool _hasDirectStream: streamObjectName.length > 0
@@ -146,6 +149,28 @@ Item {
             color:          "#c6d6e3"
             font.pixelSize: Math.max(10, Screen.pixelDensity * 2.7)
             text:           root.panelDetail
+        }
+    }
+
+    Rectangle {
+        anchors.left:    parent.left
+        anchors.bottom:  parent.bottom
+        anchors.margins: 8
+        width:           Math.min(parent.width - 16, targetInfoText.implicitWidth + 16)
+        height:          targetInfoText.implicitHeight + 8
+        radius:          3
+        color:           "#c0121b24"
+        visible:         root.aiTargetInfo.length > 0
+
+        Text {
+            id:               targetInfoText
+            anchors.centerIn: parent
+            width:            parent.width - 16
+            color:            "#ffd166"
+            font.bold:        true
+            font.pixelSize:   Math.max(11, Screen.pixelDensity * 2.9)
+            elide:            Text.ElideRight
+            text:             root.aiTargetInfo
         }
     }
 
