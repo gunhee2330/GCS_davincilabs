@@ -547,10 +547,15 @@ Rectangle {
                     onClicked:          showPanel("parameters", "qrc:/qml/QGroundControl/VehicleSetup/SetupParameterEditor.qml")
                 }
 
+                // Upstream hides this on mobile. The police station is a handheld with a USB
+                // host port, and the upgrader's port layer already has Android board detection,
+                // so the tab is offered there too: the flight controller plugs into the
+                // controller's USB-A. Whether the bootloader handshake survives Android's
+                // re-enumeration permission prompt is being trialled on the UniRC 7 Pro.
                 ConfigButton {
                     id:                 firmwareButton
                     icon.source:        "/qmlimages/FirmwareUpgradeIcon.png"
-                    visible:            !ScreenTools.isMobile && _corePlugin.options.showFirmwareUpgrade &&
+                    visible:            _corePlugin.options.showFirmwareUpgrade &&
                                         vehicleConfigView._searchQuery.trim() === ""
                     text:               qsTr("Firmware")
                     Layout.fillWidth:   true
