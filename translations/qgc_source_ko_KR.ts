@@ -4644,7 +4644,7 @@ Click Ok to start the auto-tuning process.
     <message>
       <location filename="../src/MissionManager/BlankPlanCreator.cc" line="6"/>
       <source>No Template</source>
-      <translation type="unfinished">No Template</translation>
+      <translation>템플릿 없음</translation>
     </message>
   </context>
   <context>
@@ -5513,7 +5513,7 @@ Click Ok to start the auto-tuning process.
     <message>
       <location filename="../src/PlanView/CameraSection.qml" line="40"/>
       <source>Action</source>
-      <translation type="unfinished">Action</translation>
+      <translation>동작</translation>
     </message>
     <message>
       <location filename="../src/PlanView/CameraSection.qml" line="47"/>
@@ -5646,7 +5646,7 @@ Click Ok to start the auto-tuning process.
     <message>
       <location filename="../src/MissionManager/ComplexMissionItem.cc" line="56"/>
       <source>&apos;%1&apos; is a built-in preset which cannot be deleted.</source>
-      <translation type="unfinished">&apos;%1&apos; is a built-in preset which cannot be deleted.</translation>
+      <translation>&apos;%1&apos;은(는) 기본 제공 프리셋이므로 삭제할 수 없습니다.</translation>
     </message>
   </context>
   <context>
@@ -5702,7 +5702,7 @@ Click Ok to start the auto-tuning process.
     <message>
       <location filename="../src/PlanView/CorridorScanEditor.qml" line="13"/>
       <source>Use the Polyline Tools to create the polyline which defines the corridor.</source>
-      <translation type="unfinished">Use the Polyline Tools to create the polyline which defines the corridor.</translation>
+      <translation>폴리라인 도구를 사용하여 복도를 정의하는 폴리라인을 그립니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/CorridorScanEditor.qml" line="47"/>
@@ -6548,7 +6548,7 @@ Click Ok to start the auto-tuning process.
     <message>
       <location filename="../src/PlanView/FWLandingPatternEditor.qml" line="74"/>
       <source>Flight Speed</source>
-      <translation type="unfinished">Flight Speed</translation>
+      <translation>비행속도</translation>
     </message>
     <message>
       <location filename="../src/PlanView/FWLandingPatternEditor.qml" line="85"/>
@@ -6559,7 +6559,7 @@ Click Ok to start the auto-tuning process.
       <location filename="../src/PlanView/FWLandingPatternEditor.qml" line="99"/>
       <location filename="../src/PlanView/FWLandingPatternEditor.qml" line="321"/>
       <source>Loiter clockwise</source>
-      <translation>반시계방향 회전</translation>
+      <translation>시계 방향 선회</translation>
     </message>
     <message>
       <location filename="../src/PlanView/FWLandingPatternEditor.qml" line="115"/>
@@ -6604,7 +6604,7 @@ Click Ok to start the auto-tuning process.
     <message>
       <location filename="../src/PlanView/FWLandingPatternEditor.qml" line="55"/>
       <source>Use loiter to altitude</source>
-      <translation type="unfinished">Use loiter to altitude</translation>
+      <translation>고도까지 선회 사용</translation>
     </message>
     <message>
       <location filename="../src/PlanView/FWLandingPatternEditor.qml" line="148"/>
@@ -7353,12 +7353,12 @@ Click Ok to start the auto-tuning process.
     <message>
       <location filename="../src/MissionManager/FixedWingLandingComplexItem.h" line="35"/>
       <source>Fixed Wing Landing</source>
-      <translation type="unfinished">Fixed Wing Landing</translation>
+      <translation>고정익 착륙</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/FixedWingLandingComplexItem.cc" line="50"/>
       <source>Alternate Landing</source>
-      <translation type="unfinished">Alternate Landing</translation>
+      <translation>대체 착륙</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/FixedWingLandingComplexItem.cc" line="89"/>
@@ -12627,7 +12627,7 @@ VTOL</translation>
     <message>
       <location filename="../src/QmlControls/MissionCommandDialog.qml" line="11"/>
       <source>Select Mission Command</source>
-      <translation type="unfinished">Select Mission Command</translation>
+      <translation>임무 명령 선택</translation>
     </message>
     <message>
       <location filename="../src/QmlControls/MissionCommandDialog.qml" line="24"/>
@@ -12684,32 +12684,32 @@ VTOL</translation>
     <message>
       <location filename="../src/MissionManager/MissionController.cc" line="1245"/>
       <source>Plan Info</source>
-      <translation type="unfinished">Plan Info</translation>
+      <translation>계획 정보</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/MissionController.cc" line="1253"/>
       <source>Defaults</source>
-      <translation type="unfinished">Defaults</translation>
+      <translation>기본값</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/MissionController.cc" line="1261"/>
       <source>Mission Items</source>
-      <translation type="unfinished">Mission Items</translation>
+      <translation>임무 항목</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/MissionController.cc" line="1265"/>
       <source>GeoFence</source>
-      <translation type="unfinished">GeoFence</translation>
+      <translation>지오펜스</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/MissionController.cc" line="1274"/>
       <source>Rally Points</source>
-      <translation type="unfinished">Rally Points</translation>
+      <translation>대기지점</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/MissionController.cc" line="1283"/>
       <source>Transform</source>
-      <translation type="unfinished">Transform</translation>
+      <translation>변환</translation>
     </message>
   </context>
   <context>
@@ -12717,63 +12717,63 @@ VTOL</translation>
     <message>
       <location filename="../src/PlanView/MissionDefaultsEditor.qml" line="59"/>
       <source>Alt Frame</source>
-      <translation type="unfinished">Alt Frame</translation>
+      <translation>고도 기준</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionDefaultsEditor.qml" line="88"/>
       <source>Waypoints Altitude</source>
-      <translation type="unfinished">Waypoints Altitude</translation>
+      <translation>경로지점 고도</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionDefaultsEditor.qml" line="94"/>
       <source>Flight Speed</source>
-      <translation type="unfinished">Flight Speed</translation>
+      <translation>비행속도</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionDefaultsEditor.qml" line="111"/>
       <source>Expected Vehicle Speeds</source>
-      <translation type="unfinished">Expected Vehicle Speeds</translation>
+      <translation>예상 기체 속도</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionDefaultsEditor.qml" line="124"/>
       <source>The following speed values are used to calculate total mission time. They do not affect the flight speed for the mission.</source>
-      <translation type="unfinished">The following speed values are used to calculate total mission time. They do not affect the flight speed for the mission.</translation>
+      <translation>아래 속도 값은 전체 임무 시간을 계산하는 데만 사용되며, 실제 임무 비행속도에는 영향을 주지 않습니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionDefaultsEditor.qml" line="129"/>
       <source>FW - Flight speed</source>
-      <translation type="unfinished">FW - Flight speed</translation>
+      <translation>고정익 - 비행속도</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionDefaultsEditor.qml" line="129"/>
       <location filename="../src/PlanView/MissionDefaultsEditor.qml" line="137"/>
       <source>Flight speed</source>
-      <translation type="unfinished">Flight speed</translation>
+      <translation>비행속도</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionDefaultsEditor.qml" line="137"/>
       <source>MR - Flight speed</source>
-      <translation type="unfinished">MR - Flight speed</translation>
+      <translation>멀티로터 - 비행속도</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionDefaultsEditor.qml" line="145"/>
       <source>MR - Ascent speed</source>
-      <translation type="unfinished">MR - Ascent speed</translation>
+      <translation>멀티로터 - 상승속도</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionDefaultsEditor.qml" line="145"/>
       <source>Ascent speed</source>
-      <translation type="unfinished">Ascent speed</translation>
+      <translation>상승속도</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionDefaultsEditor.qml" line="152"/>
       <source>MR - Descent speed</source>
-      <translation type="unfinished">MR - Descent speed</translation>
+      <translation>멀티로터 - 하강속도</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionDefaultsEditor.qml" line="152"/>
       <source>Descent speed</source>
-      <translation type="unfinished">Descent speed</translation>
+      <translation>하강속도</translation>
     </message>
   </context>
   <context>
@@ -12837,6 +12837,16 @@ VTOL</translation>
       <source>Item #%1</source>
       <translation>항목 1</translation>
     </message>
+    <message>
+      <location filename="../src/PlanView/MissionItemEditor.qml" line="341"/>
+      <source>Incomplete: Waiting on terrain data.</source>
+      <translation>미완료: 지형 데이터를 기다리는 중입니다.</translation>
+    </message>
+    <message>
+      <location filename="../src/PlanView/MissionItemEditor.qml" line="342"/>
+      <source>Incomplete: Item not fully specified.</source>
+      <translation>미완료: 항목이 완전히 지정되지 않았습니다.</translation>
+    </message>
   </context>
   <context>
     <name>MissionItemStatus</name>
@@ -12867,18 +12877,18 @@ VTOL</translation>
     <message>
       <location filename="../src/MissionManager/MissionSettingsItem.cc" line="237"/>
       <source>H</source>
-      <translation type="unfinished">H</translation>
+      <translation>H</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/MissionSettingsItem.cc" line="237"/>
       <source>Home</source>
-      <translation type="unfinished">Home</translation>
+      <translation>홈</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/MissionSettingsItem.h" line="53"/>
       <location filename="../src/MissionManager/MissionSettingsItem.h" line="54"/>
       <source>Initial Camera Settings</source>
-      <translation type="unfinished">Initial Camera Settings</translation>
+      <translation>초기 카메라 설정</translation>
     </message>
   </context>
   <context>
@@ -12886,75 +12896,101 @@ VTOL</translation>
     <message>
       <location filename="../src/PlanView/MissionStats.qml" line="55"/>
       <source> deg</source>
-      <translation type="unfinished"> deg</translation>
+      <translation>도</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionStats.qml" line="60"/>
       <location filename="../src/PlanView/MissionStats.qml" line="61"/>
       <source>N/A</source>
-      <translation type="unfinished">N/A</translation>
+      <translation>해당 없음</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionStats.qml" line="98"/>
       <source>Selected Waypoint</source>
-      <translation type="unfinished">Selected Waypoint</translation>
+      <translation>선택 경로지점</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionStats.qml" line="103"/>
       <source>Alt diff:</source>
-      <translation type="unfinished">Alt diff:</translation>
+      <translation>고도차:</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionStats.qml" line="112"/>
       <source>Azimuth:</source>
-      <translation type="unfinished">Azimuth:</translation>
+      <translation>방위:</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionStats.qml" line="121"/>
       <source>Dist prev WP:</source>
-      <translation type="unfinished">Dist prev WP:</translation>
+      <translation>이전 지점까지:</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionStats.qml" line="128"/>
       <source>Gradient:</source>
-      <translation type="unfinished">Gradient:</translation>
+      <translation>경사:</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionStats.qml" line="137"/>
       <source>Heading:</source>
-      <translation type="unfinished">Heading:</translation>
+      <translation>기수 방향:</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionStats.qml" line="151"/>
       <source>Total Mission</source>
-      <translation type="unfinished">Total Mission</translation>
+      <translation>전체 임무</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionStats.qml" line="156"/>
       <source>Distance:</source>
-      <translation type="unfinished">Distance:</translation>
+      <translation>거리:</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionStats.qml" line="165"/>
       <source>Max telem dist:</source>
-      <translation type="unfinished">Max telem dist:</translation>
+      <translation>최대 통신 거리:</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionStats.qml" line="172"/>
       <source>Time:</source>
-      <translation type="unfinished">Time:</translation>
+      <translation>시간:</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionStats.qml" line="187"/>
       <source>Battery</source>
-      <translation type="unfinished">Battery</translation>
+      <translation>배터리</translation>
     </message>
     <message>
       <location filename="../src/PlanView/MissionStats.qml" line="192"/>
       <source>Batteries required:</source>
-      <translation type="unfinished">Batteries required:</translation>
+      <translation>필요 배터리:</translation>
     </message>
-  </context>
+      <message>
+        <location filename="../src/PlanView/MissionStats.qml" line="0"/>
+        <source>Total Distance</source>
+        <translation>총 거리</translation>
+    </message>
+    <message>
+        <location filename="../src/PlanView/MissionStats.qml" line="0"/>
+        <source>Est. Time</source>
+        <translation>예상 시간</translation>
+    </message>
+    <message>
+        <location filename="../src/PlanView/MissionStats.qml" line="0"/>
+        <source>Items</source>
+        <translation>항목</translation>
+    </message>
+    <message>
+        <location filename="../src/PlanView/MissionStats.qml" line="0"/>
+        <source>Max Altitude</source>
+        <translation>최대 고도</translation>
+    </message>
+    <message>
+        <location filename="../src/PlanView/MissionStats.qml" line="0"/>
+        <source>ea</source>
+        <comment>count unit, as in 5 ea</comment>
+        <translation>개</translation>
+    </message>
+</context>
   <context>
     <name>Mixer::ChannelConfigInstanceVirtualAxis</name>
     <message>
@@ -16071,51 +16107,74 @@ Note that this will also completely reset everything, including UAVCAN nodes, al
     </message>
   </context>
   <context>
+    <name>PlanEditLayers</name>
+    <message>
+      <location filename="../src/PlanView/PlanEditLayers.qml" line="14"/>
+      <source>Mission</source>
+      <translation>임무</translation>
+    </message>
+    <message>
+      <location filename="../src/PlanView/PlanEditLayers.qml" line="15"/>
+      <source>GeoFence</source>
+      <translation>지오펜스</translation>
+    </message>
+    <message>
+      <location filename="../src/PlanView/PlanEditLayers.qml" line="16"/>
+      <source>Rally Points</source>
+      <translation>대기지점</translation>
+    </message>
+  </context>
+  <context>
     <name>PlanInfoEditor</name>
     <message>
       <location filename="../src/PlanView/PlanInfoEditor.qml" line="45"/>
       <source>Plan File</source>
-      <translation type="unfinished">Plan File</translation>
+      <translation>계획 파일</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanInfoEditor.qml" line="50"/>
       <source>Untitled</source>
-      <translation type="unfinished">Untitled</translation>
+      <translation>제목 없음</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanInfoEditor.qml" line="72"/>
       <source>Vehicle Info</source>
-      <translation type="unfinished">Vehicle Info</translation>
+      <translation>기체 정보</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanInfoEditor.qml" line="114"/>
       <source>Expected Home Position</source>
-      <translation type="unfinished">Expected Home Position</translation>
+      <translation>예상 홈 위치</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanInfoEditor.qml" line="136"/>
       <source>Click in map to set position</source>
-      <translation type="unfinished">Click in map to set position</translation>
+      <translation>지도를 클릭하여 위치를 지정합니다</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanInfoEditor.qml" line="144"/>
       <source>Drag to move home position. Click to set new position.</source>
-      <translation type="unfinished">Drag to move home position. Click to set new position.</translation>
+      <translation>끌어서 홈 위치를 옮기고, 클릭하여 새 위치를 지정합니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanInfoEditor.qml" line="157"/>
       <source>Altitude (AMSL)</source>
-      <translation type="unfinished">Altitude (AMSL)</translation>
+      <translation>고도 (해발)</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanInfoEditor.qml" line="178"/>
       <source>Actual position/alt set by vehicle at flight time.</source>
-      <translation type="unfinished">Actual position/alt set by vehicle at flight time.</translation>
+      <translation>실제 위치와 고도는 비행 시 기체가 설정합니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanInfoEditor.qml" line="188"/>
       <source>Plan Templates</source>
-      <translation type="unfinished">Plan Templates</translation>
+      <translation>계획 템플릿</translation>
+    </message>
+    <message>
+      <location filename="../src/PlanView/PlanInfoEditor.qml" line="53"/>
+      <source>&lt;Untitled&gt;</source>
+      <translation>&lt;제목 없음&gt;</translation>
     </message>
   </context>
   <context>
@@ -16178,7 +16237,7 @@ Note that this will also completely reset everything, including UAVCAN nodes, al
     <message>
       <location filename="../src/MissionManager/PlanManager.cc" line="353"/>
       <source>Internal Error: Call to Vehicle _requestNextMissionItem with no more indices to read</source>
-      <translation type="unfinished">Internal Error: Call to Vehicle _requestNextMissionItem with no more indices to read</translation>
+      <translation>내부 오류: 읽을 인덱스가 더 없는 상태에서 Vehicle _requestNextMissionItem 이 호출되었습니다</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/PlanManager.cc" line="511"/>
@@ -16284,7 +16343,7 @@ Note that this will also completely reset everything, including UAVCAN nodes, al
     <message>
       <location filename="../src/MissionManager/PlanManager.cc" line="789"/>
       <source>Not accepting any mission commands.</source>
-      <translation type="unfinished">Not accepting any mission commands.</translation>
+      <translation>임무 명령을 받지 않습니다.</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/PlanManager.cc" line="793"/>
@@ -16329,37 +16388,37 @@ Note that this will also completely reset everything, including UAVCAN nodes, al
     <message>
       <location filename="../src/MissionManager/PlanMasterController.cc" line="681"/>
       <source>Supported types (*.%1 *.%2 *.%3)</source>
-      <translation type="unfinished">Supported types (*.%1 *.%2 *.%3)</translation>
+      <translation>지원 형식 (*.%1 *.%2 *.%3)</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/PlanMasterController.cc" line="858"/>
       <source>Archive file not found: %1</source>
-      <translation type="unfinished">Archive file not found: %1</translation>
+      <translation>압축 파일을 찾을 수 없습니다: %1</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/PlanMasterController.cc" line="863"/>
       <source>Not a supported archive format: %1</source>
-      <translation type="unfinished">Not a supported archive format: %1</translation>
+      <translation>지원하지 않는 압축 형식입니다: %1</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/PlanMasterController.cc" line="869"/>
       <source>Could not create temporary directory</source>
-      <translation type="unfinished">Could not create temporary directory</translation>
+      <translation>임시 디렉터리를 만들 수 없습니다</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/PlanMasterController.cc" line="887"/>
       <source>Extraction failed</source>
-      <translation type="unfinished">Extraction failed</translation>
+      <translation>압축 해제 실패</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/PlanMasterController.cc" line="888"/>
       <source>Failed to extract plan archive: %1</source>
-      <translation type="unfinished">Failed to extract plan archive: %1</translation>
+      <translation>계획 압축 파일을 푸는 데 실패했습니다: %1</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/PlanMasterController.cc" line="902"/>
       <source>No plan file found in archive</source>
-      <translation type="unfinished">No plan file found in archive</translation>
+      <translation>압축 파일에 계획 파일이 없습니다</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/PlanMasterController.cc" line="682"/>
@@ -16379,60 +16438,60 @@ Note that this will also completely reset everything, including UAVCAN nodes, al
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="39"/>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="195"/>
       <source>Download</source>
-      <translation type="unfinished">Download</translation>
+      <translation>다운로드</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="40"/>
       <source>You have unsaved changes. Downloading from the Vehicle will lose these changes. Are you sure?</source>
-      <translation type="unfinished">You have unsaved changes. Downloading from the Vehicle will lose these changes. Are you sure?</translation>
+      <translation>저장하지 않은 변경 사항이 있습니다. 기체에서 다운로드하면 변경 사항이 사라집니다. 계속하시겠습니까?</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="50"/>
       <source>Open Plan</source>
-      <translation type="unfinished">Open Plan</translation>
+      <translation>계획 열기</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="51"/>
       <source>You have unsaved/unsent changes. Loading a new Plan will lose these changes. Are you sure?</source>
-      <translation type="unfinished">You have unsaved/unsent changes. Loading a new Plan will lose these changes. Are you sure?</translation>
+      <translation>저장하지 않았거나 전송하지 않은 변경 사항이 있습니다. 새 계획을 불러오면 변경 사항이 사라집니다. 계속하시겠습니까?</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="75"/>
       <source>&apos;%1&apos; already exists. Overwrite?</source>
-      <translation type="unfinished">&apos;%1&apos; already exists. Overwrite?</translation>
+      <translation>&apos;%1&apos; 파일이 이미 있습니다. 덮어쓰시겠습니까?</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="76"/>
       <source>Save as &apos;%1&apos;?</source>
-      <translation type="unfinished">Save as &apos;%1&apos;?</translation>
+      <translation>&apos;%1&apos; (으)로 저장하시겠습니까?</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="77"/>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="128"/>
       <source>Save</source>
-      <translation type="unfinished">Save</translation>
+      <translation>저장</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="93"/>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="100"/>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="148"/>
       <source>Clear</source>
-      <translation type="unfinished">Clear</translation>
+      <translation>비우기</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="94"/>
       <source>Are you sure you want to remove all the items from the plan editor?</source>
-      <translation type="unfinished">Are you sure you want to remove all the items from the plan editor?</translation>
+      <translation>계획 편집기의 모든 항목을 삭제하시겠습니까?</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="101"/>
       <source>Are you sure you want to remove the plan from the vehicle and the plan editor?</source>
-      <translation type="unfinished">Are you sure you want to remove the plan from the vehicle and the plan editor?</translation>
+      <translation>기체와 계획 편집기에서 계획을 삭제하시겠습니까?</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="120"/>
       <source>Open</source>
-      <translation type="unfinished">Open</translation>
+      <translation>열기</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="138"/>
@@ -16442,12 +16501,27 @@ Note that this will also completely reset everything, including UAVCAN nodes, al
     <message>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="167"/>
       <source>Click in map to add rally points</source>
-      <translation type="unfinished">Click in map to add rally points</translation>
+      <translation>지도를 클릭하여 대기지점을 추가합니다</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="184"/>
       <source>Save as KML</source>
-      <translation type="unfinished">Save as KML</translation>
+      <translation>KML 로 저장</translation>
+    </message>
+    <message>
+      <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="57"/>
+      <source>You have unsaved changes. Loading a new Plan will lose these changes. Are you sure?</source>
+      <translation>저장하지 않은 변경 사항이 있습니다. 새 계획을 불러오면 변경 사항이 사라집니다. 계속하시겠습니까?</translation>
+    </message>
+    <message>
+      <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="59"/>
+      <source>You have unsent changes. Loading a new Plan will lose these changes. Are you sure?</source>
+      <translation>전송하지 않은 변경 사항이 있습니다. 새 계획을 불러오면 변경 사항이 사라집니다. 계속하시겠습니까?</translation>
+    </message>
+    <message>
+      <location filename="../src/PlanView/PlanToolBarIndicators.qml" line="179"/>
+      <source>Save as...</source>
+      <translation>다른 이름으로 저장...</translation>
     </message>
   </context>
   <context>
@@ -16455,17 +16529,27 @@ Note that this will also completely reset everything, including UAVCAN nodes, al
     <message>
       <location filename="../src/PlanView/PlanTreeView.qml" line="157"/>
       <source>&lt;Untitled&gt;</source>
-      <translation type="unfinished">&lt;Untitled&gt;</translation>
+      <translation>&lt;제목 없음&gt;</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanTreeView.qml" line="158"/>
       <source> items</source>
-      <translation type="unfinished"> items</translation>
+      <translation>개</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanTreeView.qml" line="159"/>
       <source> points</source>
-      <translation type="unfinished"> points</translation>
+      <translation>개</translation>
+    </message>
+    <message>
+      <location filename="../src/PlanView/PlanTreeView.qml" line="171"/>
+      <source>%1 items</source>
+      <translation>%1개</translation>
+    </message>
+    <message>
+      <location filename="../src/PlanView/PlanTreeView.qml" line="172"/>
+      <source>%1 points</source>
+      <translation>%1개</translation>
     </message>
   </context>
   <context>
@@ -16513,12 +16597,12 @@ Note that this will also completely reset everything, including UAVCAN nodes, al
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="474"/>
       <source>Cancel ROI</source>
-      <translation type="unfinished">Cancel ROI</translation>
+      <translation>관심 지점 해제</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="496"/>
       <source>Stats</source>
-      <translation type="unfinished">Stats</translation>
+      <translation>통계</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="787"/>
@@ -16568,12 +16652,12 @@ Note that this will also completely reset everything, including UAVCAN nodes, al
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="838"/>
       <source>Insert ROI</source>
-      <translation type="unfinished">Insert ROI</translation>
+      <translation>관심 지점 삽입</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="848"/>
       <source>Insert Cancel ROI</source>
-      <translation type="unfinished">Insert Cancel ROI</translation>
+      <translation>관심 지점 해제 삽입</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="119"/>
@@ -16607,7 +16691,7 @@ Click &apos;Ok&apos; to upload the Plan anyway.</source>
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="486"/>
       <source>Alt Land</source>
-      <translation type="unfinished">Alt Land</translation>
+      <translation>대체 착륙</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="487"/>
@@ -19859,7 +19943,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/SimpleItemEditor.qml" line="49"/>
       <source>Move &apos;%1&apos; %2 to the %3 location. %4</source>
-      <translation type="unfinished">Move &apos;%1&apos; %2 to the %3 location. %4</translation>
+      <translation>%3 %2 위치로 &apos;%1&apos; 을(를) 옮기십시오. %4</translation>
     </message>
     <message>
       <location filename="../src/PlanView/SimpleItemEditor.qml" line="50"/>
@@ -19869,7 +19953,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/SimpleItemEditor.qml" line="51"/>
       <source>Transition Direction</source>
-      <translation type="unfinished">Transition Direction</translation>
+      <translation>전환 방향</translation>
     </message>
     <message>
       <location filename="../src/PlanView/SimpleItemEditor.qml" line="51"/>
@@ -19884,17 +19968,17 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/SimpleItemEditor.qml" line="52"/>
       <source>climbout</source>
-      <translation type="unfinished">climbout</translation>
+      <translation>상승</translation>
     </message>
     <message>
       <location filename="../src/PlanView/SimpleItemEditor.qml" line="53"/>
       <source>Ensure distance from launch to transition direction is far enough to complete transition.</source>
-      <translation type="unfinished">Ensure distance from launch to transition direction is far enough to complete transition.</translation>
+      <translation>이륙 지점에서 전환 방향까지의 거리가 전환을 완료할 만큼 충분한지 확인하십시오.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/SimpleItemEditor.qml" line="60"/>
       <source>Ensure clear of obstacles and into the wind.</source>
-      <translation type="unfinished">Ensure clear of obstacles and into the wind.</translation>
+      <translation>장애물이 없고 맞바람 방향인지 확인하십시오.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/SimpleItemEditor.qml" line="67"/>
@@ -19904,32 +19988,32 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/SimpleItemEditor.qml" line="78"/>
       <source>Click in map to set planned Takeoff location.</source>
-      <translation type="unfinished">Click in map to set planned Takeoff location.</translation>
+      <translation>지도를 클릭하여 계획된 이륙 위치를 지정합니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/SimpleItemEditor.qml" line="79"/>
       <source>Click in map to set planned Launch location.</source>
-      <translation type="unfinished">Click in map to set planned Launch location.</translation>
+      <translation>지도를 클릭하여 계획된 발진 위치를 지정합니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/SimpleItemEditor.qml" line="159"/>
       <source>Alt Frame</source>
-      <translation type="unfinished">Alt Frame</translation>
+      <translation>고도 기준</translation>
     </message>
     <message>
       <location filename="../src/PlanView/SimpleItemEditor.qml" line="172"/>
       <source>Altitude%1</source>
-      <translation type="unfinished">Altitude%1</translation>
+      <translation>고도%1</translation>
     </message>
     <message>
       <location filename="../src/PlanView/SimpleItemEditor.qml" line="176"/>
       <source> (%1)</source>
-      <translation type="unfinished"> (%1)</translation>
+      <translation> (%1)</translation>
     </message>
     <message>
       <location filename="../src/PlanView/SimpleItemEditor.qml" line="182"/>
       <source>Actual AMSL alt sent: %1 %2</source>
-      <translation type="unfinished">Actual AMSL alt sent: %1 %2</translation>
+      <translation>실제 전송 해발 고도: %1 %2</translation>
     </message>
     <message>
       <location filename="../src/PlanView/SimpleItemEditor.qml" line="243"/>
@@ -19962,7 +20046,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/MissionManager/SimpleMissionItem.cc" line="384"/>
       <source>Transition Direction</source>
-      <translation type="unfinished">Transition Direction</translation>
+      <translation>전환 방향</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/SimpleMissionItem.cc" line="386"/>
@@ -19977,7 +20061,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/MissionManager/SimpleMissionItem.cc" line="394"/>
       <source>Loiter</source>
-      <translation type="unfinished">Loiter</translation>
+      <translation>선회</translation>
     </message>
   </context>
   <context>
@@ -20062,7 +20146,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/StructureScanEditor.qml" line="58"/>
       <source>Use the Polygon Tools to create the polygon which outlines the structure.</source>
-      <translation type="unfinished">Use the Polygon Tools to create the polygon which outlines the structure.</translation>
+      <translation>폴리곤 도구를 사용하여 구조물 외곽을 나타내는 다각형을 그립니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/StructureScanEditor.qml" line="73"/>
@@ -20281,7 +20365,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/SurveyItemEditor.qml" line="13"/>
       <source>Use the Polygon Tools to create the polygon which outlines your survey area.</source>
-      <translation type="unfinished">Use the Polygon Tools to create the polygon which outlines your survey area.</translation>
+      <translation>폴리곤 도구를 사용하여 서베이 영역 외곽을 나타내는 다각형을 그립니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/SurveyItemEditor.qml" line="14"/>
@@ -20444,7 +20528,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/TakeoffItemMapVisual.qml" line="121"/>
       <source>Home</source>
-      <translation type="unfinished">Home</translation>
+      <translation>홈</translation>
     </message>
   </context>
   <context>
@@ -20592,7 +20676,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/TransectStyleComplexItemEditor.qml" line="34"/>
       <source>Done</source>
-      <translation type="unfinished">Done</translation>
+      <translation>완료</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransectStyleComplexItemEditor.qml" line="90"/>
@@ -20612,12 +20696,12 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/TransectStyleComplexItemEditor.qml" line="102"/>
       <source>Spacing</source>
-      <translation type="unfinished">Spacing</translation>
+      <translation>간격</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransectStyleComplexItemEditor.qml" line="121"/>
       <source>Rotate Entry Point</source>
-      <translation type="unfinished">Rotate Entry Point</translation>
+      <translation>진입점 회전</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransectStyleComplexItemEditor.qml" line="129"/>
@@ -20679,7 +20763,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/TransectStyleComplexItemEditor.qml" line="295"/>
       <source>Preset name cannot include the &quot;/&quot; character.</source>
-      <translation type="unfinished">Preset name cannot include the &quot;/&quot; character.</translation>
+      <translation>프리셋 이름에는 &quot;/&quot; 문자를 사용할 수 없습니다.</translation>
     </message>
   </context>
   <context>
@@ -20733,154 +20817,154 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="53"/>
       <source>Offset Mission</source>
-      <translation type="unfinished">Offset Mission</translation>
+      <translation>임무 이동</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="64"/>
       <source>East</source>
-      <translation type="unfinished">East</translation>
+      <translation>동</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="72"/>
       <source>North</source>
-      <translation type="unfinished">North</translation>
+      <translation>북</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="80"/>
       <source>Up</source>
-      <translation type="unfinished">Up</translation>
+      <translation>상</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="88"/>
       <location filename="../src/PlanView/TransformEditor.qml" line="305"/>
       <source>Also move takeoff items</source>
-      <translation type="unfinished">Also move takeoff items</translation>
+      <translation>이륙 항목도 함께 이동</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="93"/>
       <location filename="../src/PlanView/TransformEditor.qml" line="310"/>
       <source>Also move landing items</source>
-      <translation type="unfinished">Also move landing items</translation>
+      <translation>착륙 항목도 함께 이동</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="101"/>
       <source>Note: Home altitude is not modified.</source>
-      <translation type="unfinished">Note: Home altitude is not modified.</translation>
+      <translation>참고: 홈 고도는 변경되지 않습니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="106"/>
       <source>Apply Offset</source>
-      <translation type="unfinished">Apply Offset</translation>
+      <translation>이동 적용</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="127"/>
       <source>Reposition Mission</source>
-      <translation type="unfinished">Reposition Mission</translation>
+      <translation>임무 위치 변경</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="141"/>
       <source>Home position must be set to reposition the mission.</source>
-      <translation type="unfinished">Home position must be set to reposition the mission.</translation>
+      <translation>임무 위치를 변경하려면 홈 위치가 설정되어 있어야 합니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="155"/>
       <source>Coordinate System</source>
-      <translation type="unfinished">Coordinate System</translation>
+      <translation>좌표계</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="162"/>
       <location filename="../src/PlanView/TransformEditor.qml" line="163"/>
       <source>Geographic</source>
-      <translation type="unfinished">Geographic</translation>
+      <translation>경위도</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="162"/>
       <location filename="../src/PlanView/TransformEditor.qml" line="163"/>
       <source>Universal Transverse Mercator</source>
-      <translation type="unfinished">Universal Transverse Mercator</translation>
+      <translation>UTM 좌표</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="162"/>
       <location filename="../src/PlanView/TransformEditor.qml" line="163"/>
       <source>Military Grid Reference</source>
-      <translation type="unfinished">Military Grid Reference</translation>
+      <translation>군사 격자 좌표</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="162"/>
       <source>Vehicle Position</source>
-      <translation type="unfinished">Vehicle Position</translation>
+      <translation>기체 위치</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="169"/>
       <source>Latitude</source>
-      <translation type="unfinished">Latitude</translation>
+      <translation>위도</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="178"/>
       <source>Longitude</source>
-      <translation type="unfinished">Longitude</translation>
+      <translation>경도</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="187"/>
       <location filename="../src/PlanView/TransformEditor.qml" line="233"/>
       <location filename="../src/PlanView/TransformEditor.qml" line="253"/>
       <source>Move to Position</source>
-      <translation type="unfinished">Move to Position</translation>
+      <translation>지정 위치로 이동</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="198"/>
       <source>Zone</source>
-      <translation type="unfinished">Zone</translation>
+      <translation>구역</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="206"/>
       <source>Hemisphere</source>
-      <translation type="unfinished">Hemisphere</translation>
+      <translation>반구</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="215"/>
       <source>Easting</source>
-      <translation type="unfinished">Easting</translation>
+      <translation>동거</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="224"/>
       <source>Northing</source>
-      <translation type="unfinished">Northing</translation>
+      <translation>북거</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="244"/>
       <source>MGRS</source>
-      <translation type="unfinished">MGRS</translation>
+      <translation>MGRS</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="264"/>
       <source>Move to Vehicle Position</source>
-      <translation type="unfinished">Move to Vehicle Position</translation>
+      <translation>기체 위치로 이동</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="278"/>
       <source>Rotate Mission</source>
-      <translation type="unfinished">Rotate Mission</translation>
+      <translation>임무 회전</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="291"/>
       <source>Home position must be set to rotate the mission.</source>
-      <translation type="unfinished">Home position must be set to rotate the mission.</translation>
+      <translation>임무를 회전하려면 홈 위치가 설정되어 있어야 합니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="297"/>
       <source>Clockwise</source>
-      <translation type="unfinished">Clockwise</translation>
+      <translation>시계 방향</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="318"/>
       <source>Note: Complex items are rotated by moving their reference coordinate: their geometry and orientation are not changed.</source>
-      <translation type="unfinished">Note: Complex items are rotated by moving their reference coordinate: their geometry and orientation are not changed.</translation>
+      <translation>참고: 복합 항목은 기준 좌표를 옮기는 방식으로 회전하므로, 형상과 방향 자체는 변경되지 않습니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransformEditor.qml" line="323"/>
       <source>Apply Rotation</source>
-      <translation type="unfinished">Apply Rotation</translation>
+      <translation>회전 적용</translation>
     </message>
   </context>
   <context>
@@ -21184,12 +21268,12 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/MissionManager/VTOLLandingComplexItem.h" line="28"/>
       <source>VTOL Landing</source>
-      <translation type="unfinished">VTOL Landing</translation>
+      <translation>VTOL 착륙</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/VTOLLandingComplexItem.cc" line="54"/>
       <source>Alternate Landing</source>
-      <translation type="unfinished">Alternate Landing</translation>
+      <translation>대체 착륙</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/VTOLLandingComplexItem.cc" line="81"/>
@@ -21217,7 +21301,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/VTOLLandingPatternEditor.qml" line="55"/>
       <source>Use loiter to altitude</source>
-      <translation type="unfinished">Use loiter to altitude</translation>
+      <translation>고도까지 선회 사용</translation>
     </message>
     <message>
       <location filename="../src/PlanView/VTOLLandingPatternEditor.qml" line="64"/>
@@ -21233,7 +21317,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/VTOLLandingPatternEditor.qml" line="87"/>
       <source>Loiter clockwise</source>
-      <translation>반시계방향 회전</translation>
+      <translation>시계 방향 선회</translation>
     </message>
     <message>
       <location filename="../src/PlanView/VTOLLandingPatternEditor.qml" line="103"/>
@@ -21263,17 +21347,17 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/VTOLLandingPatternEditor.qml" line="201"/>
       <source>* Actual flight path will vary.</source>
-      <translation type="unfinished">* Actual flight path will vary.</translation>
+      <translation>* 실제 비행 경로는 달라질 수 있습니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/VTOLLandingPatternEditor.qml" line="210"/>
       <source>* Avoid tailwind on approach to land.</source>
-      <translation type="unfinished">* Avoid tailwind on approach to land.</translation>
+      <translation>* 착륙 접근 시 뒷바람을 피하십시오.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/VTOLLandingPatternEditor.qml" line="219"/>
       <source>* Ensure landing distance is enough to complete transition.</source>
-      <translation type="unfinished">* Ensure landing distance is enough to complete transition.</translation>
+      <translation>* 착륙 거리가 전환을 완료할 만큼 충분한지 확인하십시오.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/VTOLLandingPatternEditor.qml" line="245"/>
@@ -21288,7 +21372,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/VTOLLandingPatternEditor.qml" line="284"/>
       <source>Drag the loiter point to adjust landing direction for wind and obstacles as well as distance to land point.</source>
-      <translation type="unfinished">Drag the loiter point to adjust landing direction for wind and obstacles as well as distance to land point.</translation>
+      <translation>선회 지점을 끌어 바람과 장애물에 맞게 착륙 방향과 착륙 지점까지의 거리를 조정합니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/VTOLLandingPatternEditor.qml" line="288"/>

@@ -676,8 +676,7 @@ Item {
 
             function _calcLeftAnchor() {
                 let bottomOfToolStrip = toolStrip.y + toolStrip.height
-                let largestStatsHeight = Math.max(terrainStatus.height, missionStats.height)
-                if (bottomOfToolStrip + largestStatsHeight > parent.height - missionStatus.anchors.margins) {
+                if (bottomOfToolStrip + statusBand.height > parent.height - missionStatus.anchors.margins) {
                     return toolStrip.right
                 }
                 return parent.left
@@ -687,100 +686,49 @@ Item {
                 _planViewSettings.showMissionItemStatus.rawValue = _planViewSettings.showMissionItemStatus.rawValue ? false : true
             }
 
+            // 접기 버튼. 밴드가 92px 이므로 세로를 꽉 채워 7mm 이상의 터치 영역을 확보한다.
+            Rectangle {
+                id: bottomStatusOpenCloseButton
+                Layout.fillHeight: true
+                implicitWidth: ScreenTools.defaultFontPixelHeight * 3.75
+                color: QGroundControl.globalPalette.button
+
+                QGCColoredImage {
+                    anchors.centerIn: parent
+                    width: ScreenTools.defaultFontPixelHeight * 1.25
+                    height: width
+                    source: "/res/chevron-double-left.svg"
+                    color: QGroundControl.globalPalette.buttonText
+                }
+
+                QGCMouseArea {
+                    anchors.fill: parent
+                    onClicked: missionStatus._toggleMissionStatusVisibility()
+                }
+            }
+
+            // 지형 프로파일과 임무 통계를 탭으로 번갈아 보여주면 한쪽을 보는 동안 다른 쪽이 사라진다.
+            // 7인치에서는 숫자 한 줄(36px)과 고도 프로파일(56px)을 한 밴드에 위아래로 붙여 둘 다 보이게 한다.
             ColumnLayout {
-                id: missionStatsButtonLayout
+                id: statusBand
                 Layout.alignment: Qt.AlignBottom
+                Layout.fillWidth: true
                 spacing: 0
 
-                property real _buttonImplicitWidth: ScreenTools.defaultFontPixelHeight * 1.5
-                property real _buttonImageMargins: _buttonImplicitWidth * 0.15
-
-                Rectangle {
-                    id: terrainButton
-                    implicitWidth: missionStatsButtonLayout._buttonImplicitWidth
-                    implicitHeight: implicitWidth
-                    color: checked ? QGroundControl.globalPalette.buttonHighlight : QGroundControl.globalPalette.button
-
-                    // 7인치에서 지형 프로파일은 밴드를 112px 로 키운다. 지형 경고는 우측 패널에도 뜨므로
-                    // 기본은 거리·시간이 보이는 통계 탭으로 둔다.
-                    property bool checked: false
-
-                    QGCColoredImage {
-                        anchors.margins: missionStatsButtonLayout._buttonImageMargins
-                        anchors.fill: parent
-                        source: "/res/terrain.svg"
-                        color: parent.checked ? QGroundControl.globalPalette.buttonHighlightText : QGroundControl.globalPalette.buttonText
-                    }
-
-                    QGCMouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            terrainButton.checked = true
-                            missionStatsButton.checked = false
-                        }
-                    }
+                MissionStats {
+                    id: missionStats
+                    Layout.fillWidth: true
+                    planMasterController: _root._planMasterController
                 }
 
-                Rectangle {
-                    id: missionStatsButton
-                    implicitWidth: missionStatsButtonLayout._buttonImplicitWidth
-                    implicitHeight: implicitWidth
-                    color: checked ? QGroundControl.globalPalette.buttonHighlight : QGroundControl.globalPalette.button
-
-                    property bool checked: true
-
-                    QGCColoredImage {
-                        anchors.margins: missionStatsButtonLayout._buttonImageMargins
-                        anchors.fill: parent
-                        source: "/res/sliders.svg"
-                        color: parent.checked ? QGroundControl.globalPalette.buttonHighlightText : QGroundControl.globalPalette.buttonText
-                    }
-
-                    QGCMouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            missionStatsButton.checked = true
-                            terrainButton.checked = false
-                        }
-                    }
+                TerrainStatus {
+                    id: terrainStatus
+                    Layout.fillWidth: true
+                                    // TerrainStatus 는 세로 회전 제목과 눈금 라벨을 그린다. 56px 에서는 겹쳐 읽히지 않는다.
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 5.0
+                    missionController: _missionController
+                    onSetCurrentSeqNum: _missionController.setCurrentPlanViewSeqNum(seqNum, true)
                 }
-
-                Rectangle {
-                    id: bottomStatusOpenCloseButton
-                    implicitWidth: missionStatsButtonLayout._buttonImplicitWidth
-                    implicitHeight: implicitWidth
-                    color: QGroundControl.globalPalette.button
-
-                    QGCColoredImage {
-                        anchors.margins: missionStatsButtonLayout._buttonImageMargins
-                        anchors.fill: parent
-                        source: "/res/chevron-double-left.svg"
-                        color: QGroundControl.globalPalette.buttonText
-                    }
-
-                    QGCMouseArea {
-                        anchors.fill: parent
-                        onClicked: missionStatus._toggleMissionStatusVisibility()
-                    }
-                }
-            }
-
-            TerrainStatus {
-                id: terrainStatus
-                Layout.alignment: Qt.AlignBottom
-                Layout.fillWidth: true
-                height: ScreenTools.defaultFontPixelHeight * 7
-                missionController: _missionController
-                visible: terrainButton.checked
-                onSetCurrentSeqNum: _missionController.setCurrentPlanViewSeqNum(seqNum, true)
-            }
-
-            MissionStats {
-                id: missionStats
-                Layout.alignment: Qt.AlignBottom
-                Layout.fillWidth: true
-                visible: missionStatsButton.checked
-                planMasterController: _root._planMasterController
             }
         }
     }

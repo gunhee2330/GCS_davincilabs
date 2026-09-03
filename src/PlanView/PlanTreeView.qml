@@ -356,8 +356,13 @@ TreeView {
             Rectangle {
                 objectName: "planTree_" + delegateRoot.nodeType + "Header"
                 width:  delegateRoot.width
-                height: ScreenTools.implicitComboBoxHeight + ScreenTools.defaultFontPixelWidth
-                color:  qgcPal.windowShade
+                // 7인치 터치(1mm = 8.49px): 그룹 헤더도 손가락으로 눌러 편집 레이어를 바꾸는 버튼이다.
+                // 기존 식은 34px(4.0mm)에 그치므로 56px(6.6mm)을 하한으로 둔다.
+                height: Math.max(ScreenTools.implicitComboBoxHeight + ScreenTools.defaultFontPixelWidth,
+                                 ScreenTools.defaultFontPixelHeight * 3.5)
+                // 7인치에서 그룹 헤더가 밝은 막대로 꽉 차면 항목 목록보다 헤더가 먼저 읽힌다.
+                // 계층은 아래 groupBorder 선과 여백이 이미 나타내므로 바닥색과 같게 둔다.
+                color:  qgcPal.window
 
                 RowLayout {
                     id: groupHeaderRow
@@ -380,6 +385,8 @@ TreeView {
                         Layout.alignment: Qt.AlignBaseline
                         text: delegateRoot.nodeObject ? delegateRoot.nodeObject.objectName : ""
                         font.bold: true
+                        // 본문 13px(1.5mm) → 15px(1.8mm). 7인치를 팔 길이에서 볼 때의 가독 하한.
+                        font.pointSize: ScreenTools.defaultFontPointSize * 1.15
                     }
 
                     QGCColoredImage {

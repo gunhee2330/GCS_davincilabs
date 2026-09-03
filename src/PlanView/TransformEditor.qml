@@ -13,7 +13,9 @@ Rectangle {
 
     width:  parent ? parent.width : 0
     height: mainColumn.height + (_margins * 2)
-    color:  QGroundControl.globalPalette.windowShadeDark
+    // 편집기 배경을 패널 바닥과 한 톤으로 둔다. windowShadeDark 를 쓰면 상자 안의 상자가 되고,
+    // 그 색을 팔레트에서 바꾸면 분석 화면·설정 화면까지 따라 바뀐다.
+    color:  QGroundControl.globalPalette.window
 
     property real _margins:        ScreenTools.defaultFontPixelWidth / 2
     property real _textFieldWidth: ScreenTools.defaultFontPixelWidth * 20

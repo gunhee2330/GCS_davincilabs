@@ -1,201 +1,143 @@
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Dialogs
 
 import QGroundControl
 import QGroundControl.Controls
-import QGroundControl.FactControls
 
+// 하단 상태 밴드의 윗줄. 임무 전체 숫자만 한 줄로 보여준다.
+// 선택 웨이포인트 상세(고도차/방위각/경사/기수)와 최대 텔레메트리 거리는 현장 판단에 쓰이지 않아
+// 뺐고, 대신 고도 제한 확인에 필요한 최대 고도를 넣었다.
 Rectangle {
     required property var planMasterController
 
     id: missionStats
-    implicitWidth: mainLayout.implicitWidth + (_margins * 2)
-    implicitHeight: mainLayout.implicitHeight + (_margins * 2)
+    implicitHeight: ScreenTools.defaultFontPixelHeight * 2.25 // 약 36px
     color: Qt.rgba(_windowColor.r, _windowColor.g, _windowColor.b, 0.8)
 
-    property var _planMasterController: planMasterController
-    property color _windowColor: QGroundControl.globalPalette.window
-    property var _currentMissionItem: _planMasterController.missionController.currentPlanViewItem ///< Mission item to display status for
+    property var    _planMasterController:  planMasterController
+    property color  _windowColor:           QGroundControl.globalPalette.window
+    property bool   _controllerValid:       _planMasterController !== undefined && _planMasterController !== null
+    property var    _missionController:     _controllerValid ? _planMasterController.missionController : undefined
+    property var    _missionItems:          _controllerValid ? _missionController.visualItems : undefined
+    property bool   _missionValid:          _missionItems !== undefined && _missionItems !== null
 
-    property var missionItems: _controllerValid ? _planMasterController.missionController.visualItems : undefined
-    property real missionPlannedDistance: _controllerValid ? _planMasterController.missionController.missionPlannedDistance : NaN
-    property real missionTime: _controllerValid ? _planMasterController.missionController.missionTime : 0
-    property real missionMaxTelemetry: _controllerValid ? _planMasterController.missionController.missionMaxTelemetry : NaN
-    property bool _controllerValid: _planMasterController !== undefined && _planMasterController !== null
+    property real   _missionPlannedDistance:    _missionValid ? _missionController.missionPlannedDistance : NaN
+    property real   _missionTime:               _missionValid ? _missionController.missionTime : 0
+    property int    _waypointCount:             _missionValid ? Math.max(_missionItems.count - 1, 0) : 0 // 0번 항목은 홈 위치
+    property int    _batteriesRequired:         _controllerValid ? _missionController.batteriesRequired : -1
 
-    property bool _currentMissionItemValid: _currentMissionItem && _currentMissionItem !== undefined && _currentMissionItem !== null
-    property bool _currentItemIsVTOLTakeoff: _currentMissionItemValid && _currentMissionItem.command == 84
-    property bool _missionValid: missionItems !== undefined
-
-    property real _dataFontSize: ScreenTools.defaultFontPointSize
-    property real _largeValueWidth: ScreenTools.defaultFontPixelWidth * 8
-    property real _mediumValueWidth: ScreenTools.defaultFontPixelWidth * 4
-    property real _smallValueWidth: ScreenTools.defaultFontPixelWidth * 3
-    property real _labelToValueSpacing: ScreenTools.defaultFontPixelWidth
-    property real _rowSpacing: ScreenTools.isMobile ? 1 : 0
-    property real _distance: _currentMissionItemValid ? _currentMissionItem.distance : NaN
-    property real _altDifference: _currentMissionItemValid ? _currentMissionItem.altDifference : NaN
-    property real _azimuth: _currentMissionItemValid ? _currentMissionItem.azimuth : NaN
-    property real _heading: _currentMissionItemValid ? _currentMissionItem.missionVehicleYaw : NaN
-    property real _missionPlannedDistance: _missionValid ? missionPlannedDistance : NaN
-    property real _missionMaxTelemetry: _missionValid ? missionMaxTelemetry : NaN
-    property real _missionTime: _missionValid ? missionTime : 0
-    property int _batteryChangePoint: _controllerValid ? _planMasterController.missionController.batteryChangePoint : -1
-    property int _batteriesRequired: _controllerValid ? _planMasterController.missionController.batteriesRequired : -1
-    property bool _batteryInfoAvailable: _batteryChangePoint >= 0 || _batteriesRequired >= 0
-    property real _gradient: _currentMissionItemValid && _currentMissionItem.distance > 0 ?
-                                                    (_currentItemIsVTOLTakeoff ?
-                                                         0 : (Math.atan(_currentMissionItem.altDifference / _currentMissionItem.distance) * (180.0/Math.PI)))
-                                                  : NaN
-
-    property string _distanceText: isNaN(_distance) ? "-.-" : QGroundControl.unitsConversion.metersToAppSettingsHorizontalDistanceUnitsString(_distance)
-    property string _altDifferenceText: isNaN(_altDifference) ? "-.-" : QGroundControl.unitsConversion.metersToAppSettingsVerticalDistanceUnitsString(_altDifference)
-    property string _gradientText: isNaN(_gradient) ? "-.-" : _gradient.toFixed(0) + qsTr(" deg")
-    property string _azimuthText: isNaN(_azimuth) ? "-.-" : Math.round(_azimuth) % 360
-    property string _headingText: isNaN(_azimuth) ? "-.-" : Math.round(_heading) % 360
-    property string _missionPlannedDistanceText: isNaN(_missionPlannedDistance) ? "-.-" : QGroundControl.unitsConversion.metersToAppSettingsHorizontalDistanceUnits(_missionPlannedDistance).toFixed(0) + " " + QGroundControl.unitsConversion.appSettingsHorizontalDistanceUnitsString
-    property string _missionMaxTelemetryText: isNaN(_missionMaxTelemetry) ? "-.-" : QGroundControl.unitsConversion.metersToAppSettingsHorizontalDistanceUnits(_missionMaxTelemetry).toFixed(0) + " " + QGroundControl.unitsConversion.appSettingsHorizontalDistanceUnitsString
-    property string _batteryChangePointText: _batteryChangePoint < 0 ? qsTr("N/A") : _batteryChangePoint
-    property string _batteriesRequiredText: _batteriesRequired < 0 ? qsTr("N/A") : _batteriesRequired
-
-    readonly property real _margins: ScreenTools.defaultFontPixelWidth
-
-    function getMissionTime() {
-        var totalSeconds = Number(_missionTime)
-        if (!totalSeconds) {
-            return "00:00:00"
+    // 최대 고도는 홈 기준 상대고도로 보여준다. 항목이 없거나 홈이 아직 정해지지 않으면 NaN 이 된다.
+    property real _maxRelAltitude: {
+        if (!_missionValid || _waypointCount === 0) {
+            return NaN
         }
-
-        var hours = Math.floor(totalSeconds / 3600)
-        var minutes = Math.floor((totalSeconds % 3600) / 60)
-        var seconds = Math.floor(totalSeconds % 60)
-
-        var hoursText = hours < 10 ? "0" + hours : String(hours)
-        var minutesText = minutes < 10 ? "0" + minutes : String(minutes)
-        var secondsText = seconds < 10 ? "0" + seconds : String(seconds)
-
-        return hoursText + ":" + minutesText + ":" + secondsText
+        var maxAMSL = _missionController.maxAMSLAltitude
+        var homeAMSL = _missionController.plannedHomePosition.altitude
+        return (isNaN(maxAMSL) || isNaN(homeAMSL)) ? NaN : maxAMSL - homeAMSL
     }
 
-    QGCFlickable {
-        anchors.margins: _margins
-        anchors.fill: parent
-        flickableDirection: Flickable.HorizontalFlick
-        contentWidth: mainLayout.implicitWidth
+    property string _missionPlannedDistanceText: isNaN(_missionPlannedDistance) ?
+                                                     _noValueText :
+                                                     QGroundControl.unitsConversion.metersToAppSettingsHorizontalDistanceUnits(_missionPlannedDistance).toFixed(0)
+    property string _maxRelAltitudeText:         isNaN(_maxRelAltitude) ?
+                                                     _noValueText :
+                                                     QGroundControl.unitsConversion.metersToAppSettingsVerticalDistanceUnits(_maxRelAltitude).toFixed(0)
 
-        RowLayout {
-            id: mainLayout
-            spacing: ScreenTools.defaultFontPixelWidth * 2
+    readonly property string _noValueText:  "-.-"
+    readonly property real   _margins:      ScreenTools.defaultFontPixelWidth
+    readonly property real   _itemSpacing:  ScreenTools.defaultFontPixelWidth * 0.4
 
-            GridLayout {
-                columns: 8
-                rowSpacing: _rowSpacing
-                columnSpacing: _labelToValueSpacing
+    // 7인치 터치 기준 숫자 약 18px, 라벨 약 12px. 기기 폰트 배율 설정을 따라가도록 기본 크기 비율로 잡는다.
+    readonly property real _valuePointSize: ScreenTools.defaultFontPointSize * 1.125
+    readonly property real _labelPointSize: ScreenTools.smallFontPointSize
 
-                QGCLabel {
-                    text: qsTr("Selected Waypoint")
-                    Layout.columnSpan: 8
-                    font.pointSize: ScreenTools.smallFontPointSize
-                }
+    function missionTimeText() {
+        var totalSeconds = Math.round(Number(_missionTime))
+        if (!totalSeconds) {
+            totalSeconds = 0
+        }
+        var hours = Math.floor(totalSeconds / 3600)
+        var minutes = Math.floor((totalSeconds % 3600) / 60)
+        var seconds = totalSeconds % 60
+        var pad = function(value) { return value < 10 ? "0" + value : String(value) }
+        return (hours > 0 ? pad(hours) + ":" : "") + pad(minutes) + ":" + pad(seconds)
+    }
 
-                QGCLabel { text: qsTr("Alt diff:"); font.pointSize: _dataFontSize; }
-                QGCLabel {
-                    text: _altDifferenceText
-                    font.pointSize: _dataFontSize
-                    Layout.minimumWidth: _mediumValueWidth
-                }
+    RowLayout {
+        anchors.leftMargin:     _margins
+        anchors.rightMargin:    _margins
+        anchors.left:           parent.left
+        anchors.right:          parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        spacing:                ScreenTools.defaultFontPixelWidth
 
-                Item { width: 1; height: 1 }
+        component Stat: RowLayout {
+            property string label
+            property string value
+            property string unit
+            property bool   first: false
 
-                QGCLabel { text: qsTr("Azimuth:"); font.pointSize: _dataFontSize; }
-                QGCLabel {
-                    text: _azimuthText
-                    font.pointSize: _dataFontSize
-                    Layout.minimumWidth: _smallValueWidth
-                }
+            spacing: missionStats._itemSpacing
 
-                Item { width: 1; height: 1 }
-
-                QGCLabel { text: qsTr("Dist prev WP:"); font.pointSize: _dataFontSize; }
-                QGCLabel {
-                    text: _distanceText
-                    font.pointSize: _dataFontSize
-                    Layout.minimumWidth: _largeValueWidth
-                }
-
-                QGCLabel { text: qsTr("Gradient:"); font.pointSize: _dataFontSize; }
-                QGCLabel {
-                    text: _gradientText
-                    font.pointSize: _dataFontSize
-                    Layout.minimumWidth: _mediumValueWidth
-                }
-
-                Item { width: 1; height: 1 }
-
-                QGCLabel { text: qsTr("Heading:"); font.pointSize: _dataFontSize; }
-                QGCLabel {
-                    text: _headingText
-                    font.pointSize: _dataFontSize
-                    Layout.minimumWidth: _smallValueWidth
-                }
+            QGCLabel {
+                text:               "\u00b7"
+                opacity:            0.5
+                font.pointSize:     missionStats._labelPointSize
+                visible:            !parent.first
+                Layout.rightMargin: missionStats._itemSpacing
             }
 
-            GridLayout {
-                columns: 5
-                rowSpacing: _rowSpacing
-                columnSpacing: _labelToValueSpacing
-
-                QGCLabel {
-                    text: qsTr("Total Mission")
-                    Layout.columnSpan: 5
-                    font.pointSize: ScreenTools.smallFontPointSize
-                }
-
-                QGCLabel { text: qsTr("Distance:"); font.pointSize: _dataFontSize; }
-                QGCLabel {
-                    text: _missionPlannedDistanceText
-                    font.pointSize: _dataFontSize
-                    Layout.minimumWidth: _largeValueWidth
-                }
-
-                Item { width: 1; height: 1 }
-
-                QGCLabel { text: qsTr("Max telem dist:"); font.pointSize: _dataFontSize; }
-                QGCLabel {
-                    text: _missionMaxTelemetryText
-                    font.pointSize: _dataFontSize
-                    Layout.minimumWidth: _largeValueWidth
-                }
-
-                QGCLabel { text: qsTr("Time:"); font.pointSize: _dataFontSize; }
-                QGCLabel {
-                    text: getMissionTime()
-                    font.pointSize: _dataFontSize
-                    Layout.minimumWidth: _largeValueWidth
-                }
+            QGCLabel {
+                text:           parent.label
+                font.pointSize: missionStats._labelPointSize
             }
 
-            GridLayout {
-                columns: 3
-                rowSpacing: _rowSpacing
-                columnSpacing: _labelToValueSpacing
-                visible: _batteryInfoAvailable
+            QGCLabel {
+                text:           parent.value
+                font.family:    ScreenTools.fixedFontFamily
+                font.pointSize: missionStats._valuePointSize
+            }
 
-                QGCLabel {
-                    text: qsTr("Battery")
-                    Layout.columnSpan: 3
-                    font.pointSize: ScreenTools.smallFontPointSize
-                }
-
-                QGCLabel { text: qsTr("Batteries required:"); font.pointSize: _dataFontSize; }
-                QGCLabel {
-                    text: _batteriesRequiredText
-                    font.pointSize: _dataFontSize
-                    Layout.minimumWidth: _mediumValueWidth
-                }
+            QGCLabel {
+                text:           parent.unit
+                font.pointSize: missionStats._labelPointSize
+                visible:        parent.unit !== ""
             }
         }
+
+        Stat {
+            first: true
+            label: qsTr("Total Distance")
+            value: _missionPlannedDistanceText
+            unit:  QGroundControl.unitsConversion.appSettingsHorizontalDistanceUnitsString
+        }
+
+        Stat {
+            label: qsTr("Est. Time")
+            value: missionTimeText()
+        }
+
+        Stat {
+            // visualItems.count - 1 은 이륙·복귀·속도변경 같은 비좌표 항목까지 센다.
+            // 복합 항목(서베이 등)은 내부 웨이포인트가 몇 개든 1 로 세어진다. 그래서 "항목" 이다.
+            label: qsTr("Items")
+            value: _waypointCount.toString()
+            unit:  qsTr("ea", "count unit, as in 5 ea")
+        }
+
+        Stat {
+            label: qsTr("Max Altitude")
+            value: _maxRelAltitudeText
+            unit:  QGroundControl.unitsConversion.appSettingsVerticalDistanceUnitsString
+        }
+
+        Stat {
+            label:   qsTr("Battery")
+            value:   _batteriesRequired.toString()
+            unit:    qsTr("ea", "count unit, as in 5 ea")
+            visible: _batteriesRequired >= 0
+        }
+
+        Item { Layout.fillWidth: true }
     }
 }

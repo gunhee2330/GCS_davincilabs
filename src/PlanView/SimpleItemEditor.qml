@@ -14,7 +14,9 @@ Rectangle {
     id: root
     width: availableWidth
     height: editorColumn.height + (_margin * 2)
-    color: qgcPal.windowShadeDark
+    // 편집기 배경을 패널 바닥과 한 톤으로 둔다. windowShadeDark 를 쓰면 상자 안의 상자가 되고,
+    // 그 색을 팔레트에서 바꾸면 분석 화면·설정 화면까지 따라 바뀐다.
+    color: qgcPal.window
     radius: _radius
 
 
@@ -26,6 +28,20 @@ Rectangle {
     property bool _globalAltFrameIsMixed: _globalAltFrame == QGroundControl.AltitudeFrameMixed
     property real _radius: ScreenTools.defaultFontPixelWidth / 2
     property real _fieldSpacing: ScreenTools.defaultFontPixelHeight / 2
+
+    // 7인치 터치(1mm = 8.49px): 입력 필드 한 줄이 기본 30px(3.5mm) 라 손가락으로 정확히 눌리지 않는다.
+    // 52px(6.1mm)로 올리되, height 를 직접 주면 컨트롤 안 글자가 위로 붙으므로 상하 여백으로 키운다.
+    // 글자높이(defaultFontPixelHeight) + 여백×2 = defaultFontPixelHeight * 3.25 = 52px.
+    readonly property real _touchFieldPadding: Math.max(ScreenTools.comboBoxPadding, ScreenTools.defaultFontPixelHeight * 1.125)
+
+    // FactTextFieldSlider 안에서 실제로 눌리는 것은 TextField 하나뿐이라 바깥 사각형만 키우면
+    // 보기만 커지고 탭 영역은 그대로다. 공용 컨트롤(QmlControls)을 건드리지 않기 위해
+    // 인스턴스마다 노출된 alias 로 그 TextField 의 상하 여백만 늘린다.
+    function _growTouchField(fieldSlider) {
+        var textField = fieldSlider.textField
+        textField.topPadding = Math.max(textField.topPadding, _touchFieldPadding)
+        textField.bottomPadding = Math.max(textField.bottomPadding, _touchFieldPadding)
+    }
 
     QGCPalette { id: qgcPal; colorGroupEnabled: root.enabled }
 
@@ -160,6 +176,8 @@ Rectangle {
                         }
 
                         AltFrameCombo {
+                            topPadding: root._touchFieldPadding
+                            bottomPadding: root._touchFieldPadding
                             altitudeFrame: missionItem.altitudeFrame
                             vehicle: _controllerVehicle
                             onAltitudeFrameChanged: missionItem.altitudeFrame = altitudeFrame
@@ -171,6 +189,8 @@ Rectangle {
                         Layout.fillWidth: true
                         label: qsTr("Altitude%1").arg(_extraLabelText())
                         fact: missionItem.altitude
+
+                        Component.onCompleted: root._growTouchField(altField)
 
                         function _extraLabelText() {
                             return qsTr(" (%1)").arg(QGroundControl.altitudeFrameExtraUnits(missionItem.altitudeFrame))
@@ -203,6 +223,8 @@ Rectangle {
 
                             FactComboBox {
                                 Layout.fillWidth: true
+                                topPadding: root._touchFieldPadding
+                                bottomPadding: root._touchFieldPadding
                                 indexModel: false
                                 model: object.enumStrings
                                 fact: object
@@ -215,11 +237,14 @@ Rectangle {
                     model: missionItem.textFieldFacts
 
                     FactTextFieldSlider {
+                        id: textFieldFactRow
                         Layout.fillWidth: true
                         label: object.name
                         fact: object
                         enabled: !object.readOnly
                         warnOnUserMinMaxInvalid: false
+
+                        Component.onCompleted: root._growTouchField(textFieldFactRow)
                     }
                 }
 
@@ -227,6 +252,7 @@ Rectangle {
                     model: missionItem.nanFacts
 
                     FactTextFieldSlider {
+                        id: nanFactRow
                         Layout.fillWidth: true
                         label: object.name
                         fact: object
@@ -235,10 +261,13 @@ Rectangle {
                         warnOnUserMinMaxInvalid: false
 
                         onEnableCheckboxClicked: object.rawValue = enableCheckBoxChecked ? 0 : NaN
+
+                        Component.onCompleted: root._growTouchField(nanFactRow)
                     }
                 }
 
                 FactTextFieldSlider {
+                    id: flightSpeedRow
                     Layout.fillWidth: true
                     label: qsTr("Flight Speed")
                     fact: missionItem.speedSection.flightSpeed
@@ -247,6 +276,8 @@ Rectangle {
                     visible: missionItem.speedSection.available
 
                     onEnableCheckboxClicked: missionItem.speedSection.specifyFlightSpeed = enableCheckBoxChecked
+
+                    Component.onCompleted: root._growTouchField(flightSpeedRow)
                 }
             }
 
@@ -283,6 +314,8 @@ Rectangle {
 
                             FactComboBox {
                                 Layout.fillWidth: true
+                                topPadding: root._touchFieldPadding
+                                bottomPadding: root._touchFieldPadding
                                 indexModel: false
                                 model: object.enumStrings
                                 fact: object
@@ -295,11 +328,14 @@ Rectangle {
                     model: missionItem.textFieldFactsAdvanced
 
                     FactTextFieldSlider {
+                        id: advancedTextFieldFactRow
                         Layout.fillWidth: true
                         label: object.name
                         fact: object
                         enabled: !object.readOnly
                         warnOnUserMinMaxInvalid: false
+
+                        Component.onCompleted: root._growTouchField(advancedTextFieldFactRow)
                     }
                 }
 
@@ -307,6 +343,7 @@ Rectangle {
                     model: missionItem.nanFactsAdvanced
 
                     FactTextFieldSlider {
+                        id: advancedNanFactRow
                         Layout.fillWidth: true
                         label: object.name
                         fact: object
@@ -315,6 +352,8 @@ Rectangle {
                         warnOnUserMinMaxInvalid: false
 
                         onEnableCheckboxClicked: object.rawValue = enableCheckBoxChecked ? 0 : NaN
+
+                        Component.onCompleted: root._growTouchField(advancedNanFactRow)
                     }
                 }
             }

@@ -20,16 +20,19 @@ Rectangle {
 
     id:             _root
     height:         _currentItem ? (editorLoader.y + editorLoader.height + _innerMargin) : (topRowLayout.y + topRowLayout.height + _margin)
-    color:          _currentItem ? qgcPal.buttonHighlight : qgcPal.windowShade
-    radius:         _radius
-    opacity:        _currentItem ? 1.0 : 0.7
+    // 선택 항목을 buttonHighlight 로 통째로 칠하면 목록에서 뜯겨 나온 창처럼 보인다.
+    // 옅은 배경 + 좌측 강조 막대로 바꿔 펼쳐진 세부사항이 목록의 일부로 이어지게 한다.
+    color:          _currentItem ? Qt.rgba(qgcPal.buttonHighlight.r, qgcPal.buttonHighlight.g, qgcPal.buttonHighlight.b, 0.12) : qgcPal.window
+    radius:         0
+    opacity:        1.0
     border.width:   _readyForSave ? 0 : 2
     border.color:   qgcPal.warningText
 
     property var    _masterController:          missionItem.masterController
     property var    _missionController:         _masterController.missionController
     property bool   _currentItem:               missionItem.isCurrentItem
-    property color  _outerTextColor:            _currentItem ? qgcPal.buttonHighlightText : qgcPal.text
+    // 배경이 더 이상 buttonHighlight 로 차지 않으므로 그 위의 글자색도 평상시 색을 쓴다.
+    property color  _outerTextColor:            qgcPal.text
     property bool   _noMissionItemsAdded:       _missionController.visualItems ? _missionController.visualItems.count <= 1 : true
     property real   _sectionSpacer:             ScreenTools.defaultFontPixelWidth / 2  // spacing between section headings
     property bool   _singleComplexItem:         _missionController.complexMissionItems.length === 1
@@ -37,10 +40,11 @@ Rectangle {
 
     readonly property real  _editFieldWidth:    Math.min(width - _innerMargin * 2, ScreenTools.defaultFontPixelWidth * 12)
     readonly property real  _margin:            ScreenTools.defaultFontPixelWidth / 2
-    readonly property real  _innerMargin:       2
+    readonly property real  _innerMargin:       0
     readonly property real  _radius:            ScreenTools.defaultFontPixelWidth / 2
-    readonly property real  _hamburgerSize:     commandPicker.height * 0.75
-    readonly property real  _trashSize:         commandPicker.height * 0.75
+    // 커맨드 행을 터치 크기로 키우면서 여기에 연동해 두면 아이콘까지 2배가 된다. 따로 고정한다.
+    readonly property real  _hamburgerSize:     ScreenTools.defaultFontPixelHeight * 1.75
+    readonly property real  _trashSize:         ScreenTools.defaultFontPixelHeight * 1.75
     readonly property bool  _waypointsOnlyMode: QGroundControl.corePlugin.options.missionWaypointsOnly
 
     // setSource() injects missionItem before internal bindings activate
@@ -138,7 +142,7 @@ Rectangle {
             fillMode:               Image.PreserveAspectFit
             mipmap:                 true
             smooth:                 true
-            color:                  qgcPal.buttonHighlightText
+            color:                  _outerTextColor
             visible:                _currentItem && missionItem.sequenceNumber !== 0
             source:                 "/res/TrashDelete.svg"
 
@@ -151,7 +155,9 @@ Rectangle {
         Item {
             id:                     commandPicker
             anchors.verticalCenter: parent.verticalCenter
-            height:                 ScreenTools.implicitComboBoxHeight
+            // 7인치 터치(1mm = 8.49px): 목록에서 가장 자주 눌리는 대상이 이 커맨드 선택 행이다.
+            // 기본 26px(3.1mm) → 52px(6.1mm). 위아래 _margin 까지 더해 항목 행 전체는 60px(7.1mm).
+            height:                 Math.max(ScreenTools.implicitComboBoxHeight, ScreenTools.defaultFontPixelHeight * 3.25)
             width:                  innerLayout.width
             visible:                !commandLabel.visible
 
@@ -162,7 +168,11 @@ Rectangle {
 
                 property real _padding: ScreenTools.comboBoxPadding
 
-                QGCLabel { text: missionItem.commandName }
+                QGCLabel {
+                    text:           missionItem.commandName
+                    // 본문 13px(1.5mm) → 15px(1.8mm)
+                    font.pointSize: ScreenTools.defaultFontPointSize * 1.15
+                }
 
                 QGCColoredImage {
                     height:             ScreenTools.defaultFontPixelWidth
@@ -208,6 +218,8 @@ Rectangle {
             verticalAlignment:      Text.AlignVCenter
             text:                   missionItem.commandName
             color:                  _outerTextColor
+            // 본문 13px(1.5mm) → 15px(1.8mm)
+            font.pointSize:         ScreenTools.defaultFontPointSize * 1.15
         }
     }
 
@@ -310,7 +322,7 @@ Rectangle {
         sourceSize.height:      _hamburgerSize
         source:                 "qrc:/qmlimages/Hamburger.svg"
         visible:                missionItem.isCurrentItem && missionItem.sequenceNumber !== 0
-        color:                  qgcPal.buttonHighlightText
+        color:                  _outerTextColor
 
         QGCMouseArea {
             fillItem:   hamburger
@@ -348,6 +360,8 @@ Rectangle {
         id:                 editorLoader
         anchors.margins:    _innerMargin
         anchors.left:       parent.left
+        // 좌측 강조 막대(3px) 자리를 비워 둔다. 안 비우면 편집기 라벨 왼쪽이 막대에 덮인다.
+        anchors.leftMargin: 3
         anchors.top:        topRowLayout.bottom
 
         // Deliberately not asynchronous. With asynchronous: true the editor is built
@@ -357,6 +371,16 @@ Rectangle {
         // an invalid context". Synchronous loading closes that window: the editor is
         // fully built before control returns to the event loop.
         Component.onCompleted: _root._loadEditor()
+    }
+
+    Rectangle {
+        anchors.left:   parent.left
+        anchors.top:    parent.top
+        anchors.bottom: parent.bottom
+        width:          3
+        z:              100
+        color:          qgcPal.buttonHighlight
+        visible:        _currentItem
     }
 
     onHeightChanged: {
