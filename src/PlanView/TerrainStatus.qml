@@ -36,10 +36,11 @@ Rectangle {
         id:                  titleLabel
         // 아래 QGCFlickable 보다 먼저 선언돼 있어 그대로 두면 차트 배경에 덮인다.
         z:                   1
-        anchors.top:         parent.top
-        anchors.left:        parent.left
-        anchors.leftMargin:  _margins
-        anchors.topMargin:   1
+        // 위쪽은 Y축 최고 눈금 자리다. 아래 X축 라벨 줄의 왼쪽 빈 칸에 앉힌다.
+        anchors.bottom:        parent.bottom
+        anchors.left:          parent.left
+        anchors.leftMargin:    _margins
+        anchors.bottomMargin:  1
         font.pointSize:      root._fontCaption
         color:              qgcPal.text
         opacity:            0.7
@@ -62,8 +63,7 @@ Rectangle {
             GraphsView {
                 id:                 chart
                 anchors.fill:       parent
-                // 위쪽 여백은 눈금 잘림 방지 겸 '해발' 제목 자리다.
-                marginTop:          ScreenTools.defaultFontPixelHeight * 1.1
+                marginTop:          ScreenTools.defaultFontPixelHeight / 2  // Fixes top clipping problem
                 marginRight:        ScreenTools.defaultFontPixelWidth * 2   // Prevents clipping last tick mark
                 marginBottom:       -ScreenTools.defaultFontPixelHeight / 2 // For some reason you can't get rid of bottom margin by setting to 0
                 marginLeft:         0
@@ -100,8 +100,8 @@ Rectangle {
                     min:                        _unitsConversion.metersToAppSettingsVerticalDistanceUnits(_minAMSLAltitude)
                     max:                        _unitsConversion.metersToAppSettingsVerticalDistanceUnits(_maxAMSLAltitude)
                     lineVisible:                true
-                    // 64px 안에 눈금 4개를 넣으면 라벨끼리 겹친다. 최저·중간·최고 세 개면 읽힌다.
-                    tickInterval:               (max - min) > 0 ? (max - min) / 2 : 1
+                    // 64px 짜리 프로파일에 눈금 라벨 3개는 서로 겹친다. 최저·최고 두 개만 남긴다.
+                    tickInterval:               (max - min) > 0 ? (max - min) : 1
                     labelDecimals:              1
                 }
 
