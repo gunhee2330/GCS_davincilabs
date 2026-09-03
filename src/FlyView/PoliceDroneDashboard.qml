@@ -403,12 +403,13 @@ Item {
             // ground speed are deliberately absent — the telemetry bar bottom right owns those.
             // Carries the status tint the indicator computes — red on comms lost, green when
             // ready, yellow on a warning — the way the stock toolbar's gradient does.
+            // Only with a vehicle: without one the indicator offers "click to manually
+            // connect", and the plug at the bar's right end is the one connect control now.
             Rectangle {
                 Layout.fillHeight:     true
                 Layout.preferredWidth: mainStatus.implicitWidth + ScreenTools.defaultFontPixelWidth * 2
-                // The indicator paints purple when no vehicle is connected; that read as a
-                // slab on this bar, so the tint only shows once there is a vehicle to report.
-                color:                 root._activeVehicle ? root._mainStatusBGColor : "transparent"
+                visible:               root._activeVehicle
+                color:                 root._mainStatusBGColor
                 opacity:               0.55
                 radius:                4
 
@@ -480,6 +481,35 @@ Item {
             FlyViewToolBarIndicators {
                 Layout.fillHeight:     true
                 Layout.preferredWidth: implicitWidth
+            }
+
+            // AI module state, just left of the link plug: the chip icon and AI ON / AI OFF,
+            // keyed on the tracking module answering on its socket.
+            Row {
+                Layout.fillHeight: true
+                Layout.alignment:  Qt.AlignVCenter
+                spacing:           6
+
+                readonly property bool aiUp: App.SiyiAiController.connected
+                readonly property color tint: aiUp ? "#42d66b" : "#ff9c46"
+
+                QGCColoredImage {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width:                  root._menuIconSize * 1.15
+                    height:                 width
+                    source:                 "/res/police_ai.svg"
+                    color:                  parent.tint
+                    fillMode:               Image.PreserveAspectFit
+                    sourceSize.height:      height
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    color:                  parent.tint
+                    font.bold:              true
+                    font.pixelSize:         Math.max(12, ScreenTools.defaultFontPixelHeight * 0.75)
+                    text:                   parent.aiUp ? qsTr("AI ON") : qsTr("AI OFF")
+                }
             }
 
             // Link state at the far right: a plug in or out of its socket, with the word the
@@ -674,7 +704,7 @@ Item {
     readonly property var _guidedController: guidedController
 
     // Text-only buttons in Korean: the stock strip's pictograms are QGC's own and read as
-    // such. 제어 folds the camera, AI, speaker and return controls into this column as a
+    // such. AI folds the camera, AI, speaker and return controls into this column as a
     // drop panel, so the aircraft and its payload are driven from the one place.
     ToolStripActionList {
         id: policeToolActions
@@ -693,7 +723,7 @@ Item {
             FlyViewGripperButton           { text: qsTr("그리퍼");   iconSource: "" },
             SiyiCameraToolStripAction      { text: qsTr("카메라");   iconSource: "" },
             ToolStripAction {
-                text:               qsTr("제어")
+                text:               qsTr("AI")
                 iconSource:         ""
                 dropPanelComponent: controlPanelComponent
             }
@@ -851,7 +881,7 @@ Item {
 
     // ------------------------------------------------------------------ control panel
     //
-    // Opened from the 제어 button in the fly tool strip and drawn beside it by the strip's
+    // Opened from the AI button in the fly tool strip and drawn beside it by the strip's
     // own drop panel, which also closes it on a press anywhere else. Status lines first,
     // then the buttons; the whole column is sized to its content.
     Component {

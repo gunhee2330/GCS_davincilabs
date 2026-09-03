@@ -312,6 +312,7 @@ set(QGC_APP_RESOURCES
     "${CMAKE_SOURCE_DIR}/resources/QGCLogoFull.svg"
     "${CMAKE_SOURCE_DIR}/resources/QGCLogoWhite.svg"
     "${CMAKE_SOURCE_DIR}/resources/QGCLogoArrow.svg"
+    "${CMAKE_SOURCE_DIR}/resources/police_ai.svg"
     "${CMAKE_SOURCE_DIR}/resources/police_menu_analyze.svg"
     "${CMAKE_SOURCE_DIR}/resources/police_menu_fly.svg"
     "${CMAKE_SOURCE_DIR}/resources/police_menu_mission.svg"
