@@ -85,6 +85,9 @@ Rectangle {
         spacing:                ScreenTools.defaultFontPixelWidth
 
         component Stat: RowLayout {
+            // 항목마다 같은 폭을 가져가 밴드 전체에 고르게 퍼진다. 왼쪽에 몰리면 오른쪽이 통째로 빈다.
+            Layout.fillWidth: true
+
             property string label
             property string value
             property string unit
@@ -92,28 +95,35 @@ Rectangle {
 
             spacing: missionStats._itemSpacing
 
+            // 가운뎃점 문자는 잉크 높이가 0.115em 뿐이라 216ppi 패널에서 사라진다. 선으로 긋는다.
+            Rectangle {
+                Layout.alignment:       Qt.AlignVCenter
+                Layout.preferredWidth:  1
+                Layout.preferredHeight: Math.round(ScreenTools.defaultFontPixelHeight * 0.9)
+                Layout.rightMargin:     missionStats._itemSpacing
+                color:                  QGroundControl.globalPalette.text
+                opacity:                0.28
+                visible:                !parent.first
+            }
+
+            // 캡션과 강조가 한 줄에 섞이므로 기준선을 맞춘다. 세로 가운데로 두면 글자가 떠 보인다.
             QGCLabel {
-                text:               "\u00b7"
-                opacity:            0.5
-                font.pointSize:     missionStats._fontCaption
-                visible:            !parent.first
-                Layout.rightMargin: missionStats._itemSpacing
+                text:             parent.label
+                font.pointSize:   missionStats._fontCaption
+                Layout.alignment: Qt.AlignBaseline
             }
 
             QGCLabel {
-                text:           parent.label
-                font.pointSize: missionStats._fontCaption
+                text:             parent.value
+                font.pointSize:   missionStats._fontEmphasis
+                Layout.alignment: Qt.AlignBaseline
             }
 
             QGCLabel {
-                text:           parent.value
-                font.pointSize: missionStats._fontEmphasis
-            }
-
-            QGCLabel {
-                text:           parent.unit
-                font.pointSize: missionStats._fontCaption
-                visible:        parent.unit !== ""
+                text:             parent.unit
+                font.pointSize:   missionStats._fontCaption
+                visible:          parent.unit !== ""
+                Layout.alignment: Qt.AlignBaseline
             }
         }
 
@@ -149,7 +159,5 @@ Rectangle {
             unit:    qsTr("ea", "count unit, as in 5 ea")
             visible: _batteriesRequired >= 0
         }
-
-        Item { Layout.fillWidth: true }
     }
 }

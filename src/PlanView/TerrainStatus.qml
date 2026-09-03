@@ -37,10 +37,9 @@ Rectangle {
         // 아래 QGCFlickable 보다 먼저 선언돼 있어 그대로 두면 차트 배경에 덮인다.
         z:                   1
         anchors.top:         parent.top
-        // 왼쪽에 두면 Y축 최상단 눈금 숫자와 겹쳐 읽힌다.
-        anchors.right:       parent.right
-        anchors.rightMargin: _margins * 2
-        anchors.topMargin:   _margins
+        anchors.left:        parent.left
+        anchors.leftMargin:  _margins
+        anchors.topMargin:   1
         font.pointSize:      root._fontCaption
         color:              qgcPal.text
         opacity:            0.7
@@ -63,7 +62,8 @@ Rectangle {
             GraphsView {
                 id:                 chart
                 anchors.fill:       parent
-                marginTop:          ScreenTools.defaultFontPixelHeight / 2  // Fixes top clipping problem
+                // 위쪽 여백은 눈금 잘림 방지 겸 '해발' 제목 자리다.
+                marginTop:          ScreenTools.defaultFontPixelHeight * 1.1
                 marginRight:        ScreenTools.defaultFontPixelWidth * 2   // Prevents clipping last tick mark
                 marginBottom:       -ScreenTools.defaultFontPixelHeight / 2 // For some reason you can't get rid of bottom margin by setting to 0
                 marginLeft:         0
@@ -100,7 +100,8 @@ Rectangle {
                     min:                        _unitsConversion.metersToAppSettingsVerticalDistanceUnits(_minAMSLAltitude)
                     max:                        _unitsConversion.metersToAppSettingsVerticalDistanceUnits(_maxAMSLAltitude)
                     lineVisible:                true
-                    tickInterval:               (max - min) > 0 ? (max - min) / 3 : 1
+                    // 64px 안에 눈금 4개를 넣으면 라벨끼리 겹친다. 최저·중간·최고 세 개면 읽힌다.
+                    tickInterval:               (max - min) > 0 ? (max - min) / 2 : 1
                     labelDecimals:              1
                 }
 
