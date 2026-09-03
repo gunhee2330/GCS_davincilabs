@@ -9,6 +9,11 @@ set_source_files_properties(PlanEditLayers.qml PROPERTIES
     QT_QML_SINGLETON_TYPE TRUE
 )
 
+# pragma Singleton 만으로는 생성된 qmldir 에 singleton 이 찍히지 않는다. 소스 속성으로 명시해야 한다.
+set_source_files_properties(PolicePalette.qml PROPERTIES
+    QT_QML_SINGLETON_TYPE TRUE
+)
+
 qt_add_qml_module(PlanViewModule
     URI QGroundControl.PlanView
     VERSION 1.0
@@ -37,6 +42,7 @@ qt_add_qml_module(PlanViewModule
         PlanInfoEditor.qml
         PlanToolBarIndicators.qml
         PlanTreeView.qml
+        PolicePalette.qml
         PlanView.qml
         PlanViewRightPanel.qml
         RallyPointEditorHeader.qml
