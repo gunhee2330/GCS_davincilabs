@@ -112,6 +112,9 @@ Item {
     }
 
     property string expandedPanel
+    /// The fly view's map item. Mirrored into the top-right window while a camera is
+    /// full screen, so the operator keeps the aircraft's position in view.
+    property var mapItem: null
 
     readonly property var _activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
     readonly property var _battery:       _activeVehicle && _activeVehicle.batteries.count > 0 ? _activeVehicle.batteries.get(0) : null
@@ -123,6 +126,9 @@ Item {
     // them the assignment throws "Invalid write to global property", the label function aborts
     // part-way, and the indicator renders as an empty zero-width item.
     property color _mainStatusBGColor: qgcPal.brandingPurple
+    // Up means a vehicle is connected and its link is alive: the plug indicator on the
+    // top bar's right end reads this.
+    readonly property bool _linkUp: _activeVehicle ? !_communicationLost : false
     readonly property bool _communicationLost: _activeVehicle
                                                ? _activeVehicle.vehicleLinkManager.communicationLost
                                                : false
@@ -400,7 +406,9 @@ Item {
             Rectangle {
                 Layout.fillHeight:     true
                 Layout.preferredWidth: mainStatus.implicitWidth + ScreenTools.defaultFontPixelWidth * 2
-                color:                 root._mainStatusBGColor
+                // The indicator paints purple when no vehicle is connected; that read as a
+                // slab on this bar, so the tint only shows once there is a vehicle to report.
+                color:                 root._activeVehicle ? root._mainStatusBGColor : "transparent"
                 opacity:               0.55
                 radius:                4
 
@@ -472,6 +480,33 @@ Item {
             FlyViewToolBarIndicators {
                 Layout.fillHeight:     true
                 Layout.preferredWidth: implicitWidth
+            }
+
+            // Link state at the far right: a plug in or out of its socket, with the word the
+            // operator asked for. Green once a vehicle is connected and talking.
+            Row {
+                Layout.fillHeight: true
+                spacing:           6
+
+                readonly property color tint: root._linkUp ? "#42d66b" : "#ff9c46"
+
+                QGCColoredImage {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width:                  root._menuIconSize * 1.15
+                    height:                 width
+                    source:                 root._linkUp ? "/res/police_plug_on.svg" : "/res/police_plug_off.svg"
+                    color:                  parent.tint
+                    fillMode:               Image.PreserveAspectFit
+                    sourceSize.height:      height
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    color:                  parent.tint
+                    font.bold:              true
+                    font.pixelSize:         Math.max(12, ScreenTools.defaultFontPixelHeight * 0.75)
+                    text:                   root._linkUp ? qsTr("Connect") : qsTr("Disconnect")
+                }
             }
         }
     }
@@ -1050,9 +1085,82 @@ Item {
             color:        "black"
         }
 
+        // The map, at the size and place of the top camera window, so the aircraft's position
+        // stays in view while a camera fills the screen. A tap swaps back: map full, camera in
+        // its window. Mirrored from the live map item rather than a second map instance, the
+        // way the EO window mirrors the main video; the texture is kept at the window's own
+        // size so the copy costs little.
+        Item {
+            id:      mapPip
+            width:   root._windowWidth
+            height:  root._gripHeight + (root._windowWidth * 9 / 16)
+            x:       parent.width - width - 8
+            y:       8
+            z:       3
+            visible: root.mapItem !== null
+
+            Rectangle {
+                anchors.fill: parent
+                radius:       6
+                color:        root._panelColor
+                border.color: "#526675"
+                border.width: 1
+            }
+
+            Rectangle {
+                id:              mapPipGrip
+                anchors.left:    parent.left
+                anchors.right:   parent.right
+                anchors.top:     parent.top
+                anchors.margins: 1
+                height:          root._gripHeight
+                radius:          5
+                color:           "#5a3a4a5c"
+
+                Text {
+                    anchors.centerIn: parent
+                    color:            "white"
+                    font.bold:        true
+                    font.pixelSize:   Math.max(11, ScreenTools.defaultFontPixelHeight * 0.65)
+                    text:             qsTr("지도 · 터치: 전환")
+                }
+            }
+
+            ShaderEffectSource {
+                id:              mapMirror
+                anchors.left:    parent.left
+                anchors.right:   parent.right
+                anchors.top:     mapPipGrip.bottom
+                anchors.bottom:  parent.bottom
+                anchors.margins: 2
+                sourceItem:      root.mapItem
+                live:            true
+                textureSize:     Qt.size(Math.round(width * 2), Math.round(height * 2))
+                // A centred band of the map with this window's aspect, so the copy is not
+                // squeezed and the vehicle, which the map keeps near its centre, stays in it.
+                sourceRect: {
+                    const src = root.mapItem
+                    if (!src || width <= 0 || height <= 0) {
+                        return Qt.rect(0, 0, 0, 0)
+                    }
+                    let cw = src.width
+                    let ch = cw * height / width
+                    if (ch > src.height) {
+                        ch = src.height
+                        cw = ch * width / height
+                    }
+                    return Qt.rect((src.width - cw) / 2, (src.height - ch) / 2, cw, ch)
+                }
+            }
+
+            TapHandler {
+                onTapped: root._toggleExpanded(root.expandedPanel)
+            }
+        }
+
         Rectangle {
             anchors.right:   parent.right
-            anchors.top:     parent.top
+            anchors.bottom:  parent.bottom
             anchors.margins: 10
             width:           fullscreenHint.implicitWidth + 20
             height:          fullscreenHint.implicitHeight + 12
