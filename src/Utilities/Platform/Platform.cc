@@ -186,6 +186,16 @@ std::optional<int> Platform::initialize(int argc, char* argv[],
 #endif
 #endif
 
+#ifdef Q_OS_ANDROID
+    // Qt Quick grows its distance-field glyph cache by copying the old texture into a larger
+    // one. On the UniRC 7 Pro's Adreno GLES driver that copy (glCopyTexSubImage2D) faults
+    // within seconds of the Korean UI appearing, killing the render thread. Full-size cache
+    // textures from the start mean the copy never happens.
+    if (!qEnvironmentVariableIsSet("QSG_PREFER_FULLSIZE_GLYPHCACHE_TEXTURES")) {
+        (void) qputenv("QSG_PREFER_FULLSIZE_GLYPHCACHE_TEXTURES", "1");
+    }
+#endif
+
 #ifdef Q_OS_WIN
     if (!qEnvironmentVariableIsSet("QT_WIN_DEBUG_CONSOLE")) {
         (void) qputenv("QT_WIN_DEBUG_CONSOLE", "attach");
