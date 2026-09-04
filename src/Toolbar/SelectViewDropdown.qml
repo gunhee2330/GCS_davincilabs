@@ -11,7 +11,7 @@ import QGroundControl.Controls
 ToolIndicatorPage {
     id: root
 
-    property real _toolButtonHeight: ScreenTools.defaultFontPixelHeight * 3
+    property real _toolButtonHeight: Math.max(ScreenTools.minTouchPixels * 1.4, ScreenTools.defaultFontPixelHeight * 2.2)
 
     contentComponent: Component {
         // One column: the operator reads the list top to bottom rather than scanning a grid.

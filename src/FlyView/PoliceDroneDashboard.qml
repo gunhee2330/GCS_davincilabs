@@ -160,13 +160,13 @@ Item {
     readonly property bool _rcLinkLost: _activeVehicle
                                         && (_activeVehicle.sensorsPresentBits & _rcSensorBit)
                                         && (_activeVehicle.sensorsUnhealthyBits & _rcSensorBit)
-    readonly property real _touchHeight:  Math.max(48, ScreenTools.defaultFontPixelHeight * 2.8)
+    readonly property real _touchHeight:  Math.max(ScreenTools.minTouchPixels * 1.4, ScreenTools.defaultFontPixelHeight * 2.1)
     // QGCToolBarButton's icon height: the ☰ in the Plan and Configuration toolbars is drawn
     // at this size, and the menu button should be one size everywhere.
     readonly property real _menuIconSize: ScreenTools.defaultFontPixelHeight * 1.2
     // The top bar hosts QGC's own toolbar indicators, which are laid out against
     // ScreenTools.toolbarHeight; anything shorter clips them.
-    readonly property real _statusHeight: Math.max(42, ScreenTools.toolbarHeight)
+    readonly property real _statusHeight: Math.max(ScreenTools.minTouchPixels * 1.2, ScreenTools.toolbarHeight)
     readonly property color _panelColor:  "#e5121b24"
     /// Gap kept clear along the bottom edge now that the control panel floats rather than
     /// occupying two full-width bars.
@@ -230,7 +230,7 @@ Item {
         }
     }
 
-    readonly property real _gripHeight: Math.max(24, ScreenTools.defaultFontPixelHeight * 1.3)
+    readonly property real _gripHeight: Math.max(ScreenTools.minTouchPixels * 0.7, ScreenTools.defaultFontPixelHeight * 1.2)
 
     /// The FPV window only exists once an address is set, so window count is not fixed.
     readonly property bool _fpvConfigured:
@@ -248,7 +248,7 @@ Item {
         // inset.
         const avail = height - _bottomInset - topBar.height - gap * (_windowCount + 1)
         const byHeight = (avail - _gripHeight * _windowCount) * 16 / (9 * _windowCount)
-        return Math.max(180, Math.min(width * 0.24, 360, byHeight))
+        return Math.max(ScreenTools.minTouchPixels * 2.5, Math.min(width * 0.23, ScreenTools.defaultFontPixelWidth * 26, byHeight))
     }
 
     property bool _userMovedWindows: false
@@ -372,9 +372,9 @@ Item {
 
         RowLayout {
             anchors.fill:        parent
-            anchors.leftMargin:  8
-            anchors.rightMargin: 12
-            spacing:             10
+            anchors.leftMargin:  ScreenTools.defaultFontPixelWidth * 0.6
+            anchors.rightMargin: ScreenTools.defaultFontPixelWidth
+            spacing:             ScreenTools.defaultFontPixelWidth * 0.7
 
             // A plain Button paints the style's own opaque background, which read as a white
             // slab on this dark bar. Transparent background plus an explicitly light icon
@@ -452,7 +452,7 @@ Item {
                 Layout.fillHeight:     true
                 Layout.maximumWidth:   implicitWidth
                 spacing:               ScreenTools.defaultFontPixelWidth
-                visible:               root._activeVehicle && root.width > 900
+                visible:               root._activeVehicle && root.width > ScreenTools.defaultFontPixelWidth * 105
 
                 Repeater {
                     model: [
@@ -752,8 +752,9 @@ Item {
         anchors.top:        topBar.bottom
         anchors.topMargin:  8
         z:                  4
-        // Wide enough for four Korean characters at the strip's small font.
-        width:              ScreenTools.defaultFontPixelWidth * 8
+        // ToolStrip's own default, which still clears four Korean characters at the strip's
+        // small font. The buttons size themselves to their labels inside it.
+        width:              ScreenTools.defaultFontPixelWidth * 7
         maxHeight:          root.height - root._bottomInset - y - 8
         model:              policeToolActions.model
     }
@@ -834,7 +835,7 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 color:                    "white"
                 font.bold:                true
-                font.pixelSize:           Math.max(20, ScreenTools.defaultFontPixelHeight * 1.5)
+                font.pixelSize:           ScreenTools.defaultFontPixelHeight * 1.2
                 text:                     root._rcLinkLost ? qsTr("RC 링크 끊김") : qsTr("통신 두절")
             }
 
@@ -904,7 +905,7 @@ Item {
 
         ColumnLayout {
             id:      controlPanel
-            width:   Math.max(170, ScreenTools.defaultFontPixelWidth * 22)
+            width:   Math.max(ScreenTools.minTouchPixels * 4, ScreenTools.defaultFontPixelWidth * 17)
             spacing: 4
 
             Text {
@@ -1076,7 +1077,7 @@ Item {
                                 required property string modelData
                                 required property int index
                                 Layout.fillWidth:       true
-                                Layout.preferredWidth:  Math.max(150, ScreenTools.defaultFontPixelWidth * 18)
+                                Layout.preferredWidth:  Math.max(ScreenTools.minTouchPixels * 4, ScreenTools.defaultFontPixelWidth * 14)
                                 Layout.preferredHeight: root._touchHeight
                                 // Track numbers are 1 based on the payload.
                                 text:                   qsTr("%1. %2").arg(index + 1).arg(modelData)
@@ -1149,7 +1150,7 @@ Item {
 
                                 delegate: Button {
                                     required property int modelData
-                                    Layout.preferredWidth:  Math.max(64, ScreenTools.defaultFontPixelWidth * 8)
+                                    Layout.preferredWidth:  Math.max(ScreenTools.minTouchPixels * 1.4, ScreenTools.defaultFontPixelWidth * 6)
                                     Layout.preferredHeight: root._touchHeight
                                     text:                   qsTr("%1 m").arg(modelData)
                                     onClicked: {
