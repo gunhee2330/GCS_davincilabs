@@ -17357,17 +17357,17 @@ sudo apt-get remove modemmanager</translation>
     <message>
       <location filename="../src/FlightMap/MapItems/QGCMapPolygonVisuals.qml" line="239"/>
       <source>Remove vertex</source>
-      <translation>꼭지점  제거</translation>
+      <translation>꼭짓점 제거</translation>
     </message>
     <message>
       <location filename="../src/FlightMap/MapItems/QGCMapPolygonVisuals.qml" line="39"/>
       <source>Polygon Tools</source>
-      <translation type="unfinished">Polygon Tools</translation>
+      <translation>영역 그리기</translation>
     </message>
     <message>
       <location filename="../src/FlightMap/MapItems/QGCMapPolygonVisuals.qml" line="40"/>
       <source>Click in the map to add vertices. Click &apos;Done Tracing&apos; when finished.</source>
-      <translation type="unfinished">Click in the map to add vertices. Click &apos;Done Tracing&apos; when finished.</translation>
+      <translation>지도를 눌러 꼭짓점을 추가하세요. 다 되면 &apos;그리기 완료&apos;를 누르세요.</translation>
     </message>
     <message>
       <location filename="../src/FlightMap/MapItems/QGCMapPolygonVisuals.qml" line="252"/>
@@ -17383,12 +17383,12 @@ sudo apt-get remove modemmanager</translation>
     <message>
       <location filename="../src/FlightMap/MapItems/QGCMapPolygonVisuals.qml" line="526"/>
       <source>Set Radius</source>
-      <translation type="unfinished">Set Radius</translation>
+      <translation>반지름 지정</translation>
     </message>
     <message>
       <location filename="../src/FlightMap/MapItems/QGCMapPolygonVisuals.qml" line="545"/>
       <source>Enter circle radius.</source>
-      <translation type="unfinished">Enter circle radius.</translation>
+      <translation>원의 반지름을 입력하세요.</translation>
     </message>
     <message>
       <location filename="../src/FlightMap/MapItems/QGCMapPolygonVisuals.qml" line="575"/>
@@ -17398,27 +17398,27 @@ sudo apt-get remove modemmanager</translation>
     <message>
       <location filename="../src/FlightMap/MapItems/QGCMapPolygonVisuals.qml" line="597"/>
       <source>Edit Vertex Position</source>
-      <translation>꼭지점 위치 편집</translation>
+      <translation>꼭짓점 위치 편집</translation>
     </message>
     <message>
       <location filename="../src/FlightMap/MapItems/QGCMapPolygonVisuals.qml" line="651"/>
       <source>Basic</source>
-      <translation>기본</translation>
+      <translation>사각형</translation>
     </message>
     <message>
       <location filename="../src/FlightMap/MapItems/QGCMapPolygonVisuals.qml" line="658"/>
       <source>Circular</source>
-      <translation>원형의</translation>
+      <translation>원형</translation>
     </message>
     <message>
       <location filename="../src/FlightMap/MapItems/QGCMapPolygonVisuals.qml" line="665"/>
       <source>Done Tracing</source>
-      <translation type="unfinished">Done Tracing</translation>
+      <translation>그리기 완료</translation>
     </message>
     <message>
       <location filename="../src/FlightMap/MapItems/QGCMapPolygonVisuals.qml" line="665"/>
       <source>Trace</source>
-      <translation>추적</translation>
+      <translation>직접 그리기</translation>
     </message>
     <message>
       <location filename="../src/FlightMap/MapItems/QGCMapPolygonVisuals.qml" line="683"/>
@@ -20172,7 +20172,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/StructureScanEditor.qml" line="58"/>
       <source>Use the Polygon Tools to create the polygon which outlines the structure.</source>
-      <translation>폴리곤 도구를 사용하여 구조물 외곽을 나타내는 다각형을 그립니다.</translation>
+      <translation>'영역 그리기' 도구로 구조물 외곽을 그리세요.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/StructureScanEditor.qml" line="73"/>
@@ -20391,7 +20391,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/SurveyItemEditor.qml" line="13"/>
       <source>Use the Polygon Tools to create the polygon which outlines your survey area.</source>
-      <translation>폴리곤 도구를 사용하여 비행 구역 외곽을 나타내는 다각형을 그립니다.</translation>
+      <translation>'영역 그리기' 도구로 촬영할 구역의 외곽을 그리세요.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/SurveyItemEditor.qml" line="14"/>
