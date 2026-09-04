@@ -177,10 +177,9 @@ Item {
 
     // Camera window sizing and one-time docking along the bottom edge. Windows keep user
     // positions afterwards; a resize only re-clamps them through the drag axis limits.
-    /// True while the pod is configured for ZT30 image mode 2 (main stream = zoom | wide
-    /// side by side, sub stream = thermal), which is what feeds three distinct sensors into
-    /// the three camera windows.
-    property bool splitMainStream: false
+    /// Which pod sensor the EO window shows. The pod's sub stream stays thermal either way,
+    /// so the IR window is unaffected by this choice.
+    property bool eoShowsWideAngle: false
 
     /// The AI module's own RTSP feed replaces the pod sub stream in the third window when it
     /// is configured, so the panel labels itself accordingly.
@@ -195,37 +194,29 @@ Item {
         target: App.SiyiCameraController
         function onConnectedChanged() {
             if (App.SiyiCameraController.connected) {
-                root._applyTripleView()
+                root._applyPodStreams()
             }
         }
     }
 
-    // Image mode 2 packs zoom|wide side by side on the main stream, which feeds all three
-    // sensors to the three windows. The AI module infers on that same main stream and its
-    // manual requires it to be the zoom camera, so a composite would hand the detector a
-    // doubled image. When AI is in use the pod drops to mode 3 (main = zoom at full width)
-    // and the wide-angle window goes dark - detection wins over the third view.
-    readonly property bool _aiNeedsFullZoomMain:
-        QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue
-
-    function _applyTripleView() {
-        if (_aiNeedsFullZoomMain) {
-            App.SiyiCameraController.setCameraImageType(3)
-            splitMainStream = false
-        } else {
-            App.SiyiCameraController.setCameraImageType(2)
-            splitMainStream = true
-        }
+    // The pod carries one sensor per stream: main to the EO window, sub to the IR window.
+    // Image mode 3 is zoom on main, 5 is wide angle on main, and both leave thermal on sub.
+    // The AI module infers on the main stream and its manual requires the zoom camera, so
+    // enabling AI forces the zoom choice.
+    function _applyPodStreams() {
+        const wide = eoShowsWideAngle &&
+                     !QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue
+        App.SiyiCameraController.setCameraImageType(wide ? 5 : 3)
+        eoShowsWideAngle = wide
     }
 
-    // Re-apply when AI is switched on or off so the pod layout follows the setting.
-    // Watched through the Fact rather than a handler on _aiNeedsFullZoomMain: a readonly
-    // property takes no onChanged handler.
+    // Re-apply when AI is switched on or off, since AI pins the main stream to the zoom
+    // camera and the operator's wide-angle choice has to give way.
     Connections {
         target: QGroundControl.settingsManager.siyiCameraSettings.aiEnabled
         function onRawValueChanged() {
             if (App.SiyiCameraController.connected) {
-                root._applyTripleView()
+                root._applyPodStreams()
             }
         }
     }
@@ -236,11 +227,12 @@ Item {
     readonly property bool _fpvConfigured:
         QGroundControl.settingsManager.siyiCameraSettings.fpvRtspUrl.rawValue.trim() !== ""
 
-    readonly property int _windowCount: _fpvConfigured ? 4 : 3
+    /// One window per sensor: the FPV camera, the pod's main stream and the pod's thermal.
+    readonly property int _windowCount: 3
 
     // The windows stack down the right edge, so the width driving their 16:9 bodies is bounded
     // by the height left between the top bar and the control panel below them — sized on width
-    // alone the last window would run off the bottom. Adding the FPV window narrows all of them.
+    // alone the last window would run off the bottom.
     readonly property real _windowWidth: {
         const gap = 8
         // The right edge belongs to the windows alone now that the controls live in the tool
@@ -255,7 +247,7 @@ Item {
 
     function _dockWindows() {
         const gap = 8
-        const windows = [primaryWindow, secondaryWindow, sharedWindow, fpvWindow]
+        const windows = [primaryWindow, secondaryWindow, sharedWindow]
         const xDock = width - _windowWidth - gap
         let y = topBar.height + gap
         for (let i = 0; i < windows.length; ++i) {
@@ -282,7 +274,7 @@ Item {
     Component.onCompleted: {
         _redockIfPristine()
         if (App.SiyiCameraController.connected) {
-            _applyTripleView()
+            _applyPodStreams()
         }
     }
 
@@ -689,7 +681,7 @@ Item {
 
     CameraWindow {
         id:    primaryWindow
-        title: qsTr("CAM")
+        title: qsTr("FPV CAM")
     }
 
     CameraWindow {
@@ -700,14 +692,6 @@ Item {
     CameraWindow {
         id:    sharedWindow
         title: qsTr("IR")
-    }
-
-    // Forward-looking FPV camera on the air unit's second LAN port. Only appears once an RTSP
-    // address is configured, so an airframe flown without one keeps the three-window layout.
-    CameraWindow {
-        id:      fpvWindow
-        title:   qsTr("FPV")
-        visible: root._fpvConfigured
     }
 
     // ------------------------------------------------------------------- fly tools
@@ -982,7 +966,7 @@ Item {
 
             Repeater {
                 model: [
-                    { label: qsTr("3분할"), action: "triple" },
+                    { label: qsTr("광각"), action: "wide" },
                     { label: qsTr("줌"), action: "zoomOnly" },
                     { label: qsTr("20x"), action: "zoom" },
                     { label: qsTr("중앙"), action: "center" },
@@ -996,12 +980,12 @@ Item {
                     text:                   modelData.label
                     enabled:                App.SiyiCameraController.connected
                     onClicked: {
-                        if (modelData.action === "triple") {
-                            root._applyTripleView()
+                        if (modelData.action === "wide") {
+                            root.eoShowsWideAngle = true
+                            root._applyPodStreams()
                         } else if (modelData.action === "zoomOnly") {
-                            // Image mode 3: main = zoom at full width, sub = thermal.
-                            App.SiyiCameraController.setCameraImageType(3)
-                            root.splitMainStream = false
+                            root.eoShowsWideAngle = false
+                            root._applyPodStreams()
                         } else if (modelData.action === "zoom") {
                             App.SiyiCameraController.setZoom(20)
                         } else if (modelData.action === "center") {
@@ -1294,38 +1278,26 @@ Item {
         }
     }
 
+    // The forward-looking camera on the air unit's second LAN port. It is fixed to the
+    // airframe, so it takes neither gimbal drag nor AI target picking.
     PoliceDroneCameraPanel {
         id:                   primaryPanel
         parent:               root.expandedPanel === "primary" ? fullscreenLayer : primaryWindow.slot
         anchors.fill:         parent
-        panelTitle:           qsTr("CAM · 줌")
-        panelDetail:          qsTr("드래그: 짐벌 · 터치: 전체화면")
-        streamObjectName:     "videoContent"
-        // Image mode 2 packs zoom|wide side by side on the main stream. This surface holds
-        // the whole frame; the EO panel mirrors its right half.
-        videoCropHalf:        root.splitMainStream ? -1 : 0
-        aiTargetVisible:      root.aiTargetVisible
-        aiTargetX:            root.aiTargetX
-        aiTargetY:            root.aiTargetY
-        aiTargetWidth:        root.aiTargetWidth
-        aiTargetHeight:       root.aiTargetHeight
-        aiTargetLabel:        root.aiTargetLabel
-        aiTargetInfo:         root.aiTargetInfo
-        targetPickEnabled:    root._aiPickEnabled
+        panelTitle:           qsTr("FPV CAM · 전방")
+        panelDetail:          root._fpvConfigured ? qsTr("에어유닛 LAN2") : qsTr("주소 미설정")
+        streamObjectName:     "fpvVideo"
+        gimbalControlEnabled: false
         onActivated:          root._toggleExpanded("primary")
-        onTargetPicked:       (nx, ny) => App.SiyiAiController.trackPoint(nx, ny)
     }
 
     PoliceDroneCameraPanel {
         id:                   secondaryPanel
         parent:               root.expandedPanel === "secondary" ? fullscreenLayer : secondaryWindow.slot
         anchors.fill:         parent
-        panelTitle:           qsTr("EO · 광각")
-        panelDetail:          root.splitMainStream
-                                  ? qsTr("분할 스트림 우측")
-                                  : (root._aiNeedsFullZoomMain ? qsTr("AI 추적 중 사용 불가") : qsTr("CAM 미러"))
-        mirrorSource:         primaryPanel.videoSurface
-        mirrorHalf:           root.splitMainStream ? 1 : 0
+        panelTitle:           root.eoShowsWideAngle ? qsTr("EO · 광각") : qsTr("EO · 줌")
+        panelDetail:          qsTr("드래그: 짐벌 · 터치: 전체화면")
+        streamObjectName:     "videoContent"
         gimbalControlEnabled: true
         aiTargetVisible:      root.aiTargetVisible
         aiTargetX:            root.aiTargetX
@@ -1351,14 +1323,4 @@ Item {
         onTargetPicked:       (nx, ny) => App.SiyiAiController.trackPoint(nx, ny)
     }
 
-    PoliceDroneCameraPanel {
-        id:               fpvPanel
-        parent:           root.expandedPanel === "fpv" ? fullscreenLayer : fpvWindow.slot
-        anchors.fill:     parent
-        panelTitle:       qsTr("FPV · 전방")
-        panelDetail:      qsTr("에어유닛 LAN2")
-        streamObjectName: "fpvVideo"
-        // No gimbal drag and no AI picking: this is a fixed forward camera, not the pod.
-        onActivated:      root._toggleExpanded("fpv")
-    }
 }

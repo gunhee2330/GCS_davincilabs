@@ -11,15 +11,6 @@ Item {
     property string panelTitle
     property string panelDetail
     property string streamObjectName
-    property Item mirrorSource
-
-    /// Which horizontal half of mirrorSource to show. ZT30 split-screen modes pack two
-    /// sensors side by side into one stream, so a panel can present just its half.
-    /// 0 = whole frame, -1 = left half, 1 = right half.
-    property int mirrorHalf: 0
-
-    /// Same convention as mirrorHalf, applied to this panel's own VideoOutput.
-    property int videoCropHalf: 0
 
     property bool gimbalControlEnabled: true
 
@@ -35,7 +26,6 @@ Item {
     /// laser range. Empty hides it.
     property string aiTargetInfo:       ""
 
-    readonly property alias videoSurface: videoOutput
     readonly property bool _hasDirectStream: streamObjectName.length > 0
     readonly property int _videoFillMode: VideoOutput.PreserveAspectCrop
 
@@ -68,43 +58,15 @@ Item {
         fillMode:     Image.PreserveAspectCrop
         source:       "/res/NoVideoBackground.jpg"
         opacity:      0.34
-        visible:      !root._hasDirectStream && !root.mirrorSource
+        visible:      !root._hasDirectStream
     }
 
-    // Clipping frame: with videoCropHalf set, the VideoOutput is drawn at double width and
-    // shifted so only the requested half of a side-by-side split stream stays visible.
-    Item {
+    VideoOutput {
+        id:           videoOutput
         anchors.fill: parent
-        clip:         root.videoCropHalf !== 0
+        objectName:   root.streamObjectName
+        fillMode:     root._videoFillMode
         visible:      root._hasDirectStream
-
-        VideoOutput {
-            id:         videoOutput
-            objectName: root.streamObjectName
-            fillMode:   root._videoFillMode
-            width:      root.videoCropHalf === 0 ? parent.width : parent.width * 2
-            height:     parent.height
-            x:          root.videoCropHalf > 0 ? -parent.width : 0
-            y:          0
-        }
-    }
-
-    // No recursive flag: this samples the primary panel's VideoOutput, a sibling subtree that
-    // never contains this item, so there is nothing to recurse into. Setting it would make Qt
-    // render to a second texture and blit it back with glCopyTexSubImage2D every single frame,
-    // which is exactly the call that faults inside the UniRC 7 Pro's Adreno driver.
-    ShaderEffectSource {
-        anchors.fill: parent
-        sourceItem:   root.mirrorSource
-        live:         true
-        visible:      !!root.mirrorSource
-        // A null rect means "whole item"; a half rect crops to one side of a split stream.
-        sourceRect:   root.mirrorHalf === 0 || !root.mirrorSource
-                          ? Qt.rect(0, 0, 0, 0)
-                          : Qt.rect(root.mirrorHalf < 0 ? 0 : root.mirrorSource.width / 2,
-                                    0,
-                                    root.mirrorSource.width / 2,
-                                    root.mirrorSource.height)
     }
 
     PoliceDroneTargetOverlay {
