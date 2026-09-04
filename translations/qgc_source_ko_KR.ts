@@ -5674,7 +5674,7 @@ Click Ok to start the auto-tuning process.
       <location filename="../src/MissionManager/CorridorScanComplexItem.h" line="49"/>
       <location filename="../src/MissionManager/CorridorScanComplexItem.h" line="55"/>
       <source>Corridor Scan</source>
-      <translation>복도 스캔</translation>
+      <translation>선형 비행</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/CorridorScanComplexItem.h" line="50"/>
@@ -5687,7 +5687,7 @@ Click Ok to start the auto-tuning process.
     <message>
       <location filename="../src/PlanView/CorridorScanEditor.qml" line="14"/>
       <source>Corridor</source>
-      <translation>복도</translation>
+      <translation>선형 구간</translation>
     </message>
     <message>
       <location filename="../src/PlanView/CorridorScanEditor.qml" line="29"/>
@@ -5702,7 +5702,7 @@ Click Ok to start the auto-tuning process.
     <message>
       <location filename="../src/PlanView/CorridorScanEditor.qml" line="13"/>
       <source>Use the Polyline Tools to create the polyline which defines the corridor.</source>
-      <translation>폴리라인 도구를 사용하여 복도를 정의하는 폴리라인을 그립니다.</translation>
+      <translation>폴리라인 도구를 사용하여 선형 구간의 중심선을 그립니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/CorridorScanEditor.qml" line="47"/>
@@ -8152,7 +8152,7 @@ VTOL</translation>
     <message>
       <location filename="../src/PlanView/GeoFenceEditor.qml" line="56"/>
       <source>GeoFencing allows you to set a virtual fence around the area you want to fly in.</source>
-      <translation>GeoFencing은 비행을 제한하고 싶은 가상의 경계를 지정할 수 있도록 합니다.</translation>
+      <translation>비행제한구역은 비행을 제한하고 싶은 가상의 경계를 지정할 수 있도록 합니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/GeoFenceEditor.qml" line="57"/>
@@ -8167,17 +8167,17 @@ VTOL</translation>
     <message>
       <location filename="../src/PlanView/GeoFenceEditor.qml" line="112"/>
       <source>Polygon Fence</source>
-      <translation>다각형 Fence</translation>
+      <translation>다각형</translation>
     </message>
     <message>
       <location filename="../src/PlanView/GeoFenceEditor.qml" line="124"/>
       <source>Circular Fence</source>
-      <translation>원형 Fence</translation>
+      <translation>원형</translation>
     </message>
     <message>
       <location filename="../src/PlanView/GeoFenceEditor.qml" line="138"/>
       <source>Polygon Fences</source>
-      <translation>다각형 Fence</translation>
+      <translation>다각형 비행제한구역</translation>
     </message>
     <message>
       <location filename="../src/PlanView/GeoFenceEditor.qml" line="142"/>
@@ -8207,12 +8207,12 @@ VTOL</translation>
       <location filename="../src/PlanView/GeoFenceEditor.qml" line="202"/>
       <location filename="../src/PlanView/GeoFenceEditor.qml" line="294"/>
       <source>Del</source>
-      <translation>Del</translation>
+      <translation>삭제</translation>
     </message>
     <message>
       <location filename="../src/PlanView/GeoFenceEditor.qml" line="213"/>
       <source>Circular Fences</source>
-      <translation>원형 Fence</translation>
+      <translation>원형 비행제한구역</translation>
     </message>
     <message>
       <location filename="../src/PlanView/GeoFenceEditor.qml" line="269"/>
@@ -12982,13 +12982,24 @@ VTOL</translation>
     <message>
         <location filename="../src/PlanView/MissionStats.qml" line="0"/>
         <source>Max Altitude</source>
-        <translation>최대 고도</translation>
+        <translation>고도</translation>
     </message>
     <message>
         <location filename="../src/PlanView/MissionStats.qml" line="0"/>
         <source>ea</source>
         <comment>count unit, as in 5 ea</comment>
         <translation>개</translation>
+    </message>
+    <message>
+        <location filename="../src/PlanView/MissionStats.qml" line="0"/>
+        <source>Distance</source>
+        <translation>총 거리</translation>
+    </message>
+    <message>
+        <location filename="../src/PlanView/MissionStats.qml" line="0"/>
+        <source>Max Range</source>
+        <comment>Farthest distance from home along the mission</comment>
+        <translation>반경</translation>
     </message>
 </context>
   <context>
@@ -16587,7 +16598,7 @@ Note that this will also completely reset everything, including UAVCAN nodes, al
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="474"/>
       <source>ROI</source>
-      <translation>ROI</translation>
+      <translation>관심영역</translation>
     </message>
     <message>
       <location filename="../src/PlanView/PlanView.qml" line="450"/>
@@ -18186,7 +18197,7 @@ sudo apt-get remove modemmanager</translation>
     <message>
       <location filename="../src/MissionManager/RallyPointController.cc" line="89"/>
       <source>Rally: %1</source>
-      <translation>랠리: %1</translation>
+      <translation>대기지점: %1</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/RallyPointController.cc" line="92"/>
@@ -20071,7 +20082,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/MissionManager/SimpleMissionItem.cc" line="389"/>
       <source>ROI</source>
-      <translation>ROI</translation>
+      <translation>관심영역</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/SimpleMissionItem.cc" line="394"/>
@@ -20349,7 +20360,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/MissionManager/SurveyComplexItem.cc" line="121"/>
       <source>Survey items do not support version %1</source>
-      <translation>서베이 항목이 버전 %1을(를) 지원하지 않습니다.</translation>
+      <translation>구역 비행 항목이 버전 %1을(를) 지원하지 않습니다.</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/SurveyComplexItem.cc" line="178"/>
@@ -20367,7 +20378,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
       <location filename="../src/MissionManager/SurveyComplexItem.h" line="48"/>
       <location filename="../src/MissionManager/SurveyComplexItem.h" line="63"/>
       <source>Survey</source>
-      <translation>서베이</translation>
+      <translation>구역 비행</translation>
     </message>
     <message>
       <location filename="../src/MissionManager/SurveyComplexItem.h" line="49"/>
@@ -20380,7 +20391,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/SurveyItemEditor.qml" line="13"/>
       <source>Use the Polygon Tools to create the polygon which outlines your survey area.</source>
-      <translation>폴리곤 도구를 사용하여 서베이 영역 외곽을 나타내는 다각형을 그립니다.</translation>
+      <translation>폴리곤 도구를 사용하여 비행 구역 외곽을 나타내는 다각형을 그립니다.</translation>
     </message>
     <message>
       <location filename="../src/PlanView/SurveyItemEditor.qml" line="14"/>
@@ -20656,6 +20667,11 @@ If a vehicle still has this key configured, you will no longer be able to commun
       <source>AMSL %1</source>
       <translation>해발 %1</translation>
     </message>
+    <message>
+        <location filename="../src/PlanView/TerrainStatus.qml" line="0"/>
+        <source>AMSL (%1)</source>
+        <translation>해발 (%1)</translation>
+    </message>
   </context>
   <context>
     <name>ToolIndicatorPage</name>
@@ -20791,7 +20807,7 @@ If a vehicle still has this key configured, you will no longer be able to commun
     <message>
       <location filename="../src/PlanView/TransectStyleComplexItemStats.qml" line="15"/>
       <source>Survey Area</source>
-      <translation>측량 구역</translation>
+      <translation>비행 면적</translation>
     </message>
     <message>
       <location filename="../src/PlanView/TransectStyleComplexItemStats.qml" line="18"/>
