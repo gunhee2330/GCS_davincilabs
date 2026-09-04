@@ -106,7 +106,7 @@ Rectangle {
                     sideDistanceLabel:              qsTr("Trigger Distance")
                 }
 
-                SectionHeader {
+                PlanSectionHeader {
                     id:             scanHeader
                     Layout.fillWidth:   true
                     text:           qsTr("Scan")
@@ -175,7 +175,7 @@ Rectangle {
                     }
                 } // Column - Scan
 
-                SectionHeader {
+                PlanSectionHeader {
                     id:             statsHeader
                     Layout.fillWidth:   true
                     text:           qsTr("Statistics")

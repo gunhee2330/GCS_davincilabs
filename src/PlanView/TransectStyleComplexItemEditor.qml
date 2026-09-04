@@ -105,7 +105,7 @@ Rectangle {
                     sideDistanceLabel:              qsTr("Spacing")
                 }
 
-                SectionHeader {
+                PlanSectionHeader {
                     id:                 transectValuesHeader
                     Layout.fillWidth:   true
                     text:               transectValuesHeaderName
@@ -126,7 +126,7 @@ Rectangle {
                     visible:            transectValuesHeader.checked
                 }
 
-                SectionHeader {
+                PlanSectionHeader {
                     id:                 statsHeader
                     Layout.fillWidth:   true
                     text:               qsTr("Statistics")
@@ -218,7 +218,7 @@ Rectangle {
                     onClicked:          savePresetDialogFactory.open()
                 }
 
-                SectionHeader {
+                PlanSectionHeader {
                     id:                 presectsTransectValuesHeader
                     Layout.fillWidth:   true
                     text:               transectValuesHeaderName
@@ -233,7 +233,7 @@ Rectangle {
                     property bool forPresets: true
                 }
 
-                SectionHeader {
+                PlanSectionHeader {
                     id:                 presetsStatsHeader
                     Layout.fillWidth:   true
                     text:               qsTr("Statistics")

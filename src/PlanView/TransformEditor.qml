@@ -50,7 +50,7 @@ Rectangle {
         spacing:         ScreenTools.defaultFontPixelHeight * 0.5
 
         // ── Offset Mission ──
-        SectionHeader {
+        PlanSectionHeader {
             id:               offsetSection
             Layout.fillWidth: true
             text:             qsTr("Offset Mission")
@@ -124,7 +124,7 @@ Rectangle {
         }
 
         // ── Reposition Mission ──
-        SectionHeader {
+        PlanSectionHeader {
             id:               repositionSection
             Layout.fillWidth: true
             text:             qsTr("Reposition Mission")
@@ -275,7 +275,7 @@ Rectangle {
         }
 
         // ── Rotate Mission ──
-        SectionHeader {
+        PlanSectionHeader {
             id:               rotateSection
             Layout.fillWidth: true
             text:             qsTr("Rotate Mission")

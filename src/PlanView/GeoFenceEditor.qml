@@ -19,7 +19,8 @@ Rectangle {
 
     readonly property real  _editFieldWidth:    Math.min(width - _margin * 2, ScreenTools.defaultFontPixelWidth * 15)
     readonly property real  _margin:            ScreenTools.defaultFontPixelWidth / 2
-    readonly property real  _radius:            ScreenTools.defaultFontPixelWidth / 2
+    // 둥근 모서리는 소비자 앱 인상을 준다. 계기판처럼 각지게 둔다.
+    readonly property real  _radius:            0
 
     QGCLabel {
         id:                 geoFenceLabel
@@ -103,7 +104,7 @@ Rectangle {
                     }
                 }
 
-                SectionHeader {
+                PlanSectionHeader {
                     id:             insertSection
                     anchors.left:   parent.left
                     anchors.right:  parent.right
@@ -134,7 +135,7 @@ Rectangle {
                     }
                 }
 
-                SectionHeader {
+                PlanSectionHeader {
                     id:             polygonSection
                     anchors.left:   parent.left
                     anchors.right:  parent.right
@@ -209,7 +210,7 @@ Rectangle {
                     }
                 } // GridLayout
 
-                SectionHeader {
+                PlanSectionHeader {
                     id:             circleSection
                     anchors.left:   parent.left
                     anchors.right:  parent.right
@@ -301,7 +302,7 @@ Rectangle {
                     }
                 } // GridLayout
 
-                SectionHeader {
+                PlanSectionHeader {
                     id:             breachReturnSection
                     anchors.left:   parent.left
                     anchors.right:  parent.right

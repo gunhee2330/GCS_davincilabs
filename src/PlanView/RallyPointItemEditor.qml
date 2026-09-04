@@ -10,7 +10,10 @@ import QGroundControl.FactControls
 Rectangle {
     id: root
     height: _currentItem ? valuesRect.y + valuesRect.height + _innerMargin : titleLayout.y + titleLayout.height + _margin
-    color: _currentItem ? qgcPal.buttonHighlight : qgcPal.windowShade
+    // 목록 선택 표시는 파란 채움이 아니라 옅은 틴트다. 항목 편집기와 같은 방식.
+    color: _currentItem ? Qt.rgba(PolicePalette.accentDark.r, PolicePalette.accentDark.g,
+                                  PolicePalette.accentDark.b, 0.14)
+                        : qgcPal.window
     radius: _radius
 
     property var rallyPoint ///< RallyPoint object associated with editor

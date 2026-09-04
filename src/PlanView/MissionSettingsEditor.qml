@@ -15,7 +15,8 @@ Rectangle {
     // 편집기 배경을 패널 바닥과 한 톤으로 둔다. windowShadeDark 를 쓰면 상자 안의 상자가 되고,
     // 그 색을 팔레트에서 바꾸면 분석 화면·설정 화면까지 따라 바뀐다.
     color: qgcPal.window
-    radius: ScreenTools.defaultBorderRadius
+    // 둥근 모서리는 소비자 앱 인상을 준다. 계기판처럼 각지게 둔다.
+    radius: 0
 
     required property var missionItem
     required property real availableWidth

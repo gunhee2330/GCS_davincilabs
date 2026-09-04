@@ -16,6 +16,13 @@ QtObject {
     readonly property color blue:        "#2E62B8"
     readonly property color blueDim:     "#1E3E70"
 
+    /// 화면의 강조색. 순정 QGC 의 하늘색(buttonHighlight #3A9BDC)을 쓰지 않는다 —
+    /// 그 색이 이 제품을 QGC 로 보이게 하는 가장 큰 한 가지다.
+    /// 어두운 배경에는 밝은 남색, 밝은(야외) 배경에는 짙은 남색을 쓴다.
+    /// 한 색으로 두 테마를 모두 만족하는 값은 없다.
+    readonly property color accentDark:  "#4A8CE8"   // #222222 위 6.1:1
+    readonly property color accentLight: "#0B2E63"   // #ffffff 위 12.9:1
+
     /// 슬라이더 트랙이 최소·최대 라벨을 덮는 것을 막는다.
     ///
     /// QGCSlider 는 showBoundaryValues 일 때 라벨 높이만큼 implicitHeight 를 늘려 놓고,

@@ -115,7 +115,7 @@ Rectangle {
         }
 
         // ── Vehicle Speeds ──
-        SectionHeader {
+        PlanSectionHeader {
             id: vehicleSpeedsSectionHeader
             Layout.fillWidth: true
             text: qsTr("Expected Vehicle Speeds")

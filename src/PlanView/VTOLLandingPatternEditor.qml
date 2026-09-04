@@ -39,7 +39,7 @@ Rectangle {
         spacing:            _margin
         visible:            !editorColumnNeedLandingPoint.visible
 
-        SectionHeader {
+        PlanSectionHeader {
             id:             finalApproachSection
             anchors.left:   parent.left
             anchors.right:  parent.right
@@ -99,7 +99,7 @@ Rectangle {
             }
         }
 
-        SectionHeader {
+        PlanSectionHeader {
             id:             landingPointSection
             anchors.left:   parent.left
             anchors.right:  parent.right
@@ -160,7 +160,7 @@ Rectangle {
             onClicked:      missionItem.altitudesAreRelative = checked
         }
 
-        SectionHeader {
+        PlanSectionHeader {
             id:             cameraSection
             anchors.left:   parent.left
             anchors.right:  parent.right

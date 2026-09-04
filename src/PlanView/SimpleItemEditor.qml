@@ -27,8 +27,13 @@ Rectangle {
     property var _controllerVehicle: missionItem.masterController.controllerVehicle
     property int _globalAltFrame: missionItem.masterController.missionController.globalAltitudeFrame
     property bool _globalAltFrameIsMixed: _globalAltFrame == QGroundControl.AltitudeFrameMixed
-    property real _radius: ScreenTools.defaultFontPixelWidth / 2
+    // 둥근 모서리는 소비자 앱 인상을 준다. 계기판처럼 각지게 둔다.
+    property real _radius: 0
     property real _fieldSpacing: ScreenTools.defaultFontPixelHeight / 2
+
+    /// 경찰 강조색. 목록 선택 막대와 같은 색이어야 한 화면에 강조가 둘로 갈리지 않는다.
+    readonly property bool  _lightTheme: qgcPal.globalTheme === QGCPalette.Light
+    readonly property color _accent:     _lightTheme ? PolicePalette.accentLight : PolicePalette.accentDark
 
     // 7인치 터치(1mm = 8.49px): 입력 필드 한 줄이 기본 30px(3.5mm) 라 손가락으로 정확히 눌리지 않는다.
     // 52px(6.1mm)로 올리되, height 를 직접 주면 컨트롤 안 글자가 위로 붙으므로 상하 여백으로 키운다.
@@ -69,7 +74,7 @@ Rectangle {
             anchors.bottom: parent.bottom
             // 미선택 밑줄은 어두운 배경에서 대비 1.5:1 이라 보이지 않는다. 선택된 탭에만 선을 긋는다.
             height:         PolicePalette.accentWidth
-            color:          tabUnderline.selected ? qgcPal.buttonHighlight : "transparent"
+            color:          tabUnderline.selected ? root._accent : "transparent"
         }
     }
 

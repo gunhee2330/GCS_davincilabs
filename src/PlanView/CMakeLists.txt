@@ -41,6 +41,7 @@ qt_add_qml_module(PlanViewModule
         PlanEditToolbar.qml
         PlanInfoEditor.qml
         PlanToolBarIndicators.qml
+        PlanSectionHeader.qml
         PlanTreeView.qml
         PolicePalette.qml
         PlanView.qml

@@ -58,7 +58,7 @@ Rectangle {
         }
 
         // ── Vehicle Info ──
-        SectionHeader {
+        PlanSectionHeader {
             id: vehicleInfoSectionHeader
             Layout.fillWidth: true
             text: qsTr("Vehicle Info")
@@ -100,7 +100,7 @@ Rectangle {
         }
 
         // ── Expected Home Position ──
-        SectionHeader {
+        PlanSectionHeader {
             id: plannedHomePositionSection
             Layout.fillWidth: true
             text: qsTr("Expected Home Position")
@@ -178,7 +178,7 @@ Rectangle {
         }
 
         // ── Plan Templates ──
-        SectionHeader {
+        PlanSectionHeader {
             id: planTemplateSectionHeader
             objectName: "planInfo_templatesSection"
             Layout.fillWidth: true

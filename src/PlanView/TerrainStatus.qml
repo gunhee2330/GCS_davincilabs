@@ -6,7 +6,8 @@ import QGroundControl.Controls
 
 Rectangle {
     id:         root
-    radius:     ScreenTools.defaultFontPixelWidth * 0.5
+    // 둥근 모서리는 소비자 앱 인상을 준다. 계기판처럼 각지게 둔다.
+    radius:     0
     // 왼쪽 모서리는 접기 버튼과 맞닿는다. 둥글리면 이음매에 지도가 비치는 홈이 생겨 밴드가 두 조각으로 보인다.
     topLeftRadius:      0
     bottomLeftRadius:   0

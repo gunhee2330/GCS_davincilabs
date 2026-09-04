@@ -23,7 +23,7 @@ Rectangle {
     height:         _currentItem ? (editorLoader.y + editorLoader.height + _innerMargin) : (topRowLayout.y + topRowLayout.height + _margin)
     // 선택 항목을 buttonHighlight 로 통째로 칠하면 목록에서 뜯겨 나온 창처럼 보인다.
     // 옅은 배경 + 좌측 강조 막대로 바꿔 펼쳐진 세부사항이 목록의 일부로 이어지게 한다.
-    color:          _currentItem ? Qt.rgba(qgcPal.buttonHighlight.r, qgcPal.buttonHighlight.g, qgcPal.buttonHighlight.b, 0.12) : qgcPal.window
+    color:          _currentItem ? Qt.rgba(_accent.r, _accent.g, _accent.b, 0.14) : qgcPal.window
     radius:         0
     opacity:        1.0
     border.width:   _readyForSave ? 0 : 2
@@ -32,6 +32,8 @@ Rectangle {
     property var    _masterController:          missionItem.masterController
     property var    _missionController:         _masterController.missionController
     property bool   _currentItem:               missionItem.isCurrentItem
+    /// 경찰 강조색. 순정 하늘색(buttonHighlight)을 쓰지 않는다.
+    readonly property color _accent: _lightTheme ? PolicePalette.accentLight : PolicePalette.accentDark
     // 배경이 더 이상 buttonHighlight 로 차지 않으므로 그 위의 글자색도 평상시 색을 쓴다.
     property color  _outerTextColor:            qgcPal.text
     property bool   _noMissionItemsAdded:       _missionController.visualItems ? _missionController.visualItems.count <= 1 : true
@@ -428,9 +430,9 @@ Rectangle {
         z:              100
         // 배경 강조(알파 0.12)는 어떤 조합에서도 1.09~1.18:1 이라 선택 표시를 떠받치지 못한다.
         // 알파를 올리면 사용자가 거부한 '파란 상자' 로 되돌아가므로 막대만 강하게 한다.
-        // buttonHighlight 는 Light + 어두운 지도(패널 알파 0.85) 위에서 2.16:1 로 무너진다.
+        // 순정 하늘색은 Light + 어두운 지도(패널 알파 0.85) 위에서 2.16:1 로 무너진다.
         // Light 에서만 경찰 남색으로 바꿔 9.39:1 로 올린다(Dark 는 3.25~5.54:1 로 이미 3:1 이상).
-        color:          _lightTheme ? PolicePalette.navy : qgcPal.buttonHighlight
+        color:          _accent
         visible:        _currentItem
     }
 

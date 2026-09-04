@@ -5,6 +5,7 @@ import QtQuick.Dialogs
 
 import QGroundControl
 import QGroundControl.Controls
+import QGroundControl.PlanView
 import QGroundControl.FactControls
 
 // Toolbar for Plan View
@@ -108,7 +109,23 @@ RowLayout {
 
     QGCPalette { id: qgcPal }
 
-    QGCButton {
+    readonly property bool  _lightTheme: qgcPal.globalTheme === QGCPalette.Light
+    readonly property color _accent:     _lightTheme ? PolicePalette.accentLight : PolicePalette.accentDark
+
+    /// 순정 툴바 버튼은 둥근 모서리에 qgcPal.button(#626270, 보랏빛 도는 회색)으로 채워져 있다.
+    /// 그 두 가지가 이 줄을 QGC 로 읽히게 한다. 채움과 둥근 모서리를 빼고 글자와 아이콘만 남긴다.
+    /// 좌측 툴스트립을 이미 같은 방식으로 정리해 놓아 화면 안에서 일관된다.
+    component ToolButton: QGCButton {
+        backRadius:      0
+        showBorder:      false
+        backgroundColor: pressed  ? Qt.rgba(_accent.r, _accent.g, _accent.b, 0.30)
+                                  : hovered ? Qt.rgba(_accent.r, _accent.g, _accent.b, 0.12)
+                                            : "transparent"
+        // primary(미저장·미전송)는 채움이 아니라 글자색으로 알린다.
+        textColor:       !enabled ? qgcPal.buttonText : primary ? _accent : qgcPal.text
+    }
+
+    ToolButton {
         objectName: "planToolbar_openButton"
         text: qsTr("Open")
         iconSource: "/qmlimages/Plan.svg"
@@ -116,7 +133,7 @@ RowLayout {
         onClicked: { toolbarButtonClicked(); _openButtonClicked() }
     }
 
-    QGCButton {
+    ToolButton {
         objectName: "planToolbar_saveButton"
         text: qsTr("Save")
         iconSource: "/res/SaveToDisk.svg"
@@ -136,7 +153,7 @@ RowLayout {
         onClicked: { toolbarButtonClicked(); _uploadClicked() }
     }
 
-    QGCButton {
+    ToolButton {
         objectName: "planToolbar_clearButton"
         text: qsTr("Clear")
         iconSource: "/res/TrashCan.svg"
@@ -144,7 +161,7 @@ RowLayout {
         onClicked: { toolbarButtonClicked(); _clearClicked() }
     }
 
-    QGCButton {
+    ToolButton {
         objectName: "planToolbar_hamburgerButton"
         iconSource: "qrc:/qmlimages/Hamburger.svg"
 

@@ -4,6 +4,7 @@ import QtQuick.Layouts
 
 import QGroundControl
 import QGroundControl.Controls
+import QGroundControl.PlanView
 import QGroundControl.FactControls
 
 // Camera section for mission item editors
@@ -21,7 +22,7 @@ Column {
     property real   _fieldWidth:    ScreenTools.defaultFontPixelWidth * 16
     property real   _margin:        ScreenTools.defaultFontPixelWidth / 2
 
-    SectionHeader {
+    PlanSectionHeader {
         id:             cameraSectionHeader
         width:          parent.width
         text:           qsTr("Camera")
