@@ -5,9 +5,9 @@
         {
             "name": "enabled",
             "shortDesc": "Enable SIYI camera control",
-            "longDesc": "Control a SIYI optical pod (ZT30, ZT6, ZR30, ZR10, A8) directly over its own Ethernet link using the SIYI SDK protocol. The ground station must share a network with the camera. Video is configured separately under Video settings.",
+            "longDesc": "Control a SIYI optical pod (ZT30, ZT6, ZR30, ZR10, A8) directly over its own Ethernet link using the SIYI SDK protocol. The ground station must share a network with the camera. On this airframe a ZT30 is always fitted, so this is on by default; with no pod answering the controller simply reports it as disconnected. Video is configured separately under Video settings.",
             "type": "bool",
-            "default": false,
+            "default": true,
             "label": "Enable SIYI camera control",
             "keywords": "siyi,zt30,gimbal,camera,payload"
         },
