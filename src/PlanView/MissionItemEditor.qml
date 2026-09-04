@@ -7,6 +7,7 @@ import QtQuick.Layouts
 import QGroundControl
 import QGroundControl.Controls
 import QGroundControl.FactControls
+import QGroundControl.PlanView
 
 /// Mission item edit control
 Rectangle {
@@ -37,6 +38,7 @@ Rectangle {
     property real   _sectionSpacer:             ScreenTools.defaultFontPixelWidth / 2  // spacing between section headings
     property bool   _singleComplexItem:         _missionController.complexMissionItems.length === 1
     property bool   _readyForSave:              missionItem.readyForSaveState === VisualMissionItem.ReadyForSave
+    property bool   _lightTheme:                qgcPal.globalTheme === QGCPalette.Light
 
     readonly property real  _editFieldWidth:    Math.min(width - _innerMargin * 2, ScreenTools.defaultFontPixelWidth * 12)
     readonly property real  _margin:            ScreenTools.defaultFontPixelWidth / 2
@@ -45,6 +47,9 @@ Rectangle {
     // 커맨드 행을 터치 크기로 키우면서 여기에 연동해 두면 아이콘까지 2배가 된다. 따로 고정한다.
     readonly property real  _hamburgerSize:     ScreenTools.defaultFontPixelHeight * 1.75
     readonly property real  _trashSize:         ScreenTools.defaultFontPixelHeight * 1.75
+    // 선택 강조 막대 두께. 아래 막대와 editorLoader 의 좌측 여백이 같은 값을 써야 편집기가
+    // 막대에 덮이지 않는다. 3px 로는 야외에서 어느 행을 편집 중인지 못 찾는다(막대 대비 2.16:1).
+    readonly property real  _accentWidth:       5
     readonly property bool  _waypointsOnlyMode: QGroundControl.corePlugin.options.missionWaypointsOnly
 
     // 글꼴 정책은 MissionStats.qml 상단 주석 참조. 4파일 공통, 나중에 한 곳으로 모을 것.
@@ -121,9 +126,10 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             width:                  _hamburgerSize
             height:                 width
-            border.width:           1
-            border.color:           qgcPal.warningText
-            color:                  "white"
+            // 흰 원 + 빨간 물음표는 Dark 에서 글자 대비가 3.22:1 이고, Light 에서는 흰 배경 위
+            // 흰 원이라 테두리 1px 말고는 아무것도 남지 않는다. 원을 경고색으로 채우고
+            // 기호를 배경색으로 빼면 두 테마 모두 4.95:1 이상이 되고 테두리도 필요 없어진다.
+            color:                  qgcPal.warningText
             radius:                 width / 2
             visible:                !_readyForSave
 
@@ -132,9 +138,46 @@ Rectangle {
                 anchors.centerIn:   parent
                 //: Indicator in Plan view to show mission item is not ready for save/send
                 text:               qsTr("?")
-                color:              qgcPal.warningText
-                font.pointSize:     _root._fontCaption
+                color:              qgcPal.window
+                // 원 지름의 약 62% 를 글자 높이로 잡는다. 원(28px)은 충분히 큰데 기호가
+                // 캡션 크기면 잉크 높이가 0.89mm(안드로이드 1.25mm)라 원 안이 비어 보인다.
+                font.pointSize:     notReadyForSaveIndicator.width * 0.62 *
+                                        ScreenTools.defaultFontPointSize / ScreenTools.defaultFontPixelHeight
             }
+        }
+
+        // 지도 마커에 찍히는 번호를 목록 행과 편집기 헤더에도 같이 보인다. 지도가 쓰는 값은
+        // sequenceNumber 다(MissionItemIndicator.qml:25, TransectStyleMapVisuals.qml:125).
+        // 좌표를 갖지 않는 항목(속도 변경, 귀환 등)은 지도에 마커가 없어 짝지을 것이 없으므로 뺀다.
+        // 0번은 계획 홈 위치이고 지도에서는 집 모양 아이콘이라(HomePositionMapVisual.qml) 번호가 없다.
+        // 지도 마커와 짝이 맞아야 하므로 배지를 다시 그리지 않고 지도가 쓰는 것을 그대로 쓴다.
+        // 크기·색·선택 강조(초록)·약어 규칙이 전부 한 곳에서 온다.
+        // index 식은 MissionItemIndicator.qml:25 와 같아야 한다 — 약어가 알파벳으로 시작하면
+        // 지도는 숫자 대신 그 글자를 찍는다(이륙 T, 착륙 L 등).
+        MissionItemIndexLabel {
+            id:                     sequenceBadge
+            anchors.verticalCenter: parent.verticalCenter
+            // 배지 안에 찍히는 것은 지도와 글자 하나까지 같아야 한다.
+            // 아래 식은 MissionItemIndicator.qml:25 와 동일하다 — 약어가 알파벳으로 시작하면
+            // 지도가 숫자 대신 그 글자를 찍는다. label 에 한 글자만 넘기는 이유는
+            // MissionItemIndexLabel 이 label.length > 1 일 때만 배지 옆에 글자를 덧붙이기 때문이다.
+            // 행에는 이미 항목 이름이 적혀 있으므로 그 덧글자는 필요 없다.
+            label:                  _abbrevIsLatin ? missionItem.abbreviation.charAt(0) : ""
+            index:                  _abbrevIsLatin ? -1 : missionItem.sequenceNumber
+
+            // 복합 항목(구역 비행·선형 비행 등)은 지도가 언제나 sequenceNumber 만 찍는다
+            // (TransectStyleMapVisuals.qml:124 등). 약어가 알파벳이라도 글자를 쓰면 지도와 어긋난다.
+            readonly property bool _abbrevIsLatin: missionItem.isSimpleItem &&
+                                                   missionItem.abbreviation.charAt(0) > 'A' &&
+                                                   missionItem.abbreviation.charAt(0) < 'z'
+            checked:                missionItem.isCurrentItem
+            // MissionItemIndexLabel 은 자체 QGCMouseArea 를 품는다. 목록에서는 배지가 아니라
+            // 행 전체가 눌려야 하므로 죽인다(enabled 는 자식에 전파된다). 그리기에는 영향 없다.
+            enabled:                false
+            // 이륙은 코퍼에서 specifiesCoordinate 가 false 다(발진 지점에서 뜨므로 고도만 지정).
+            // 그래도 지도에는 전용 비주얼로 번호가 찍히므로 목록에도 번호를 준다.
+            visible:                missionItem.sequenceNumber !== 0 &&
+                                        (missionItem.specifiesCoordinate || missionItem.isTakeoffItem)
         }
 
         QGCColoredImage {
@@ -364,8 +407,8 @@ Rectangle {
         id:                 editorLoader
         anchors.margins:    _innerMargin
         anchors.left:       parent.left
-        // 좌측 강조 막대(3px) 자리를 비워 둔다. 안 비우면 편집기 라벨 왼쪽이 막대에 덮인다.
-        anchors.leftMargin: 3
+        // 좌측 강조 막대 자리를 비워 둔다. 안 비우면 편집기 라벨 왼쪽이 막대에 덮인다.
+        anchors.leftMargin: _accentWidth
         anchors.top:        topRowLayout.bottom
 
         // Deliberately not asynchronous. With asynchronous: true the editor is built
@@ -381,9 +424,13 @@ Rectangle {
         anchors.left:   parent.left
         anchors.top:    parent.top
         anchors.bottom: parent.bottom
-        width:          3
+        width:          _accentWidth
         z:              100
-        color:          qgcPal.buttonHighlight
+        // 배경 강조(알파 0.12)는 어떤 조합에서도 1.09~1.18:1 이라 선택 표시를 떠받치지 못한다.
+        // 알파를 올리면 사용자가 거부한 '파란 상자' 로 되돌아가므로 막대만 강하게 한다.
+        // buttonHighlight 는 Light + 어두운 지도(패널 알파 0.85) 위에서 2.16:1 로 무너진다.
+        // Light 에서만 경찰 남색으로 바꿔 9.39:1 로 올린다(Dark 는 3.25~5.54:1 로 이미 3:1 이상).
+        color:          _lightTheme ? PolicePalette.navy : qgcPal.buttonHighlight
         visible:        _currentItem
     }
 

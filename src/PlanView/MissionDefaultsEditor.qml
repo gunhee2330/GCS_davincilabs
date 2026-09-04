@@ -28,10 +28,6 @@ Rectangle {
     // 편집기 배경을 패널 바닥과 한 톤으로 둔다. windowShadeDark 를 쓰면 상자 안의 상자가 되고,
     // 그 색을 팔레트에서 바꾸면 분석 화면·설정 화면까지 따라 바뀐다.
     color:  qgcPal.window
-    // 입력 영역을 경찰 청색 테두리로 묶는다. 배경은 패널과 같은 톤이라 상자가 되지 않는다.
-    border.width: PolicePalette.borderWidth
-    border.color: PolicePalette.blue
-    radius: PolicePalette.radius
 
     QGCPalette { id: qgcPal; colorGroupEnabled: _root.enabled }
 
@@ -97,7 +93,7 @@ Rectangle {
 
             // QGCTextField 의 배경은 dark 테마에서도 흰색이다. 그 팔레트는 전 화면 공용이라
             // 인스턴스마다 alias(FactTextFieldSlider → LabelledFactTextField → QGCTextField)로만 덮어쓴다.
-            Component.onCompleted: PolicePalette.styleTextField(waypointAltField.textField.textField)
+            Component.onCompleted: PolicePalette.styleField(waypointAltField)
         }
 
         FactTextFieldSlider {
@@ -115,7 +111,7 @@ Rectangle {
                 }
             }
 
-            Component.onCompleted: PolicePalette.styleTextField(flightSpeedField.textField.textField)
+            Component.onCompleted: PolicePalette.styleField(flightSpeedField)
         }
 
         // ── Vehicle Speeds ──
@@ -148,7 +144,7 @@ Rectangle {
                 visible: _root._showCruiseSpeed
                 enabled: !_root._flightSpeedSpecified
 
-                Component.onCompleted: PolicePalette.styleTextField(cruiseSpeedField.textField.textField)
+                Component.onCompleted: PolicePalette.styleField(cruiseSpeedField)
             }
 
             FactTextFieldSlider {
@@ -159,7 +155,7 @@ Rectangle {
                 visible: _root._showHoverSpeed
                 enabled: !_root._flightSpeedSpecified
 
-                Component.onCompleted: PolicePalette.styleTextField(hoverSpeedField.textField.textField)
+                Component.onCompleted: PolicePalette.styleField(hoverSpeedField)
             }
 
             FactTextFieldSlider {
@@ -169,7 +165,7 @@ Rectangle {
                 fact: QGroundControl.settingsManager.appSettings.offlineEditingAscentSpeed
                 visible: _root._showAscentDescentSpeed
 
-                Component.onCompleted: PolicePalette.styleTextField(ascentSpeedField.textField.textField)
+                Component.onCompleted: PolicePalette.styleField(ascentSpeedField)
             }
 
             FactTextFieldSlider {
@@ -179,7 +175,7 @@ Rectangle {
                 fact: QGroundControl.settingsManager.appSettings.offlineEditingDescentSpeed
                 visible: _root._showAscentDescentSpeed
 
-                Component.onCompleted: PolicePalette.styleTextField(descentSpeedField.textField.textField)
+                Component.onCompleted: PolicePalette.styleField(descentSpeedField)
             }
         }
     }

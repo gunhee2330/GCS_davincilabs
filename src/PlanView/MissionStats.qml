@@ -4,15 +4,28 @@ import QtQuick.Layouts
 import QGroundControl
 import QGroundControl.Controls
 
-// 하단 상태 밴드의 윗줄. 임무 전체 숫자만 한 줄로 보여준다.
-// 선택 웨이포인트 상세(고도차/방위각/경사/기수)와 최대 텔레메트리 거리는 현장 판단에 쓰이지 않아
-// 뺐고, 대신 고도 제한 확인에 필요한 최대 고도를 넣었다.
+// 임무 전체 요약. 우측 패널 맨 위에 고정되어 트리와 함께 스크롤되지 않는다.
+// 선택 웨이포인트 상세(고도차/방위각/경사/기수)는 현장 판단에 쓰이지 않아 뺐다.
+// 6칸 고정 격자다. 순찰 운용에서 출동 전에 확인하는 값만 넣는다 —
+// 거리/시간(소티 규모), 최대 반경(통신 링크·육안 범위 한계), 최대 고도(고도 제한),
+// 항목 수, 필요 배터리.
 Rectangle {
     required property var planMasterController
 
     id: missionStats
-    implicitHeight: ScreenTools.defaultFontPixelHeight * 2.25 // 약 36px
-    color: Qt.rgba(_windowColor.r, _windowColor.g, _windowColor.b, 0.8)
+    // 칸 수가 6으로 고정이라 높이도 3행으로 고정이다. 내용이 높이를 정한다.
+    implicitHeight: statGrid.implicitHeight + (_margins * 2)
+    color: "transparent"
+
+    // 트리와 경계를 긋는다. 요약은 트리의 일부가 아니라 그 위에 얹힌 고정 줄이다.
+    Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: 1
+        color: QGroundControl.globalPalette.groupBorder
+        opacity: 0.5
+    }
 
     property var    _planMasterController:  planMasterController
     property color  _windowColor:           QGroundControl.globalPalette.window
@@ -25,6 +38,8 @@ Rectangle {
     property real   _missionTime:               _missionValid ? _missionController.missionTime : 0
     property int    _waypointCount:             _missionValid ? Math.max(_missionItems.count - 1, 0) : 0 // 0번 항목은 홈 위치
     property int    _batteriesRequired:         _controllerValid ? _missionController.batteriesRequired : -1
+    // 홈에서 가장 멀어지는 거리. 통신 링크와 육안 범위가 버티는지 출동 전에 보는 값이다.
+    property real   _missionMaxTelemetry:       _missionValid ? _missionController.missionMaxTelemetry : NaN
 
     // 최대 고도는 홈 기준 상대고도로 보여준다. 항목이 없거나 홈이 아직 정해지지 않으면 NaN 이 된다.
     property real _maxRelAltitude: {
@@ -42,6 +57,9 @@ Rectangle {
     property string _maxRelAltitudeText:         isNaN(_maxRelAltitude) ?
                                                      _noValueText :
                                                      QGroundControl.unitsConversion.metersToAppSettingsVerticalDistanceUnits(_maxRelAltitude).toFixed(0)
+    property string _maxTelemetryText:           (isNaN(_missionMaxTelemetry) || _waypointCount === 0) ?
+                                                     _noValueText :
+                                                     QGroundControl.unitsConversion.metersToAppSettingsHorizontalDistanceUnits(_missionMaxTelemetry).toFixed(0)
 
     readonly property string _noValueText:  "-.-"
     readonly property real   _margins:      ScreenTools.defaultFontPixelWidth
@@ -76,60 +94,63 @@ Rectangle {
         return (hours > 0 ? pad(hours) + ":" : "") + pad(minutes) + ":" + pad(seconds)
     }
 
-    RowLayout {
-        anchors.leftMargin:     _margins
-        anchors.rightMargin:    _margins
-        anchors.left:           parent.left
-        anchors.right:          parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        spacing:                ScreenTools.defaultFontPixelWidth
+    // 2열 x 3행 고정 격자. Flow 의 들쭉날쭉한 줄바꿈을 없앴다.
+    // 폭 계산은 dFPW 배수로 하면 데스크톱(dFPW 8, 패널 240px)과 안드로이드(dFPW 11, 패널 330px)를
+    // 한 번에 검증할 수 있다. 패널 폭이 dFPW*30, 좌우 여백이 dFPW 씩이라 내용 폭은 양쪽 다 28 dFPW 다.
+    // 한 칸 = (28 - 1)/2 = 13.5 dFPW. 가장 긴 칸은 영문 "Max Range 12345 m" 12.9 dFPW,
+    // 한국어 "최대 반경 12345 m" 11.6 dFPW 로 둘 다 들어간다(NanumGothic advance 실측).
+    GridLayout {
+        id:                  statGrid
+        anchors.left:        parent.left
+        anchors.right:       parent.right
+        anchors.top:         parent.top
+        anchors.leftMargin:  _margins
+        anchors.rightMargin: _margins
+        anchors.topMargin:   _margins
+        columns:             2
+        columnSpacing:       ScreenTools.defaultFontPixelWidth
+        rowSpacing:          ScreenTools.defaultFontPixelHeight * 0.35
 
         component Stat: RowLayout {
-            // 항목마다 같은 폭을 가져가 밴드 전체에 고르게 퍼진다. 왼쪽에 몰리면 오른쪽이 통째로 빈다.
-            Layout.fillWidth: true
-
             property string label
             property string value
             property string unit
-            property bool   first: false
 
+            id:      stat
             spacing: missionStats._itemSpacing
+            // 두 열을 정확히 반반으로 나눈다. 내용 폭이 열 폭을 정하면 행마다 값 위치가 어긋난다.
+            Layout.fillWidth:      true
+            Layout.preferredWidth: 1
 
-            // 가운뎃점 문자는 잉크 높이가 0.115em 뿐이라 216ppi 패널에서 사라진다. 선으로 긋는다.
-            Rectangle {
-                Layout.alignment:       Qt.AlignVCenter
-                Layout.preferredWidth:  1
-                Layout.preferredHeight: Math.round(ScreenTools.defaultFontPixelHeight * 0.9)
-                Layout.rightMargin:     missionStats._itemSpacing
-                color:                  QGroundControl.globalPalette.text
-                opacity:                0.28
-                visible:                !parent.first
-            }
-
-            // 캡션과 강조가 한 줄에 섞이므로 기준선을 맞춘다. 세로 가운데로 두면 글자가 떠 보인다.
+            // 캡션과 강조가 한 줄에 섞인다. 기준선을 맞춰야 라벨이 숫자 위로 뜨지 않는다.
+            // Row + anchors.baseline 은 레이아웃이 관리하는 자식에 쓸 수 없어 Qt.AlignBaseline 로 바꿨다.
             QGCLabel {
-                text:             parent.label
-                font.pointSize:   missionStats._fontCaption
                 Layout.alignment: Qt.AlignBaseline
+                // 남는 폭은 라벨이 먹고, 칸이 모자라면 라벨만 줄어든다. 숫자는 절대 잘리지 않는다.
+                Layout.fillWidth: true
+                text:             stat.label
+                elide:            Text.ElideRight
+                // 캡션(기본x0.75)은 안드로이드에서도 잉크가 1.13mm 다. 출동 전에 실제로 읽는
+                // 줄이라 본문 단으로 둔다(pointSize 를 적지 않으면 QGCLabel 기본 = 본문).
             }
 
             QGCLabel {
-                text:             parent.value
+                Layout.alignment: Qt.AlignBaseline
+                text:             stat.value
                 font.pointSize:   missionStats._fontEmphasis
-                Layout.alignment: Qt.AlignBaseline
             }
 
             QGCLabel {
-                text:             parent.unit
-                font.pointSize:   missionStats._fontCaption
-                visible:          parent.unit !== ""
                 Layout.alignment: Qt.AlignBaseline
+                text:             stat.unit
+                visible:          stat.unit !== ""
+                font.pointSize:   missionStats._fontCaption
             }
         }
 
         Stat {
-            first: true
-            label: qsTr("Total Distance")
+            // 영문 원문은 "Total Distance" 였는데 13.5 dFPW 칸에 5자리 값과 함께 들어가지 않는다.
+            label: qsTr("Distance")
             value: _missionPlannedDistanceText
             unit:  QGroundControl.unitsConversion.appSettingsHorizontalDistanceUnitsString
         }
@@ -137,6 +158,19 @@ Rectangle {
         Stat {
             label: qsTr("Est. Time")
             value: missionTimeText()
+        }
+
+        Stat {
+            // 홈에서 가장 멀어지는 지점까지의 거리. 총 거리와 달리 링크·육안 범위 한계를 본다.
+            label: qsTr("Max Range", "Farthest distance from home along the mission")
+            value: _maxTelemetryText
+            unit:  QGroundControl.unitsConversion.appSettingsHorizontalDistanceUnitsString
+        }
+
+        Stat {
+            label: qsTr("Max Altitude")
+            value: _maxRelAltitudeText
+            unit:  QGroundControl.unitsConversion.appSettingsVerticalDistanceUnitsString
         }
 
         Stat {
@@ -148,16 +182,11 @@ Rectangle {
         }
 
         Stat {
-            label: qsTr("Max Altitude")
-            value: _maxRelAltitudeText
-            unit:  QGroundControl.unitsConversion.appSettingsVerticalDistanceUnitsString
-        }
-
-        Stat {
-            label:   qsTr("Battery")
-            value:   _batteriesRequired.toString()
-            unit:    qsTr("ea", "count unit, as in 5 ea")
-            visible: _batteriesRequired >= 0
+            // 기체가 붙어 있지 않으면 배터리 소모를 계산할 수 없다. 칸을 숨기면 격자에 구멍이 나므로
+            // 값만 비운다.
+            label: qsTr("Battery")
+            value: _batteriesRequired >= 0 ? _batteriesRequired.toString() : _noValueText
+            unit:  _batteriesRequired >= 0 ? qsTr("ea", "count unit, as in 5 ea") : ""
         }
     }
 }

@@ -57,8 +57,6 @@ Item {
             radius:         ScreenTools.defaultBorderRadius * 2
             color:          rightPanelBackground.color
             opacity:        rightPanelBackground.opacity
-            border.width:   PolicePalette.borderWidth
-            border.color:   PolicePalette.blue
 
             QGCLabel {
                 id:                 toggleButtonLabel
@@ -96,10 +94,22 @@ Item {
             anchors.fill:   parent
         }
 
+        // 임무 전체 숫자. 트리와 함께 스크롤되지 않고 맨 위에 붙어 있다.
+        MissionStats {
+            id:                     missionSummary
+            anchors.top:            parent.top
+            anchors.left:           parent.left
+            anchors.right:          parent.right
+            planMasterController:   root.planMasterController
+        }
+
         PlanTreeView {
             id:                     planTreeView
             objectName:             "planView_planTree"
-            anchors.fill:           parent
+            anchors.top:            missionSummary.bottom
+            anchors.bottom:         parent.bottom
+            anchors.left:           parent.left
+            anchors.right:          parent.right
             editorMap:              root.editorMap
             planMasterController:   root.planMasterController
             onEditingLayerChangeRequested: (layer) => root.editingLayerChangeRequested(layer)

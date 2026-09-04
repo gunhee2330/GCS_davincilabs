@@ -35,8 +35,12 @@ MissionItemMapVisualBase {
                 sourceSize.height: height
                 fillMode: Image.PreserveAspectFit
 
-                MouseArea {
-                    anchors.fill: parent
+                // 순정 MouseArea 는 안드로이드에서도 minTouchPixels 만큼 늘어나지 않는다(QGCMouseArea 만 늘어난다).
+                // 집 아이콘은 14~18px 뿐이라 보이는 크기는 그대로 두고 히트 영역만 7mm(59px, 1mm = 8.49px)로 잡는다.
+                QGCMouseArea {
+                    anchors.centerIn: parent
+                    width: Math.max(parent.width, 59, ScreenTools.defaultFontPixelHeight * 2.7)
+                    height: width
                     onClicked: if (control.interactive) control.clicked(control._missionItem.sequenceNumber)
                 }
             }

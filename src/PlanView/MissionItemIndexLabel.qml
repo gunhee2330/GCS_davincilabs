@@ -27,6 +27,16 @@ Canvas {
     property bool   showGimbalYaw:          false
     property bool   showSequenceNumbers:    true
 
+    // 히트 영역의 최소 크기(px). 보이는 크기와 분리되어 있다 — 지도 위 요소라 마커를 키우면 지도가 가려진다.
+    // 야외 손가락 기준 7mm. 7인치 1280x800(1mm = 8.49px)에서 59px 이고, UI 배율이 올라가면
+    // 마커도 커지므로 dFPH 배수도 함께 본다(안드로이드 14pt: dFPH 22 → 59.4px).
+    // 목록 배지(MissionItemEditor)와 고도 프로파일 배지(TerrainStatus)는 서로 바짝 붙어 있어
+    // 같이 넓히면 이웃 배지를 삼킨다. 그래서 지도에서 단독으로 눌리는 마커에서만 켠다 —
+    // 그 세 곳이 highlightSelected 를 켜므로(MissionItemIndicator.qml:29,
+    // TakeoffItemMapVisual.qml:122, RallyPointMapVisuals.qml:63) 그것을 기본값으로 쓴다.
+    // 지도 밖에서 highlightSelected 를 켜게 되면 그 인스턴스에서 touchTargetSize: 0 으로 끊는다.
+    property real   touchTargetSize:        highlightSelected ? Math.max(59, ScreenTools.defaultFontPixelHeight * 2.7) : 0
+
     property real   _width:             showGimbalYaw ? Math.max(_gimbalYawWidth, labelControl.visible ? labelControl.width : indicator.width) : (labelControl.visible ? labelControl.width : indicator.width)
     property real   _height:            showGimbalYaw ? _gimbalYawWidth : (labelControl.visible ? labelControl.height : indicator.height)
     property real   _gimbalYawRadius:   ScreenTools.defaultFontPixelHeight
@@ -132,11 +142,12 @@ Canvas {
         anchors.centerIn: indicator
     }
 
-    // The mouse click area is always the size of a normal indicator
+    // The mouse click area is always at least the size of a normal indicator
     Item {
         id:                 mouseAreaFill
-        anchors.margins:    small ? -(_normalRadius - _smallRadius) : 0
-        anchors.fill:       indicator
+        width:              Math.max(_normalRadius * 2, touchTargetSize)
+        height:             width
+        anchors.centerIn:   indicator
     }
 
     QGCMouseArea {

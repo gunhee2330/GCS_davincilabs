@@ -16,9 +16,6 @@ Rectangle {
     // 편집기 배경을 패널 바닥과 한 톤으로 둔다. windowShadeDark 를 쓰면 상자 안의 상자가 되고,
     // 그 색을 팔레트에서 바꾸면 분석 화면·설정 화면까지 따라 바뀐다.
     color:      qgcPal.window
-    // 입력 영역을 경찰 청색 테두리로 묶는다. 배경은 패널과 같은 톤이라 상자가 되지 않는다.
-    border.width: PolicePalette.borderWidth
-    border.color: PolicePalette.blue
     radius:     _radius
 
     required property var missionItem

@@ -693,6 +693,9 @@ Item {
                 id: bottomStatusOpenCloseButton
                 Layout.fillHeight: true
                 implicitWidth: Math.max(60, ScreenTools.defaultFontPixelHeight * 3.75)
+                // 프로파일과 한 판으로 보이게 바깥쪽(왼쪽) 모서리만 둥글린다. 이음매는 양쪽 모두 각지다.
+                topLeftRadius: terrainStatus.radius
+                bottomLeftRadius: terrainStatus.radius
                 color: Qt.rgba(QGroundControl.globalPalette.window.r,
                                QGroundControl.globalPalette.window.g,
                                QGroundControl.globalPalette.window.b,
@@ -713,24 +716,18 @@ Item {
                 }
             }
 
-            // 지형 프로파일과 임무 통계를 탭으로 번갈아 보여주면 한쪽을 보는 동안 다른 쪽이 사라진다.
-            // 7인치에서는 숫자 한 줄(36px)과 고도 프로파일(56px)을 한 밴드에 위아래로 붙여 둘 다 보이게 한다.
+            // 밴드는 고도 프로파일 하나만 남긴다. 거리·시간·항목 수는 우측 패널 맨 위로 옮겼다 —
+            // 지도 아래를 가로로 길게 먹으면서 정작 임무를 고치는 자리와는 떨어져 있었다.
             ColumnLayout {
                 id: statusBand
                 Layout.alignment: Qt.AlignBottom
                 Layout.fillWidth: true
                 spacing: 0
 
-                MissionStats {
-                    id: missionStats
-                    Layout.fillWidth: true
-                    planMasterController: _root._planMasterController
-                }
-
                 TerrainStatus {
                     id: terrainStatus
                     Layout.fillWidth: true
-                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 4.0
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 5.25
                     missionController: _missionController
                     onSetCurrentSeqNum: _missionController.setCurrentPlanViewSeqNum(seqNum, true)
                 }

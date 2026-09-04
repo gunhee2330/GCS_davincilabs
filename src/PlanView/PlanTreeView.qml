@@ -17,7 +17,14 @@ TreeView {
     reuseItems: false
     pointerNavigationEnabled: false
     selectionBehavior: TableView.SelectionDisabled
+    // 7인치 터치(1mm = 8.49px): 행 사이가 2px(0.24mm)면 7mm 접촉면 안에 두 행이 같이 들어온다.
+    // 인접 행 오선택 방지 하한은 2mm(17px)다. 다만 이 값은 delegate 안에서도 쓰이므로
+    // (separatorLine.anchors.topMargin, implicitHeight) 여기서 키우면 간격이 두 배로 붙는다.
+    // TableView 쪽은 순정 그대로 두고 delegate 한 곳에서만 벌린다.
     rowSpacing: 2
+
+    /// 인접 행 오선택을 막는 최소 간격. 2mm = 17px.
+    readonly property real touchRowGap: Math.max(17, ScreenTools.defaultFontPixelHeight * 0.8)
 
     required property var editorMap
     required property var planMasterController
@@ -205,7 +212,7 @@ TreeView {
     delegate: Item {
         id: delegateRoot
         implicitWidth: root.width
-        implicitHeight: _hiddenGroup ? 0 : (loader.item ? loader.item.height : 1) + (separatorLine.visible ? separatorLine.height + root.rowSpacing : 0)
+        implicitHeight: _hiddenGroup ? 0 : (loader.item ? loader.item.height : 1) + (separatorLine.visible ? separatorLine.height + root.touchRowGap : 0)
         visible: !_hiddenGroup
         enabled: !root._createNewPlanMode || _enabledInCreateMode
         opacity: enabled ? 1 : root.editorMap._nonInteractiveOpacity
@@ -344,7 +351,7 @@ TreeView {
         Rectangle {
             id: separatorLine
             anchors.margins: ScreenTools.defaultFontPixelWidth * 0.5
-            anchors.topMargin: root.rowSpacing
+            anchors.topMargin: root.touchRowGap
             anchors.top: loader.bottom
             anchors.left: parent.left
             anchors.right: parent.right
