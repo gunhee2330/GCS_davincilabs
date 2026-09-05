@@ -9,8 +9,16 @@ set(_ort_version "1.25.1")
 set(_ort_macos_hash "SHA256=18987ec3187b5f29ba798109750f6135060560ad4e0a52678fcc753ee8fb3091")
 set(_ort_android_hash "SHA256=08ccb60c93bd027843e8227743ddcb0275a00ee706cb0df4bae91cc1a21a55f5")
 
+# A universal (x86_64h;arm64) macOS build has no arm64-only prebuilt to link, so key on the
+# target architectures when they are pinned and on the host otherwise.
+if(CMAKE_OSX_ARCHITECTURES)
+    set(_ort_macos_arch "${CMAKE_OSX_ARCHITECTURES}")
+else()
+    set(_ort_macos_arch "${CMAKE_HOST_SYSTEM_PROCESSOR}")
+endif()
+
 if((ANDROID AND CMAKE_ANDROID_ARCH_ABI STREQUAL "arm64-v8a")
-   OR (MACOS AND CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "arm64"))
+   OR (MACOS AND _ort_macos_arch STREQUAL "arm64"))
     set(_ort_supported ON)
 else()
     set(_ort_supported OFF)
@@ -87,13 +95,20 @@ if(ANDROID)
             QT_ANDROID_EXTRA_LIBS "${_ort_library}"
     )
 else()
-    # The dylib's install name is @rpath-relative and it is never copied into the bundle,
-    # so the build-tree binary needs its directory on the rpath.
+    # The dylib's install name is @rpath-relative, so the build-tree binary needs its directory
+    # on the rpath. The same rpath at install time lets macdeployqt resolve the dependency and
+    # copy the dylib into Contents/Frameworks.
     set_property(
         TARGET ${CMAKE_PROJECT_NAME}
         APPEND
         PROPERTY
             BUILD_RPATH "${onnxruntime_SOURCE_DIR}/lib"
+    )
+    set_property(
+        TARGET ${CMAKE_PROJECT_NAME}
+        APPEND
+        PROPERTY
+            INSTALL_RPATH "${onnxruntime_SOURCE_DIR}/lib"
     )
 endif()
 
