@@ -729,7 +729,7 @@ Item {
     CameraWindow {
         id:       primaryWindow
         panelKey: "primary"
-        title:    qsTr("FPV · 전방")
+        title:    qsTr("전방")
         // Detail text carries a value or a warning, never wiring trivia the operator
         // cannot act on.
         detail:   root._fpvConfigured ? "" : qsTr("주소 미설정")
@@ -738,14 +738,15 @@ Item {
     CameraWindow {
         id:       secondaryWindow
         panelKey: "secondary"
-        title:    root._aiStreamActive ? qsTr("AI · 인식")
-                                     : (root.eoShowsWideAngle ? qsTr("EO · 광각") : qsTr("EO · 줌"))
+        // Operator words, not industry ones: zoom / wide / thermal, never EO or IR.
+        title:    root._aiStreamActive ? qsTr("AI 인식")
+                                       : (root.eoShowsWideAngle ? qsTr("광각") : qsTr("줌"))
     }
 
     CameraWindow {
         id:       sharedWindow
         panelKey: "shared"
-        title:    qsTr("IR · 열상")
+        title:    qsTr("열상")
         // At night thermal and the laser rangefinder work as a pair, so the distance lives
         // on this window's bar once readings arrive. No reading, no text.
         detail:   App.SiyiCameraController.rangefinderAvailable
@@ -1272,31 +1273,12 @@ Item {
                 border.width: 1
             }
 
-            Rectangle {
-                id:              mapPipGrip
-                anchors.left:    parent.left
-                anchors.right:   parent.right
-                anchors.top:     parent.top
-                anchors.margins: 1
-                height:          root._gripHeight
-                radius:          5
-                color:           "#5a3a4a5c"
-
-                Text {
-                    anchors.centerIn: parent
-                    color:            "white"
-                    font.bold:        true
-                    font.pixelSize:   Math.max(11, ScreenTools.defaultFontPixelHeight * 0.65)
-                    text:             qsTr("지도 · 터치: 전환")
-                }
-            }
-
+            // No title bar here. It is visibly a map, it cannot be dragged (it sits in the
+            // swapped window's slot), and the bar only shrank the tap target - the whole
+            // point of this thing is to be tapped.
             ShaderEffectSource {
                 id:              mapMirror
-                anchors.left:    parent.left
-                anchors.right:   parent.right
-                anchors.top:     mapPipGrip.bottom
-                anchors.bottom:  parent.bottom
+                anchors.fill:    parent
                 anchors.margins: 2
                 sourceItem:      root.mapItem
                 live:            true
@@ -1349,7 +1331,7 @@ Item {
         id:                   primaryPanel
         parent:               root.expandedPanel === "primary" ? fullscreenLayer : primaryWindow.slot
         anchors.fill:         parent
-        panelTitle:           qsTr("FPV · 전방")
+        panelTitle:           qsTr("전방")
         showChrome:           root.expandedPanel === "primary"
         streamObjectName:     "fpvVideo"
         gimbalControlEnabled: false
@@ -1360,8 +1342,8 @@ Item {
         id:                   secondaryPanel
         parent:               root.expandedPanel === "secondary" ? fullscreenLayer : secondaryWindow.slot
         anchors.fill:         parent
-        panelTitle:           root._aiStreamActive ? qsTr("AI · 인식")
-                                                    : (root.eoShowsWideAngle ? qsTr("EO · 광각") : qsTr("EO · 줌"))
+        panelTitle:           root._aiStreamActive ? qsTr("AI 인식")
+                                                    : (root.eoShowsWideAngle ? qsTr("광각") : qsTr("줌"))
         showChrome:           root.expandedPanel === "secondary"
         streamObjectName:     "videoContent"
         gimbalControlEnabled: true
@@ -1381,7 +1363,7 @@ Item {
         id:                   sharedPipPanel
         parent:               root.expandedPanel === "shared" ? fullscreenLayer : sharedWindow.slot
         anchors.fill:         parent
-        panelTitle:           qsTr("IR · 열상")
+        panelTitle:           qsTr("열상")
         showChrome:           root.expandedPanel === "shared"
         streamObjectName:     "thermalVideo"
         // No target picking here any more: this window is always thermal now, and a tap on
