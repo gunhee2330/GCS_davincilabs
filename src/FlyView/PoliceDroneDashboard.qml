@@ -694,6 +694,13 @@ Item {
                 horizontalAlignment:    Text.AlignRight
             }
 
+            // A tap on the bar swaps this camera with the map, same as a tap on the
+            // picture. DragThreshold keeps it from firing when the bar is being dragged.
+            TapHandler {
+                gesturePolicy: TapHandler.DragThreshold
+                onTapped:      root._toggleExpanded(win.panelKey)
+            }
+
             // No xAxis/yAxis limits here: their bindings re-evaluate as the dashboard
             // resizes and yank an idle window to the range edge. Clamp on release instead.
             DragHandler {
@@ -723,7 +730,9 @@ Item {
         id:       primaryWindow
         panelKey: "primary"
         title:    qsTr("FPV · 전방")
-        detail: root._fpvConfigured ? qsTr("에어유닛 LAN2") : qsTr("주소 미설정")
+        // Detail text carries a value or a warning, never wiring trivia the operator
+        // cannot act on.
+        detail:   root._fpvConfigured ? "" : qsTr("주소 미설정")
     }
 
     CameraWindow {
@@ -731,7 +740,6 @@ Item {
         panelKey: "secondary"
         title:    root._aiStreamActive ? qsTr("AI · 인식")
                                      : (root.eoShowsWideAngle ? qsTr("EO · 광각") : qsTr("EO · 줌"))
-        detail: qsTr("드래그 짐벌 · 탭 전체화면")
     }
 
     CameraWindow {
@@ -739,10 +747,10 @@ Item {
         panelKey: "shared"
         title:    qsTr("IR · 열상")
         // At night thermal and the laser rangefinder work as a pair, so the distance lives
-        // on this window's bar once readings arrive.
+        // on this window's bar once readings arrive. No reading, no text.
         detail:   App.SiyiCameraController.rangefinderAvailable
                       ? qsTr("LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
-                      : qsTr("ZT30 보조")
+                      : ""
     }
 
     // ------------------------------------------------------------------- fly tools
