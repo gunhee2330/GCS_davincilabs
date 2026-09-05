@@ -172,6 +172,11 @@ Item {
     /// occupying two full-width bars.
     readonly property real _bottomInset:  8
     readonly property color _accentColor: "#33c7ff"
+    // Status palette. Grey rests, white is fine, red is the only alarm. Painting every
+    // state a different bright colour is what makes a bar unreadable at a glance.
+    readonly property color _idleColor:   "#8a9199"
+    readonly property color _normalColor: "#e8edf2"
+    readonly property color _alarmColor:  "#ff5b5b"
 
     signal menuRequested()
 
@@ -498,13 +503,15 @@ Item {
                 spacing:           6
 
                 readonly property bool aiUp: App.SiyiAiController.connected
-                readonly property color tint: aiUp ? "#42d66b" : "#ff9c46"
+                // Grey is the resting state. Colour is spent only where it means something:
+                // the accent when the tracker is actually up.
+                readonly property color tint: aiUp ? root._accentColor : root._idleColor
 
                 QGCColoredImage {
                     anchors.verticalCenter: parent.verticalCenter
-                    width:                  root._menuIconSize * 1.15
+                    width:                  root._menuIconSize
                     height:                 width
-                    source:                 "/res/police_ai.svg"
+                    source:                 "/InstrumentValueIcons/target.svg"
                     color:                  parent.tint
                     fillMode:               Image.PreserveAspectFit
                     sourceSize.height:      height
@@ -529,29 +536,35 @@ Item {
                 Layout.fillHeight:     true
                 Layout.preferredWidth: linkRow.implicitWidth
 
-                readonly property color tint: root._linkUp ? "#42d66b" : "#ff9c46"
+                // Three states, not two. Nothing attached yet is not the same as a link that
+                // dropped mid flight, and only the second one is an alarm.
+                readonly property bool notYet:  !root._activeVehicle
+                readonly property color tint:   notYet ? root._idleColor
+                                                       : (root._linkUp ? root._normalColor : root._alarmColor)
 
                 Row {
                     id:                     linkRow
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing:                6
+                    spacing:                7
 
-                    QGCColoredImage {
+                    // A dot reads as state at any size. A plug drawn at 16 px does not.
+                    Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
-                        width:                  root._menuIconSize * 1.15
+                        width:                  Math.max(8, root._menuIconSize * 0.42)
                         height:                 width
-                        source:                 root._linkUp ? "/res/police_plug_on.svg" : "/res/police_plug_off.svg"
-                        color:                  linkIndicator.tint
-                        fillMode:               Image.PreserveAspectFit
-                        sourceSize.height:      height
+                        radius:                 width / 2
+                        color:                  linkIndicator.notYet ? "transparent" : linkIndicator.tint
+                        border.width:           linkIndicator.notYet ? Math.max(1, width * 0.16) : 0
+                        border.color:           linkIndicator.tint
                     }
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         color:                  linkIndicator.tint
-                        font.bold:              true
+                        font.bold:              !linkIndicator.notYet
                         font.pixelSize:         Math.max(12, ScreenTools.defaultFontPixelHeight * 0.75)
-                        text:                   root._linkUp ? qsTr("연결됨") : qsTr("끊김")
+                        text:                   linkIndicator.notYet ? qsTr("연결 안 됨")
+                                                                     : (root._linkUp ? qsTr("연결됨") : qsTr("신호 끊김"))
                     }
                 }
 
