@@ -239,29 +239,27 @@ Item {
     // by the height left between the top bar and the control panel below them — sized on width
     // alone the last window would run off the bottom.
     readonly property real _windowWidth: {
-        const gap = 8
-        // The right edge belongs to the windows alone now that the controls live in the tool
-        // strip, so the column may use the full height between the top bar and the bottom
-        // inset.
-        const avail = height - _bottomInset - topBar.height - gap * (_windowCount + 1)
+        // Windows are flush now: no gaps between them, borderless, sharing the full column
+        // height. Width follows that height at 16:9 so the three stack edge to edge, capped
+        // at a quarter of the screen so they never crowd the map.
+        const avail = height - _bottomInset - topBar.height
         const byHeight = avail * 16 / (9 * _windowCount)
-        return Math.max(ScreenTools.minTouchPixels * 2.5, Math.min(width * 0.23, ScreenTools.defaultFontPixelWidth * 26, byHeight))
+        return Math.max(ScreenTools.minTouchPixels * 2.5, Math.min(width * 0.28, byHeight))
     }
 
     property bool _userMovedWindows: false
 
     function _dockWindows() {
-        const gap = 8
         const windows = [primaryWindow, secondaryWindow, sharedWindow]
-        const xDock = width - _windowWidth - gap
-        let y = topBar.height + gap
+        const xDock = width - _windowWidth
+        let y = topBar.height
         for (let i = 0; i < windows.length; ++i) {
             if (!windows[i].visible) {
                 continue
             }
             windows[i].x = xDock
             windows[i].y = y
-            y += windows[i].height + gap
+            y += windows[i].height
         }
     }
 
@@ -646,10 +644,8 @@ Item {
 
         Rectangle {
             anchors.fill: parent
-            radius:       6
+            radius:       0
             color:        root._panelColor
-            border.color: "#3d4f5e"
-            border.width: 1
 
             // Stops a tap or gimbal drag on the window from also reaching the map underneath,
             // which otherwise opened the goto-location popup on every camera switch. Same
