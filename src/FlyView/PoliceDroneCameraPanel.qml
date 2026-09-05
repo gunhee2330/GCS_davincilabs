@@ -144,11 +144,14 @@ Item {
         }
     }
 
+    // Only while the gimbal is being dragged. No resting border - it was the grey hairline
+    // boxing every camera in.
     Rectangle {
         anchors.fill: parent
         color:        "transparent"
-        border.color: gimbalDrag.active ? "#33c7ff" : "#5f7180"
-        border.width: gimbalDrag.active ? 3 : 1
+        visible:      gimbalDrag.active
+        border.color: "#33c7ff"
+        border.width: 3
     }
 
     Rectangle {
