@@ -650,6 +650,11 @@ Item {
             color:        root._panelColor
             border.color: "#3d4f5e"
             border.width: 1
+
+            // Stops a tap or gimbal drag on the window from also reaching the map underneath,
+            // which otherwise opened the goto-location popup on every camera switch. Same
+            // guard the top bar uses. The panel's handlers sit above and still fire.
+            MouseArea { anchors.fill: parent }
         }
 
         // The whole window is the picture; the name rides in the corner as a small chip so it
@@ -1210,6 +1215,7 @@ Item {
         Rectangle {
             anchors.fill: parent
             color:        "black"
+            MouseArea { anchors.fill: parent }
         }
 
         // The map, at the size and place of the top camera window, so the aircraft's position
@@ -1268,7 +1274,11 @@ Item {
             }
 
             TapHandler {
-                onTapped: root._toggleExpanded(root.expandedPanel)
+                // ReleaseWithinBounds takes an exclusive grab on press, so the fullscreen
+                // panel's handler never also fires when the map re-docks under the release
+                // point. Without this a tap on the map toggled off then straight back on.
+                gesturePolicy: TapHandler.ReleaseWithinBounds
+                onTapped:      root._toggleExpanded(root.expandedPanel)
             }
         }
 
