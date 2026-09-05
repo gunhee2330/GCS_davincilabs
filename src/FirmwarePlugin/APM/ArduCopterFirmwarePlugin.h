@@ -64,10 +64,14 @@ public:
     void updateAvailableFlightModes(FlightModeList &modeList) override;
     QList<MAV_CMD> supportedMissionCommands(QGCMAVLink::VehicleClass_t vehicleClass) const override;
 
+    /// Trims QGC's eleven indicator row to what a police operator flies on.
+    const QVariantList &toolIndicators(const Vehicle *vehicle) override;
+
 protected:
     uint32_t _convertToCustomFlightModeEnum(uint32_t val) const override;
 
 private:
+    QVariantList _copterToolIndicators;
     const QString _stabilizeFlightMode = tr("Stabilize");
     const QString _acroFlightMode = tr("Acro");
     const QString _altHoldFlightMode = tr("Altitude Hold");

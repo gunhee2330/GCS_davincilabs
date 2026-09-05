@@ -258,3 +258,22 @@ uint32_t ArduCopterFirmwarePlugin::_convertToCustomFlightModeEnum(uint32_t val) 
         return UINT32_MAX;
     }
 }
+
+const QVariantList &ArduCopterFirmwarePlugin::toolIndicators(const Vehicle *vehicle)
+{
+    Q_UNUSED(vehicle);
+
+    // The stock row is eleven wide and does not fit beside the camera windows on a 7 inch
+    // screen. An operator needs the three that decide whether a flight starts and when it
+    // has to end: the transmitter link, the fix, and what is left in the battery. Everything
+    // dropped here is still reachable from the vehicle setup pages in developer mode.
+    if (_copterToolIndicators.isEmpty()) {
+        _copterToolIndicators = QVariantList({
+            QVariant::fromValue(QUrl::fromUserInput("qrc:/qml/QGroundControl/Toolbar/RCRSSIIndicator.qml")),
+            QVariant::fromValue(QUrl::fromUserInput("qrc:/qml/QGroundControl/Toolbar/VehicleGPSIndicator.qml")),
+            QVariant::fromValue(QUrl::fromUserInput("qrc:/qml/QGroundControl/Toolbar/BatteryIndicator.qml")),
+        });
+    }
+
+    return _copterToolIndicators;
+}
