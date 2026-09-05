@@ -59,6 +59,8 @@ if(MACOS)
             "${app_icon_macos}"
     )
 
+    include(OnnxRuntime)
+
     message(STATUS "QGC: macOS platform configuration applied")
 elseif(IOS)
     # iOS-specific configuration

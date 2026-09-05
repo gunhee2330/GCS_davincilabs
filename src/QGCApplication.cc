@@ -29,6 +29,7 @@
 #include "MultiVehicleManager.h"
 #include "NTRIPManager.h"
 #include "ParameterManager.h"
+#include "PersonDetector.h"
 #include "PositionManager.h"
 #include "QGCCommandLineParser.h"
 #include "QGCCorePlugin.h"
@@ -315,6 +316,7 @@ void QGCApplication::_initForNormalAppBoot()
     VideoManager::instance()->init(mainRootWindow());
     SiyiCameraController::instance()->init();
     SiyiAiController::instance()->init();
+    PersonDetector::instance()->init();
     SpeakerController::instance()->init();
     TakeoffCounter::instance()->init();
 

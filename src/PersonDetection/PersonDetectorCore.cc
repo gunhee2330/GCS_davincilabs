@@ -57,10 +57,10 @@ QList<QRectF> decodePersons(const float* output, const Letterbox& lb, const QSiz
         if (score < confThreshold) {
             continue;
         }
-        const float cx = output[0 * kNumAnchors + i] * kInputSize;
-        const float cy = output[1 * kNumAnchors + i] * kInputSize;
-        const float w = output[2 * kNumAnchors + i] * kInputSize;
-        const float h = output[3 * kNumAnchors + i] * kInputSize;
+        const float cx = output[0 * kNumAnchors + i];
+        const float cy = output[1 * kNumAnchors + i];
+        const float w = output[2 * kNumAnchors + i];
+        const float h = output[3 * kNumAnchors + i];
         QRectF box((cx - w / 2 - lb.padX) / lb.scale, (cy - h / 2 - lb.padY) / lb.scale, w / lb.scale, h / lb.scale);
         box = box.intersected(sourceRect);
         if (box.isEmpty()) {

@@ -6,7 +6,7 @@
 #include <QtGui/QImage>
 
 /// Pure-logic half of the person detector: YOLOv8 letterbox in, decoded person boxes out.
-/// No TFLite here so it unit-tests on every build.
+/// No ONNX Runtime here so it unit-tests on every build.
 namespace PersonDetectorCore {
 
 constexpr int kInputSize = 320;    ///< YOLOv8n export size (square)
@@ -25,7 +25,7 @@ struct Letterbox
 Letterbox letterbox(const QImage& source);
 
 /// output is the raw YOLOv8 tensor [4 + kNumClasses][kNumAnchors] (row-major floats, dequantised),
-/// cx/cy/w/h normalised to the input. Returns person boxes normalised 0..1 in source image space.
+/// cx/cy/w/h in input pixels (stock Ultralytics export). Returns person boxes normalised 0..1 in source image space.
 QList<QRectF> decodePersons(const float* output, const Letterbox& lb, const QSize& sourceSize,
                             float confThreshold = 0.4f, float iouThreshold = 0.45f);
 

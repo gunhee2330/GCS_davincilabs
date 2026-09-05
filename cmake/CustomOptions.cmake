@@ -114,6 +114,13 @@ option(QGC_NO_SERIAL_LINK "Disable serial port communication" OFF)
 option(QGC_ENABLE_GST_VIDEOSTREAMING "Enable GStreamer video backend" ON)
 
 # ============================================================================
+# Person Detection Options
+# ============================================================================
+# QGC_ENABLE_PERSON_DETECTION is declared in cmake/modules/OnnxRuntime.cmake instead of
+# here: its default depends on the resolved target platform (ANDROID / CMAKE_ANDROID_ARCH_ABI
+# / MACOS), and none of those are set until project() runs, well after this file.
+
+# ============================================================================
 # MAVLink Configuration
 # ============================================================================
 
