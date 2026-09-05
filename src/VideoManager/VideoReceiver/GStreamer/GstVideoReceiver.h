@@ -106,6 +106,8 @@ private:
     void _shutdownDecodingBranch();
     void _shutdownRecordingBranch();
     void _logDecodebin3SelectedCodec(GstElement *decodebin3);
+    bool _linkThroughFrameTap(GstPad *decoderPad, GstPad *videoSinkPad);
+    void _shutdownFrameTap();
 
     bool _needDispatch();
 
@@ -125,6 +127,8 @@ private:
     static GstPadProbeReturn _videoSinkProbe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data);
     static GstPadProbeReturn _eosProbe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data);
     static GstPadProbeReturn _keyframeWatch(GstPad *pad, GstPadProbeInfo *info, gpointer user_data);
+    static GstPadProbeReturn _frameTapDecimateProbe(GstPad *pad, GstPadProbeInfo *info, gpointer userData);
+    static GstFlowReturn _onFrameTapSample(GstElement *appsink, gpointer userData);
 
     GstElement *_decoder = nullptr;
     GstElement *_decoderValve = nullptr;
@@ -146,6 +150,13 @@ private:
     GstPad *_eosProbePad = nullptr;  // ref-held: probe install pad, kept so removal targets the right pad regardless of _decoder lifecycle
     gulong _keyframeWatchId = 0;
     bool _recordingStopRequested = false;
+    GstElement *_frameTapTee = nullptr;
+    GstElement *_frameTapBin = nullptr;
+    GstPad *_frameTapTeePad = nullptr;
+    gulong _frameTapProbeId = 0;
+    GstClockTime _frameTapLastPts = GST_CLOCK_TIME_NONE;
+    bool _frameTapLinked = false;
+    bool _frameTapLatched = false;   ///< pipeline errored while tapped: don't tap again this receiver
 
     mutable QMutex _decoderNameMutex;  // QString refcount isn't thread-safe across reader/writer threads
     QString _decoderName;

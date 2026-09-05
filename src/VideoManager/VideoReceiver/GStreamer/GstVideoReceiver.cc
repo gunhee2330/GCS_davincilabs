@@ -24,6 +24,7 @@
 
 #include <algorithm>
 
+#include <gst/app/gstappsink.h>
 #include <gst/gst.h>
 #include <gst/video/video.h>
 
@@ -32,6 +33,16 @@ QGC_LOGGING_CATEGORY(GstVideoReceiverLog, "Video.GStreamer.GstVideoReceiver")
 namespace {
 // kEosTimeoutNs: bus wait budget for EOS/ERROR during stop(); 3 s covers slow hw decoders.
 constexpr GstClockTime kEosTimeoutNs = 3 * GST_SECOND;
+
+constexpr GstClockTime kFrameTapMinIntervalNs = 90 * GST_MSECOND;   // ~11 fps to the detector
+// glupload/gldownload accept both GLMemory and sysmem, so the tee's caps intersection still
+// contains the display branch's GPU features; a sysmem-only tap would downgrade it.
+constexpr const char *kFrameTapBinDescription =
+    "queue leaky=downstream max-size-buffers=1 max-size-bytes=0 max-size-time=0 "
+    "! glupload ! glcolorconvert ! gldownload "
+    "! videoscale ! video/x-raw,width=640,pixel-aspect-ratio=1/1 "
+    "! videoconvert ! video/x-raw,format=RGB "
+    "! appsink name=frametap-sink sync=false async=false max-buffers=1 drop=true emit-signals=true";
 
 // Refs the element's first src pad into *userData and stops iterating. Resync is handled
 // internally by gst_element_foreach_src_pad (unlike a bare gst_iterator_next loop).
@@ -1169,7 +1180,11 @@ bool GstVideoReceiver::_addVideoSink(GstPad *pad)
     _ensureVideoSinkInPipeline();
 
     GstPad *sinkPad = gst_element_get_static_pad(_videoSink, "sink");
-    GstPadLinkReturn linkRet = sinkPad ? gst_pad_link(pad, sinkPad) : GST_PAD_LINK_WRONG_HIERARCHY;
+    GstPadLinkReturn linkRet = GST_PAD_LINK_WRONG_HIERARCHY;
+    if (sinkPad) {
+        const bool wantTap = _frameTapEnabled && !_frameTapLatched;
+        linkRet = (wantTap && _linkThroughFrameTap(pad, sinkPad)) ? GST_PAD_LINK_OK : gst_pad_link(pad, sinkPad);
+    }
     if (linkRet != GST_PAD_LINK_OK) {
         qCCritical(GstVideoReceiverLog) << "Unable to link decoder pad to video sink, result:" << linkRet;
 
@@ -1246,6 +1261,133 @@ bool GstVideoReceiver::_addVideoSink(GstPad *pad)
 
     gst_clear_caps(&caps);
     return true;
+}
+
+// decoder pad -> tee -> { _videoSink, tap bin }. The decoder pad is linked last so a failure
+// anywhere before it leaves nothing dangling; the caller then falls back to a direct link.
+bool GstVideoReceiver::_linkThroughFrameTap(GstPad *decoderPad, GstPad *videoSinkPad)
+{
+    GError *error = nullptr;
+    _frameTapTee = gst_element_factory_make("tee", "frametap-tee");
+    _frameTapBin = gst_parse_bin_from_description(kFrameTapBinDescription, TRUE, &error);
+    if (!_frameTapTee || !_frameTapBin || error) {
+        qCWarning(GstVideoReceiverLog) << "Frame tap unavailable:" << (error ? error->message : "tee missing");
+        g_clear_error(&error);
+        _shutdownFrameTap();
+        return false;
+    }
+    g_object_set(_frameTapTee, "allow-not-linked", TRUE, nullptr);
+
+    GstElement *appsink = gst_bin_get_by_name(GST_BIN(_frameTapBin), "frametap-sink");
+    g_signal_connect(appsink, "new-sample", G_CALLBACK(_onFrameTapSample), this);
+    gst_object_unref(appsink);
+
+    // Both are floating refs that gst_bin_add sinks; hold our own so _shutdownFrameTap's
+    // gst_clear_object stays balanced after gst_bin_remove drops the bin's ref.
+    (void) gst_object_ref(_frameTapTee);
+    (void) gst_object_ref(_frameTapBin);
+    gst_bin_add_many(GST_BIN(_pipeline), _frameTapTee, _frameTapBin, nullptr);
+
+    GstPad *displayTeePad = gst_element_request_pad_simple(_frameTapTee, "src_%u");
+    _frameTapTeePad = gst_element_request_pad_simple(_frameTapTee, "src_%u");
+    GstPad *binSinkPad = gst_element_get_static_pad(_frameTapBin, "sink");
+    GstPad *teeSinkPad = gst_element_get_static_pad(_frameTapTee, "sink");
+    bool ok = displayTeePad && _frameTapTeePad && binSinkPad && teeSinkPad;
+    ok = ok && (gst_pad_link(displayTeePad, videoSinkPad) == GST_PAD_LINK_OK);
+    ok = ok && (gst_pad_link(_frameTapTeePad, binSinkPad) == GST_PAD_LINK_OK);
+    if (ok) {
+        _frameTapProbeId = gst_pad_add_probe(_frameTapTeePad, GST_PAD_PROBE_TYPE_BUFFER, _frameTapDecimateProbe,
+                                             this, nullptr);
+        ok = gst_element_sync_state_with_parent(_frameTapBin) && gst_element_sync_state_with_parent(_frameTapTee);
+    }
+    ok = ok && (gst_pad_link(decoderPad, teeSinkPad) == GST_PAD_LINK_OK);
+    if (displayTeePad) {
+        if (!ok) {
+            gst_element_release_request_pad(_frameTapTee, displayTeePad);
+        }
+        gst_object_unref(displayTeePad);
+    }
+    gst_clear_object(&binSinkPad);
+    gst_clear_object(&teeSinkPad);
+    if (!ok) {
+        qCWarning(GstVideoReceiverLog) << "Frame tap link failed, falling back to direct link";
+        _shutdownFrameTap();
+        return false;
+    }
+    _frameTapLinked = true;
+    qCDebug(GstVideoReceiverLog) << "Frame tap linked";
+    return true;
+}
+
+GstPadProbeReturn GstVideoReceiver::_frameTapDecimateProbe(GstPad *pad, GstPadProbeInfo *info, gpointer userData)
+{
+    Q_UNUSED(pad);
+    auto *self = static_cast<GstVideoReceiver *>(userData);
+    GstBuffer *buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+    const GstClockTime pts = buffer ? GST_BUFFER_PTS(buffer) : GST_CLOCK_TIME_NONE;
+    if (!GST_CLOCK_TIME_IS_VALID(pts)) {
+        return GST_PAD_PROBE_DROP;
+    }
+    const GstClockTime last = self->_frameTapLastPts;
+    // Pass on first frame, on PTS going backwards (new segment), or after the min interval.
+    const bool pass = !GST_CLOCK_TIME_IS_VALID(last) || pts < last || pts >= last + kFrameTapMinIntervalNs;
+    if (!pass) {
+        return GST_PAD_PROBE_DROP;
+    }
+    self->_frameTapLastPts = pts;
+    return GST_PAD_PROBE_OK;
+}
+
+GstFlowReturn GstVideoReceiver::_onFrameTapSample(GstElement *appsink, gpointer userData)
+{
+    auto *self = static_cast<GstVideoReceiver *>(userData);
+    GstSample *sample = gst_app_sink_pull_sample(GST_APP_SINK(appsink));
+    if (!sample) {
+        return GST_FLOW_OK;
+    }
+    GstBuffer *buffer = gst_sample_get_buffer(sample);
+    GstVideoInfo info;
+    GstVideoFrame frame;
+    if (buffer && gst_video_info_from_caps(&info, gst_sample_get_caps(sample))
+        && gst_video_frame_map(&frame, &info, buffer, GST_MAP_READ)) {
+        TappedVideoFrame tapped;
+        tapped.streamName = self->_uri;   // uri as stream id; VideoManager already filters to EO
+        tapped.ptsNs = GST_CLOCK_TIME_IS_VALID(GST_BUFFER_PTS(buffer)) ? GST_BUFFER_PTS(buffer) : 0;
+        tapped.image = QImage(static_cast<const uchar *>(GST_VIDEO_FRAME_PLANE_DATA(&frame, 0)),
+                              GST_VIDEO_FRAME_WIDTH(&frame), GST_VIDEO_FRAME_HEIGHT(&frame),
+                              GST_VIDEO_FRAME_PLANE_STRIDE(&frame, 0), QImage::Format_RGB888).copy();
+        gst_video_frame_unmap(&frame);
+        emit self->videoFrameTapped(tapped);
+    }
+    gst_sample_unref(sample);
+    return GST_FLOW_OK;
+}
+
+void GstVideoReceiver::_shutdownFrameTap()
+{
+    if (_frameTapProbeId != 0 && _frameTapTeePad) {
+        gst_pad_remove_probe(_frameTapTeePad, _frameTapProbeId);
+    }
+    _frameTapProbeId = 0;
+    if (_frameTapTee && _frameTapTeePad) {
+        gst_element_release_request_pad(_frameTapTee, _frameTapTeePad);
+    }
+    gst_clear_object(&_frameTapTeePad);
+    for (GstElement **element : {&_frameTapBin, &_frameTapTee}) {
+        if (!*element) {
+            continue;
+        }
+        GstObject *parent = gst_element_get_parent(*element);
+        if (parent) {
+            (void) gst_bin_remove(GST_BIN(_pipeline), *element);   // bin_remove drops the bin's ref; ours is still held
+            (void) gst_element_set_state(*element, GST_STATE_NULL);
+            (void) gst_element_get_state(*element, nullptr, nullptr, GST_CLOCK_TIME_NONE);
+            gst_clear_object(&parent);
+        }
+        gst_clear_object(element);
+    }
+    _frameTapLastPts = GST_CLOCK_TIME_NONE;
+    _frameTapLinked = false;
 }
 
 void GstVideoReceiver::_noteTeeFrame()
@@ -1335,6 +1477,8 @@ void GstVideoReceiver::_shutdownDecodingBranch()
 
         gst_clear_object(&_decoder);
     }
+
+    _shutdownFrameTap();
 
     if (_videoSinkProbeId != 0 && _videoSink) {
         GstPad *sinkpad = gst_element_get_static_pad(_videoSink, "sink");
@@ -1476,6 +1620,11 @@ gboolean GstVideoReceiver::_onBusMessage(GstBus * /* bus */, GstMessage *msg, gp
         // _scheduleReconnect calls stop() then queues a backoff retry if autoReconnect is on.
         pThis->_worker->dispatch([pThis]() {
             qCDebug(GstVideoReceiverLog) << "Stopping because of error";
+            if (pThis->_frameTapLinked) {
+                qCWarning(GstVideoReceiverLog)
+                    << "Pipeline error while frame tap linked; disabling tap for this receiver";
+                pThis->_frameTapLatched = true;
+            }
             pThis->_scheduleReconnect("pipeline error");
         });
         break;

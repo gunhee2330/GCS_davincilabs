@@ -105,4 +105,5 @@ private slots:
     void _testTelemetrySyncWaitSplit();
     void _testTelemetryPathStatsFailuresAreNotDelivered();
     void _testTelemetryDmaBufExtraStatsDrain();
+    void _testFrameTapDeliversScaledRgbFrames();
 };

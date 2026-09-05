@@ -14,6 +14,7 @@ QGC_LOGGING_CATEGORY(GStreamerTestLog, "Video.GStreamer.GStreamerTest")
 #include <QtCore/QScopeGuard>
 #include <QtCore/QStandardPaths>
 #include <QtCore/QTemporaryDir>
+#include <QtQuick/QQuickItem>
 
 #include <atomic>
 #include <gst/app/gstappsrc.h>
@@ -814,6 +815,96 @@ void GStreamerTest::_testRuntimeVersionCheck()
 #endif
 }
 
+void GStreamerTest::_testFrameTapDeliversScaledRgbFrames()
+{
+#ifdef Q_OS_MACOS
+    // GStreamer-GL emits an NSApplication warning on macOS when running outside the main thread.
+    ignoreLogMessage("Video.GStreamer.GStreamerLogging", QtWarningMsg,
+                     QRegularExpression(QStringLiteral("An NSApplication needs to be running")));
+#endif
+    // The display sink bin asks for a GL context the headless test process never provides.
+    ignoreLogMessage("Video.GStreamer.HwBuffers.GstGlBridge", QtWarningMsg,
+                     QRegularExpression(QStringLiteral("GL bridge giving up")));
+
+    for (const char* factoryName : {"videotestsrc", "x264enc", "rtph264pay", "udpsink", "udpsrc", "rtpjitterbuffer",
+                                    "parsebin", "decodebin3", "glupload", "glcolorconvert", "gldownload", "videoscale",
+                                    "videoconvert", "appsink"}) {
+        GstElementFactory* factory = gst_element_factory_find(factoryName);
+        if (!factory) {
+            QSKIP(qPrintable(
+                QStringLiteral("Required GStreamer factory is unavailable: %1").arg(QString::fromLatin1(factoryName))));
+        }
+        gst_object_unref(factory);
+    }
+
+    // decodebin3 picks the decoder by rank, so check the capability rather than a factory name.
+    GList* decoders = gst_element_factory_list_get_elements(GST_ELEMENT_FACTORY_TYPE_DECODER, GST_RANK_MARGINAL);
+    GstCaps* h264Caps = gst_caps_from_string("video/x-h264");
+    GList* h264Decoders = gst_element_factory_list_filter(decoders, h264Caps, GST_PAD_SINK, FALSE);
+    const bool haveH264Decoder = (h264Decoders != nullptr);
+    gst_plugin_feature_list_free(h264Decoders);
+    gst_plugin_feature_list_free(decoders);
+    gst_caps_unref(h264Caps);
+    if (!haveH264Decoder) {
+        QSKIP("No H.264 decoder is available");
+    }
+
+    // Feed a local RTP stream the same way the mac E2E check does.
+    GError* error = nullptr;
+    GstElement* sender = gst_parse_launch(
+        "videotestsrc is-live=true pattern=ball ! video/x-raw,width=1280,height=720,framerate=30/1 "
+        "! x264enc tune=zerolatency speed-preset=ultrafast key-int-max=30 "
+        "! rtph264pay config-interval=1 pt=96 ! udpsink host=127.0.0.1 port=5601",
+        &error);
+    const QString parseError = error ? QString::fromUtf8(error->message) : QString();
+    g_clear_error(&error);
+    QVERIFY2(sender, qPrintable(parseError));
+    const auto senderCleanup = qScopeGuard([sender] {
+        (void) gst_element_set_state(sender, GST_STATE_NULL);
+        gst_object_unref(sender);
+    });
+    (void) gst_element_set_state(sender, GST_STATE_PLAYING);
+
+    // Both signals fire on GStreamer threads; queue them onto this thread rather than
+    // letting QSignalSpy append from a foreign thread.
+    QList<TappedVideoFrame> frames;
+    bool decoding = false;
+
+    GstElement* sink = gst_element_factory_make("fakesink", nullptr);
+    QVERIFY(sink);
+    const auto sinkCleanup = qScopeGuard([sink] { gst_object_unref(sink); });
+    g_object_set(sink, "sync", FALSE, nullptr);
+
+    GstVideoReceiver receiver;
+    receiver.setFrameTapEnabled(true);
+    QQuickItem widget;  // startDecoding() refuses a null widget
+    receiver.setWidget(&widget);
+    receiver.setUri(QStringLiteral("udp://127.0.0.1:5601"));
+    connect(&receiver, &VideoReceiver::videoFrameTapped, &receiver,
+            [&frames](const TappedVideoFrame& frame) { frames.append(frame); }, Qt::QueuedConnection);
+    connect(&receiver, &VideoReceiver::decodingChanged, &receiver,
+            [&decoding](bool active) { decoding = active; }, Qt::QueuedConnection);
+
+    receiver.start(5000);
+    receiver.startDecoding(sink);
+
+    QTRY_VERIFY_WITH_TIMEOUT(frames.size() >= 3, 15000);
+    const TappedVideoFrame& frame = frames.at(0);
+    QCOMPARE(frame.image.format(), QImage::Format_RGB888);
+    QCOMPARE(frame.image.width(), 640);
+    QCOMPARE(frame.image.height(), 360);
+    QVERIFY(!frame.image.isNull());
+
+    // Decimation: at 30 fps in, consecutive frames must be >= 90 ms apart.
+    const quint64 pts0 = frames.at(0).ptsNs;
+    const quint64 pts1 = frames.at(1).ptsNs;
+    QVERIFY2(pts1 - pts0 >= 90'000'000ull, qPrintable(QString::number(pts1 - pts0)));
+
+    QTRY_VERIFY_WITH_TIMEOUT(decoding, 5000);
+    receiver.stop();
+    QTRY_VERIFY_WITH_TIMEOUT(!decoding, 5000);
+}
+
 #else
 
 void GStreamerTest::init()
@@ -920,6 +1011,7 @@ QGC_GST_SKIP_TEST(_testTelemetryFallbackReasonMatrix)
 QGC_GST_SKIP_TEST(_testTelemetrySyncWaitSplit)
 QGC_GST_SKIP_TEST(_testTelemetryPathStatsFailuresAreNotDelivered)
 QGC_GST_SKIP_TEST(_testTelemetryDmaBufExtraStatsDrain)
+QGC_GST_SKIP_TEST(_testFrameTapDeliversScaledRgbFrames)
 
 #undef QGC_GST_SKIP_TEST
 #endif
