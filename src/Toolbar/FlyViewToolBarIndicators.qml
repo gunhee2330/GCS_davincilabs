@@ -27,7 +27,9 @@ Item {
                 anchors.top:        parent.top
                 anchors.bottom:     parent.bottom
                 source:             modelData
-                visible:            item.showIndicator
+                // item is null until the Loader finishes, which logged an
+                // undefined-to-bool warning for every indicator on startup.
+                visible:            item ? item.showIndicator : false
             }
         }
 
@@ -39,7 +41,9 @@ Item {
                 anchors.top:        parent.top
                 anchors.bottom:     parent.bottom
                 source:             modelData
-                visible:            item.showIndicator
+                // item is null until the Loader finishes, which logged an
+                // undefined-to-bool warning for every indicator on startup.
+                visible:            item ? item.showIndicator : false
             }
         }
     }

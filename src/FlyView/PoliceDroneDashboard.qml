@@ -515,7 +515,7 @@ Item {
                     color:                  parent.tint
                     font.bold:              true
                     font.pixelSize:         Math.max(12, ScreenTools.defaultFontPixelHeight * 0.75)
-                    text:                   parent.aiUp ? qsTr("AI ON") : qsTr("AI OFF")
+                    text:                   parent.aiUp ? qsTr("AI 켜짐") : qsTr("AI 꺼짐")
                 }
             }
 
@@ -551,7 +551,7 @@ Item {
                         color:                  linkIndicator.tint
                         font.bold:              true
                         font.pixelSize:         Math.max(12, ScreenTools.defaultFontPixelHeight * 0.75)
-                        text:                   root._linkUp ? qsTr("Connect") : qsTr("Disconnect")
+                        text:                   root._linkUp ? qsTr("연결됨") : qsTr("끊김")
                     }
                 }
 

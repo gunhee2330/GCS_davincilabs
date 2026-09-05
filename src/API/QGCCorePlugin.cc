@@ -332,9 +332,15 @@ void QGCCorePlugin::releaseVideoSink(void *sink)
 
 const QVariantList &QGCCorePlugin::toolBarIndicators()
 {
+    // Left to right in the top bar, ending at the dashboard's own AI and link indicators:
+    // RC signal, satellite fix, battery. These are what stops a flight from starting and what
+    // ends one. Flight mode is deliberately not here; a status row is the wrong place for it.
     static const QVariantList toolBarIndicatorList = QVariantList(
         {
             QVariant::fromValue(QUrl::fromUserInput(QStringLiteral("qrc:/qml/QGroundControl/Toolbar/RTKGPSIndicator.qml"))),
+            QVariant::fromValue(QUrl::fromUserInput(QStringLiteral("qrc:/qml/QGroundControl/Toolbar/RCRSSIIndicator.qml"))),
+            QVariant::fromValue(QUrl::fromUserInput(QStringLiteral("qrc:/qml/QGroundControl/Toolbar/GPSIndicator.qml"))),
+            QVariant::fromValue(QUrl::fromUserInput(QStringLiteral("qrc:/qml/QGroundControl/Toolbar/BatteryIndicator.qml"))),
         }
     );
 
