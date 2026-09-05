@@ -62,6 +62,7 @@ qt_add_qml_module(FlyViewModule
         OnScreenGimbalController.qml
         PoliceDroneCameraPanel.qml
         PoliceDroneDashboard.qml
+        PoliceDronePersonOverlay.qml
         PoliceDroneTargetOverlay.qml
         PreFlightBatteryCheck.qml
         PreFlightCheckList.qml

@@ -38,7 +38,9 @@ class PersonDetector : public QObject
     friend class PersonDetectorTest;
 
 public:
-    explicit PersonDetector(QObject* parent = nullptr);
+    /// No default argument: a default-constructible QML_SINGLETON is default-constructed by the
+    /// engine instead of going through create(), which would give QML a second detector.
+    explicit PersonDetector(QObject* parent);
     ~PersonDetector();
 
     static PersonDetector* instance();

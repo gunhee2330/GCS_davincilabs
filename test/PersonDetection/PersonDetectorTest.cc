@@ -56,7 +56,7 @@ void PersonDetectorTest::_testDetectBus()
 
 void PersonDetectorTest::_testMailboxDropsStale()
 {
-    PersonDetector detector;
+    PersonDetector detector(nullptr);
     if (!detector._loadWorker()) {
         QSKIP("Person detection model unavailable (built without ONNX Runtime)");
     }

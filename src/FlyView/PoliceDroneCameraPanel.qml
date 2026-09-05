@@ -17,6 +17,10 @@ Item {
 
     property bool gimbalControlEnabled: true
 
+    /// Draws the on-device person detector's count and head mosaics. Only the stream the
+    /// detector taps (videoContent) has results to draw.
+    property bool personDetectionEnabled: false
+
     /// Enables long-press AI target selection on this panel.
     property bool targetPickEnabled: false
     property bool aiTargetVisible:      false
@@ -70,6 +74,12 @@ Item {
         objectName:   root.streamObjectName
         fillMode:     root._videoFillMode
         visible:      root._hasDirectStream
+    }
+
+    PoliceDronePersonOverlay {
+        anchors.fill: parent
+        videoOutput:  videoOutput
+        enabled:      root.personDetectionEnabled && root._hasDirectStream
     }
 
     PoliceDroneTargetOverlay {

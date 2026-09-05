@@ -10,7 +10,7 @@
 
 QGC_LOGGING_CATEGORY(PersonDetectorLog, "PersonDetection.PersonDetector")
 
-Q_APPLICATION_STATIC(PersonDetector, _personDetectorInstance);
+Q_APPLICATION_STATIC(PersonDetector, _personDetectorInstance, nullptr);
 
 PersonDetector::PersonDetector(QObject* parent)
     : QObject(parent)

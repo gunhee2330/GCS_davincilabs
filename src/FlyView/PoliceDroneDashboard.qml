@@ -1318,6 +1318,7 @@ Item {
         showChrome:           root.expandedPanel === "secondary"
         streamObjectName:     "videoContent"
         gimbalControlEnabled: true
+        personDetectionEnabled: true
         aiTargetVisible:      root.aiTargetVisible
         aiTargetX:            root.aiTargetX
         aiTargetY:            root.aiTargetY
