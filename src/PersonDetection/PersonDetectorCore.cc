@@ -44,8 +44,8 @@ float iou(const QRectF& a, const QRectF& b)
 
 }  // namespace
 
-QList<QRectF> decodePersons(const float* output, const Letterbox& lb, const QSize& sourceSize, float confThreshold,
-                            float iouThreshold)
+QList<QRectF> decodeBoxes(const float* output, const Letterbox& lb, const QSize& sourceSize,
+                          std::span<const int> classIds, float confThreshold, float iouThreshold)
 {
     if (!output || sourceSize.isEmpty() || lb.scale <= 0) {
         return {};
@@ -53,7 +53,10 @@ QList<QRectF> decodePersons(const float* output, const Letterbox& lb, const QSiz
     std::vector<Candidate> candidates;
     const QRectF sourceRect(QPointF(0, 0), sourceSize);
     for (int i = 0; i < kNumAnchors; ++i) {
-        const float score = output[(4 + kPersonClass) * kNumAnchors + i];
+        float score = 0.f;
+        for (const int classId : classIds) {
+            score = std::max(score, output[(4 + classId) * kNumAnchors + i]);
+        }
         if (score < confThreshold) {
             continue;
         }

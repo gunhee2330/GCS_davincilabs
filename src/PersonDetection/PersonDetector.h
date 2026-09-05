@@ -17,7 +17,7 @@ class QQmlEngine;
 class QJSEngine;
 struct TappedVideoFrame;
 
-/// \brief Live person count and boxes for the EO video stream.
+/// \brief Live person and vehicle counts and boxes for the EO video stream.
 ///
 /// Frames arrive from VideoManager's tap on the streaming thread and are handed to a single
 /// worker thread. Inference is slower than the stream, so submissions land in a one-slot
@@ -30,10 +30,12 @@ class PersonDetector : public QObject
     QML_ELEMENT
     QML_SINGLETON
 
-    Q_PROPERTY(bool             active      READ active         NOTIFY activeChanged)
-    Q_PROPERTY(int              count       READ count          NOTIFY detectionsChanged)
-    Q_PROPERTY(QList<QRectF>    boxes       READ boxes          NOTIFY detectionsChanged)
-    Q_PROPERTY(int              inferenceMs READ inferenceMs    NOTIFY detectionsChanged)
+    Q_PROPERTY(bool             active       READ active         NOTIFY activeChanged)
+    Q_PROPERTY(int              count        READ count          NOTIFY detectionsChanged)
+    Q_PROPERTY(QList<QRectF>    boxes        READ boxes          NOTIFY detectionsChanged)
+    Q_PROPERTY(int              vehicleCount READ vehicleCount   NOTIFY detectionsChanged)
+    Q_PROPERTY(QList<QRectF>    vehicleBoxes READ vehicleBoxes   NOTIFY detectionsChanged)
+    Q_PROPERTY(int              inferenceMs  READ inferenceMs    NOTIFY detectionsChanged)
 
     friend class PersonDetectorTest;
 
@@ -56,6 +58,8 @@ public:
     [[nodiscard]] bool active() const { return _active; }
     [[nodiscard]] int count() const { return static_cast<int>(_boxes.size()); }
     [[nodiscard]] QList<QRectF> boxes() const { return _boxes; }
+    [[nodiscard]] int vehicleCount() const { return static_cast<int>(_vehicleBoxes.size()); }
+    [[nodiscard]] QList<QRectF> vehicleBoxes() const { return _vehicleBoxes; }
     [[nodiscard]] int inferenceMs() const { return _inferenceMs; }
 
 signals:
@@ -75,6 +79,7 @@ private:
     bool _shuttingDown = false;  ///< Stops submit() from reaching a worker being torn down
 
     QList<QRectF> _boxes;
+    QList<QRectF> _vehicleBoxes;
     int _inferenceMs = 0;
     bool _active = false;
 };

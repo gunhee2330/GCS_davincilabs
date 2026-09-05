@@ -105,13 +105,15 @@ void PersonDetector::_runNextFrame()
     }
 
     int inferenceMs = 0;
-    const QList<QRectF> boxes = _worker.detect(frame, &inferenceMs);
+    const PersonDetectorWorker::Detections detections = _worker.detect(frame, &inferenceMs);
 
-    (void) QMetaObject::invokeMethod(this, [this, boxes, inferenceMs]() {
-        _boxes = boxes;
+    (void) QMetaObject::invokeMethod(this, [this, detections, inferenceMs]() {
+        _boxes = detections.persons;
+        _vehicleBoxes = detections.vehicles;
         _inferenceMs = inferenceMs;
         emit detectionsChanged();
         qCDebug(PersonDetectorLog) << "persons" << _boxes.size()
+                                   << "vehicles" << _vehicleBoxes.size()
                                    << "ms" << _inferenceMs;
     }, Qt::QueuedConnection);
 }

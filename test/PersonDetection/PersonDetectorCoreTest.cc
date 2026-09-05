@@ -30,27 +30,37 @@ void PersonDetectorCoreTest::_testDecodeUndoesLetterboxAndSuppressesOverlap()
     const Letterbox lb = letterbox(QImage(sourceSize, QImage::Format_RGB888));
     std::vector<float> out((4 + kNumClasses) * kNumAnchors, 0.f);
     // Box rows are in input pixels; the helper takes fractions of the input for readability
-    auto set = [&](int anchor, float cx, float cy, float w, float h, float score) {
+    auto set = [&](int anchor, int classId, float cx, float cy, float w, float h, float score) {
         out[0 * kNumAnchors + anchor] = cx * kInputSize;
         out[1 * kNumAnchors + anchor] = cy * kInputSize;
         out[2 * kNumAnchors + anchor] = w * kInputSize;
         out[3 * kNumAnchors + anchor] = h * kInputSize;
-        out[(4 + kPersonClass) * kNumAnchors + anchor] = score;
+        out[(4 + classId) * kNumAnchors + anchor] = score;
     };
-    set(8, 0.5f, 0.5f, 0.25f, 0.5f, 0.9f);    // keep
-    set(7, 0.52f, 0.5f, 0.25f, 0.5f, 0.8f);   // overlaps 8, iterated first -> only the sort keeps 8
-    set(9, 0.1f, 0.5f, 0.1f, 0.3f, 0.3f);     // below conf
-    out[(4 + 2) * kNumAnchors + 11] = 0.95f;  // class 2 (car) -> ignored
-    out[0 * kNumAnchors + 11] = 0.8f * kInputSize;
-    out[1 * kNumAnchors + 11] = 0.5f * kInputSize;
-    out[2 * kNumAnchors + 11] = 0.1f * kInputSize;
-    out[3 * kNumAnchors + 11] = 0.1f * kInputSize;
+    set(8, 0, 0.5f, 0.5f, 0.25f, 0.5f, 0.9f);   // keep
+    set(7, 0, 0.52f, 0.5f, 0.25f, 0.5f, 0.8f);  // overlaps 8, iterated first -> only the sort keeps 8
+    set(9, 0, 0.1f, 0.5f, 0.1f, 0.3f, 0.3f);    // below conf
+    set(11, 2, 0.8f, 0.5f, 0.1f, 0.1f, 0.95f);  // car
+    set(12, 7, 0.2f, 0.3f, 0.1f, 0.1f, 0.9f);   // truck
+    // Two weak vehicle votes on one anchor: the group scores as the best of them, so it stays below
+    // the threshold. Summing the group instead would let it through.
+    set(13, 2, 0.6f, 0.7f, 0.1f, 0.1f, 0.25f);
+    set(13, 7, 0.6f, 0.7f, 0.1f, 0.1f, 0.25f);
 
-    const QList<QRectF> boxes = decodePersons(out.data(), lb, sourceSize);
-    QCOMPARE(boxes.size(), 1);
+    const QList<QRectF> persons = decodeBoxes(out.data(), lb, sourceSize, kPersonClasses);
+    QCOMPARE(persons.size(), 1);
     // input px: cx 160, cy 160, w 80, h 160 -> x0 120, y0 80; undo pad/scale -> (240, 20, 160, 320) px
-    QVERIFY(qAbs(boxes[0].x() - 240.0 / 640) < 1e-3);
-    QVERIFY(qAbs(boxes[0].y() - 20.0 / 360) < 1e-3);
-    QVERIFY(qAbs(boxes[0].width() - 160.0 / 640) < 1e-3);
-    QVERIFY(qAbs(boxes[0].height() - 320.0 / 360) < 1e-3);
+    QVERIFY(qAbs(persons[0].x() - 240.0 / 640) < 1e-3);
+    QVERIFY(qAbs(persons[0].y() - 20.0 / 360) < 1e-3);
+    QVERIFY(qAbs(persons[0].width() - 160.0 / 640) < 1e-3);
+    QVERIFY(qAbs(persons[0].height() - 320.0 / 360) < 1e-3);
+
+    // Same anchors, the vehicle class group: car and truck, no person.
+    const QList<QRectF> vehicles = decodeBoxes(out.data(), lb, sourceSize, kVehicleClasses);
+    QCOMPARE(vehicles.size(), 2);
+    // car, input px: cx 256, cy 160, w 32, h 32 -> undo pad/scale -> (480, 148, 64, 64) px
+    QVERIFY(qAbs(vehicles[0].x() - 480.0 / 640) < 1e-3);
+    QVERIFY(qAbs(vehicles[0].y() - 148.0 / 360) < 1e-3);
+    QVERIFY(qAbs(vehicles[0].width() - 64.0 / 640) < 1e-3);
+    QVERIFY(qAbs(vehicles[0].height() - 64.0 / 360) < 1e-3);
 }

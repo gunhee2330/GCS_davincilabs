@@ -79,7 +79,7 @@ bool PersonDetectorWorker::load()
     return true;
 }
 
-QList<QRectF> PersonDetectorWorker::detect(const QImage& frame, int* inferenceMs)
+PersonDetectorWorker::Detections PersonDetectorWorker::detect(const QImage& frame, int* inferenceMs)
 {
     if (inferenceMs) {
         *inferenceMs = 0;
@@ -118,7 +118,7 @@ QList<QRectF> PersonDetectorWorker::detect(const QImage& frame, int* inferenceMs
             qCWarning(PersonDetectorWorkerLog) << "unexpected model output";
             return {};
         }
-        // Guards decodePersons against a model exported with a different head or input size.
+        // Guards decodeBoxes against a model exported with a different head or input size.
         const std::vector<int64_t> outputShape = outputs[0].GetTensorTypeAndShapeInfo().GetShape();
         if ((outputShape.size() != 3) || (outputShape[1] != (4 + PersonDetectorCore::kNumClasses))
             || (outputShape[2] != PersonDetectorCore::kNumAnchors)) {
@@ -126,12 +126,14 @@ QList<QRectF> PersonDetectorWorker::detect(const QImage& frame, int* inferenceMs
             return {};
         }
 
-        const QList<QRectF> boxes = PersonDetectorCore::decodePersons(outputs[0].GetTensorData<float>(), lb,
-                                                                     frame.size());
+        const float* const tensor = outputs[0].GetTensorData<float>();
+        const Detections detections = {
+            PersonDetectorCore::decodeBoxes(tensor, lb, frame.size(), PersonDetectorCore::kPersonClasses),
+            PersonDetectorCore::decodeBoxes(tensor, lb, frame.size(), PersonDetectorCore::kVehicleClasses)};
         if (inferenceMs) {
             *inferenceMs = static_cast<int>(timer.elapsed());
         }
-        return boxes;
+        return detections;
     } catch (const std::exception& e) {
         qCWarning(PersonDetectorWorkerLog) << "inference failed:" << e.what();
         return {};
@@ -157,7 +159,7 @@ bool PersonDetectorWorker::load()
     return false;
 }
 
-QList<QRectF> PersonDetectorWorker::detect(const QImage& frame, int* inferenceMs)
+PersonDetectorWorker::Detections PersonDetectorWorker::detect(const QImage& frame, int* inferenceMs)
 {
     Q_UNUSED(frame);
     if (inferenceMs) {

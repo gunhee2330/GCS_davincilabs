@@ -21,6 +21,13 @@ class PersonDetectorWorker : public QObject
     Q_OBJECT
 
 public:
+    /// Boxes normalised 0..1 in the source frame's coordinates, best score first.
+    struct Detections
+    {
+        QList<QRectF> persons;
+        QList<QRectF> vehicles;
+    };
+
     explicit PersonDetectorWorker(QObject* parent = nullptr);
     ~PersonDetectorWorker();
 
@@ -28,9 +35,9 @@ public:
     /// missing or unusable; safe to call again.
     bool load();
 
-    /// Person boxes normalised 0..1 in @a frame's coordinates, empty when not loaded or on
-    /// failure. @a inferenceMs (optional) receives the wall time of the whole detect step.
-    QList<QRectF> detect(const QImage& frame, int* inferenceMs);
+    /// Persons and vehicles from a single inference pass, empty when not loaded or on failure.
+    /// @a inferenceMs (optional) receives the wall time of the whole detect step.
+    Detections detect(const QImage& frame, int* inferenceMs);
 
 private:
     struct Session;  ///< Keeps the ONNX Runtime types out of this header

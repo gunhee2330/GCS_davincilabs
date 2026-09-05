@@ -34,15 +34,16 @@ void PersonDetectorTest::_testDetectBus()
     QVERIFY(!bus.isNull());
 
     int inferenceMs = 0;
-    const QList<QRectF> boxes = worker.detect(bus, &inferenceMs);
-    qCDebug(PersonDetectorLog) << "boxes" << boxes
+    const PersonDetectorWorker::Detections result = worker.detect(bus, &inferenceMs);
+    qCDebug(PersonDetectorLog) << "persons" << result.persons
+                               << "vehicles" << result.vehicles
                                << "ms" << inferenceMs;
 
-    QVERIFY2(boxes.size() >= 3, qPrintable(QStringLiteral("only %1 people found").arg(boxes.size())));
-    QVERIFY2(boxes.size() <= 6, qPrintable(QStringLiteral("%1 people found").arg(boxes.size())));
+    QVERIFY2(result.persons.size() >= 3, qPrintable(QStringLiteral("only %1 people found").arg(result.persons.size())));
+    QVERIFY2(result.persons.size() <= 6, qPrintable(QStringLiteral("%1 people found").arg(result.persons.size())));
     QVERIFY(inferenceMs > 0);
 
-    for (const QRectF& box : boxes) {
+    for (const QRectF& box : result.persons) {
         QVERIFY(box.width() > 0);
         QVERIFY(box.height() > 0);
         QVERIFY(box.left() >= 0.0);
@@ -52,6 +53,11 @@ void PersonDetectorTest::_testDetectBus()
         // Standing people in a 810x1080 photo: every box is taller than it is wide.
         QVERIFY(box.height() * bus.height() > box.width() * bus.width());
     }
+
+    QVERIFY2(!result.vehicles.isEmpty(), "no vehicle found");
+    // The bus fills the width of the photo, so the best-scoring vehicle box is wider than it is tall.
+    const QRectF vehicle = result.vehicles.first();
+    QVERIFY(vehicle.width() * bus.width() > vehicle.height() * bus.height());
 }
 
 void PersonDetectorTest::_testMailboxDropsStale()
