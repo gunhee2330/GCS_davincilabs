@@ -24,7 +24,9 @@ Rectangle {
     property var _masterController: missionItem.masterController
     property var _controllerVehicle: _masterController.controllerVehicle
     property bool _waypointsOnlyMode: QGroundControl.corePlugin.options.missionWaypointsOnly
-    property bool _showCameraSection: _waypointsOnlyMode || QGroundControl.corePlugin.showAdvancedUI
+    // 정비 모드와 무관하게 항상 보인다. showAdvancedUI 기본값이 false 로 바뀌면서
+    // 이 구역이 조용히 사라졌던 것을 되돌린 것이다.
+    property bool _showCameraSection: true
     property bool _simpleMissionStart: QGroundControl.corePlugin.options.showSimpleMissionStart
 
     readonly property real _margin: ScreenTools.defaultFontPixelWidth / 2

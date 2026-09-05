@@ -537,7 +537,8 @@ Rectangle {
 
                 // Optical Flow (special)
                 ConfigButton {
-                    visible:            _activeVehicle ? _activeVehicle.flowImageIndex > 0 : false
+                    visible:            _corePlugin.showAdvancedUI &&
+                                        (_activeVehicle ? _activeVehicle.flowImageIndex > 0 : false)
                     text:               qsTr("Optical Flow")
                     Layout.fillWidth:   true
                     checked:            vehicleConfigView._selectedSpecial === "opticalflow"
@@ -567,7 +568,8 @@ Rectangle {
                 ConfigButton {
                     id:                 firmwareButton
                     icon.source:        "/qmlimages/FirmwareUpgradeIcon.png"
-                    visible:            !ScreenTools.isMobile && _corePlugin.options.showFirmwareUpgrade &&
+                    visible:            !ScreenTools.isMobile && _corePlugin.showAdvancedUI &&
+                                        _corePlugin.options.showFirmwareUpgrade &&
                                         vehicleConfigView._searchQuery.trim() === ""
                     text:               qsTr("Firmware")
                     Layout.fillWidth:   true

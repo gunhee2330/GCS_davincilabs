@@ -12,6 +12,9 @@ SettingsPage {
     // TODO: Move to the Android Keystore before shipping and derive it from the
     // vehicle serial number. This literal is a development placeholder only: QML
     // is compiled into the package, so the value is recoverable from the binary.
+    // The failure counter and the lockout below live on this page instance, so
+    // leaving the page and coming back clears them. Move that state out at the
+    // same time as the PIN.
     readonly property string _servicePin: "704183"
 
     readonly property int  _tapsToUnlock:   7
@@ -27,8 +30,8 @@ SettingsPage {
     function _registerTap() {
         if (!tapWindowTimer.running) {
             _tapCount = 0
-            tapWindowTimer.restart()
         }
+        tapWindowTimer.restart()
         _tapCount++
         if (_tapCount >= _tapsToUnlock) {
             _tapCount = 0
@@ -137,6 +140,9 @@ SettingsPage {
                 numericValuesOnly:      true
                 enabled:                !lockoutTimer.running
                 onAccepted:             root._submitPin()
+
+                // 안드로이드에서 화면 키패드가 바로 뜨게 한다
+                onVisibleChanged:       if (visible) forceActiveFocus()
             }
 
             QGCButton {

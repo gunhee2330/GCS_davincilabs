@@ -342,6 +342,9 @@ RowLayout {
 
                         onLinkActivated: (link) => {
                             if (link.startsWith('param://')) {
+                                if (!QGroundControl.corePlugin.showAdvancedUI) {
+                                    return
+                                }
                                 var paramName = link.substr(8);
                                 fact = controller.getParameterFact(-1, paramName, true)
                                 if (fact != null) {

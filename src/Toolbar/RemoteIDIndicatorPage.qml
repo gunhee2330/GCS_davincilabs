@@ -44,6 +44,9 @@ ToolIndicatorPage {
     }
 
     function goToSettings() {
+        if (!QGroundControl.corePlugin.showAdvancedUI) {
+            return
+        }
         if (mainWindow.allowViewSwitch()) {
             mainWindow.closeIndicatorDrawer()
             globals.commingFromRIDIndicator = true
