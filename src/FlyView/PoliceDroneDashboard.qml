@@ -244,7 +244,7 @@ Item {
         // strip, so the column may use the full height between the top bar and the bottom
         // inset.
         const avail = height - _bottomInset - topBar.height - gap * (_windowCount + 1)
-        const byHeight = (avail - _gripHeight * _windowCount) * 16 / (9 * _windowCount)
+        const byHeight = avail * 16 / (9 * _windowCount)
         return Math.max(ScreenTools.minTouchPixels * 2.5, Math.min(width * 0.23, ScreenTools.defaultFontPixelWidth * 26, byHeight))
     }
 
@@ -632,17 +632,15 @@ Item {
     component CameraWindow : Item {
         id: win
 
-        property alias title:  gripTitle.text
-        property alias detail: gripDetail.text
-        property alias slot:   contentSlot
-        /// Which panel this window hosts; matches root.expandedPanel values.
+        property string title
+        property string detail
         property string panelKey
+        property alias slot: contentSlot
 
         width:  root._windowWidth
-        height: root._gripHeight + (root._windowWidth * 9 / 16)
-        // Tapping a camera swaps it with the map: that camera fills the screen and the map
-        // takes its window. The other two windows stay where they are, floating above the
-        // full screen layer instead of vanishing under its black backdrop.
+        height: root._windowWidth * 9 / 16
+        // Tapping anywhere on a camera swaps it with the map. The other two windows stay put,
+        // floating above the full screen layer instead of vanishing under its backdrop.
         visible: root.expandedPanel !== panelKey
         z:       root.expandedPanel.length > 0 ? 21 : 10
 
@@ -650,79 +648,48 @@ Item {
             anchors.fill: parent
             radius:       6
             color:        root._panelColor
-            border.color: "#526675"
+            border.color: "#3d4f5e"
             border.width: 1
         }
 
-        Rectangle {
-            id:              gripBar
-            anchors.left:    parent.left
-            anchors.right:   parent.right
-            anchors.top:     parent.top
-            anchors.margins: 1
-            height:          root._gripHeight
-            radius:          5
-            // Was 35% translucent, which let the map wash the bar out to a pale smear over
-            // bright ground. The window is chrome, not part of the picture.
-            color:           "#1d2a38"
-
-            // One title line for the window. The panel inside used to repeat the same name
-            // and its detail as chips floating over the video, which both duplicated this bar
-            // and covered the picture.
-            Text {
-                id:                     gripTitle
-                anchors.left:           parent.left
-                anchors.leftMargin:     10
-                anchors.right:          gripDetail.left
-                anchors.rightMargin:    8
-                anchors.verticalCenter: parent.verticalCenter
-                color:                  "white"
-                font.bold:              true
-                font.pixelSize:         Math.max(11, ScreenTools.defaultFontPixelHeight * 0.65)
-                elide:                  Text.ElideRight
-            }
-
-            Text {
-                id:                     gripDetail
-                anchors.right:          parent.right
-                anchors.rightMargin:    10
-                anchors.verticalCenter: parent.verticalCenter
-                color:                  "#93a6b8"
-                font.pixelSize:         Math.max(10, ScreenTools.defaultFontPixelHeight * 0.58)
-                elide:                  Text.ElideRight
-                width:                  Math.min(implicitWidth, parent.width * 0.5)
-                horizontalAlignment:    Text.AlignRight
-            }
-
-            // A tap on the bar swaps this camera with the map, same as a tap on the
-            // picture. DragThreshold keeps it from firing when the bar is being dragged.
-            TapHandler {
-                gesturePolicy: TapHandler.DragThreshold
-                onTapped:      root._toggleExpanded(win.panelKey)
-            }
-
-            // No xAxis/yAxis limits here: their bindings re-evaluate as the dashboard
-            // resizes and yank an idle window to the range edge. Clamp on release instead.
-            DragHandler {
-                target: win
-                onActiveChanged: {
-                    if (active) {
-                        root._userMovedWindows = true
-                    } else {
-                        win.x = Math.max(4, Math.min(win.x, root.width - win.width - 4))
-                        win.y = Math.max(topBar.height + 4, Math.min(win.y, root.height - root._bottomInset - win.height - 4))
-                    }
-                }
-            }
-        }
-
+        // The whole window is the picture; the name rides in the corner as a small chip so it
+        // never eats a title bar's worth of height or splits the tap target.
         Item {
             id:              contentSlot
-            anchors.left:    parent.left
-            anchors.right:   parent.right
-            anchors.top:     gripBar.bottom
-            anchors.bottom:  parent.bottom
-            anchors.margins: 2
+            anchors.fill:    parent
+            anchors.margins: 1
+        }
+
+        Rectangle {
+            anchors.left:       parent.left
+            anchors.top:        parent.top
+            anchors.margins:    6
+            width:              nameChip.implicitWidth + 14
+            height:             nameChip.implicitHeight + 7
+            radius:             3
+            color:              "#c8121b24"
+            z:                  5
+
+            Row {
+                id:                     nameChip
+                anchors.centerIn:       parent
+                spacing:                6
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    color:          "white"
+                    font.bold:      true
+                    font.pixelSize: Math.max(11, ScreenTools.defaultFontPixelHeight * 0.62)
+                    text:           win.title
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    color:          "#9fb2c4"
+                    font.pixelSize: Math.max(10, ScreenTools.defaultFontPixelHeight * 0.55)
+                    text:           win.detail
+                    visible:        win.detail.length > 0
+                }
+            }
         }
     }
 
@@ -1259,7 +1226,7 @@ Item {
                                                 : root.expandedPanel === "shared"    ? sharedWindow
                                                 : null
             width:   root._windowWidth
-            height:  root._gripHeight + (root._windowWidth * 9 / 16)
+            height:  root._windowWidth * 9 / 16
             x:       swappedWindow ? swappedWindow.x : parent.width - width - 8
             y:       swappedWindow ? swappedWindow.y : 8
             z:       3
