@@ -13,6 +13,7 @@ Map {
 
     plugin:     Plugin { name: "QGroundControl" }
     opacity:    0.99 // https://bugreports.qt.io/browse/QTBUG-82185
+    copyrightsVisible: false // the attribution bar ate a strip along the bottom edge
 
     property string mapName:                        'defaultMap'
     property bool   isSatelliteMap:                 activeMapType.name.indexOf("Satellite") > -1 || activeMapType.name.indexOf("Hybrid") > -1
