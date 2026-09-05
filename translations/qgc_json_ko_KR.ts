@@ -10020,10 +10020,10 @@
   <context>
     <name>SettingsPages.json</name>
     <message>
-      <extracomment>.pages[Service].name</extracomment>
+      <extracomment>.pages[Developer].name</extracomment>
       <location filename="../src/AppSettings/pages/SettingsPages.json"/>
-      <source>Service</source>
-      <translation>정비</translation>
+      <source>Developer</source>
+      <translation>개발자</translation>
     </message>
     <message>
       <extracomment>.pages[General].name</extracomment>

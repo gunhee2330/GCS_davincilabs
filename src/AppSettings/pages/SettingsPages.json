@@ -102,8 +102,8 @@
             "divider": true
         },
         {
-            "name": "Service",
-            "qml": "ServiceModeSettings.qml",
+            "name": "Developer",
+            "qml": "DeveloperModeSettings.qml",
             "icon": "qrc:/InstrumentValueIcons/wrench.svg"
         },
         {

@@ -767,13 +767,16 @@ SetupPage {
                     QGCButton {
                         width:      _buttonWidth
                         text:       qsTr("CompassMot")
-                        visible:    globals.activeVehicle ? globals.activeVehicle.supports.motorInterference : false
+                        // CompassMot spins the props. Developer mode only.
+                        visible:    QGroundControl.corePlugin.showAdvancedUI &&
+                                    (globals.activeVehicle ? globals.activeVehicle.supports.motorInterference : false)
                         onClicked:  compassMotDialogFactory.open()
                     }
 
                     QGCButton {
                         width:      _buttonWidth
                         text:       qsTr("Sensor Settings")
+                        visible:    QGroundControl.corePlugin.showAdvancedUI
                         onClicked:  showOrientationsDialog(_calTypeSet)
                     }
                 } // Column - Cal Buttons

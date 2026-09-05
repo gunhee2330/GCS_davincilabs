@@ -21789,59 +21789,59 @@ If a vehicle still has this key configured, you will no longer be able to commun
     </message>
   </context>
   <context>
-    <name>ServiceModeSettings</name>
+    <name>DeveloperModeSettings</name>
     <message>
-      <location filename="../src/AppSettings/ServiceModeSettings.qml" line="55"/>
+      <location filename="../src/AppSettings/DeveloperModeSettings.qml" line="55"/>
       <source>Too many incorrect attempts. Locked for 60 seconds.</source>
       <translation>실패 횟수를 초과했습니다. 60초 동안 잠깁니다.</translation>
     </message>
     <message>
-      <location filename="../src/AppSettings/ServiceModeSettings.qml" line="57"/>
+      <location filename="../src/AppSettings/DeveloperModeSettings.qml" line="57"/>
       <source>Incorrect PIN.</source>
       <translation>PIN이 맞지 않습니다.</translation>
     </message>
     <message>
-      <location filename="../src/AppSettings/ServiceModeSettings.qml" line="78"/>
-      <source>Service Mode</source>
-      <translation>정비 모드</translation>
+      <location filename="../src/AppSettings/DeveloperModeSettings.qml" line="78"/>
+      <source>Developer Mode</source>
+      <translation>개발자 모드</translation>
     </message>
     <message>
-      <location filename="../src/AppSettings/ServiceModeSettings.qml" line="82"/>
+      <location filename="../src/AppSettings/DeveloperModeSettings.qml" line="82"/>
       <source>Status</source>
       <translation>상태</translation>
     </message>
     <message>
-      <location filename="../src/AppSettings/ServiceModeSettings.qml" line="83"/>
+      <location filename="../src/AppSettings/DeveloperModeSettings.qml" line="83"/>
       <source>Enabled</source>
       <translation>켜짐</translation>
     </message>
     <message>
-      <location filename="../src/AppSettings/ServiceModeSettings.qml" line="83"/>
+      <location filename="../src/AppSettings/DeveloperModeSettings.qml" line="83"/>
       <source>Disabled</source>
       <translation>꺼짐</translation>
     </message>
     <message>
-      <location filename="../src/AppSettings/ServiceModeSettings.qml" line="92"/>
+      <location filename="../src/AppSettings/DeveloperModeSettings.qml" line="92"/>
       <source>Application Version</source>
       <translation>앱 버전</translation>
     </message>
     <message>
-      <location filename="../src/AppSettings/ServiceModeSettings.qml" line="110"/>
+      <location filename="../src/AppSettings/DeveloperModeSettings.qml" line="110"/>
       <source>Build Date</source>
       <translation>빌드 날짜</translation>
     </message>
     <message>
-      <location filename="../src/AppSettings/ServiceModeSettings.qml" line="116"/>
-      <source>Turn Off Service Mode</source>
-      <translation>정비 모드 끄기</translation>
+      <location filename="../src/AppSettings/DeveloperModeSettings.qml" line="116"/>
+      <source>Turn Off Developer Mode</source>
+      <translation>개발자 모드 끄기</translation>
     </message>
     <message>
-      <location filename="../src/AppSettings/ServiceModeSettings.qml" line="124"/>
-      <source>Enter Service PIN</source>
-      <translation>정비 PIN 입력</translation>
+      <location filename="../src/AppSettings/DeveloperModeSettings.qml" line="124"/>
+      <source>Enter Developer PIN</source>
+      <translation>개발자 PIN 입력</translation>
     </message>
     <message>
-      <location filename="../src/AppSettings/ServiceModeSettings.qml" line="144"/>
+      <location filename="../src/AppSettings/DeveloperModeSettings.qml" line="144"/>
       <source>Unlock</source>
       <translation>잠금 해제</translation>
     </message>

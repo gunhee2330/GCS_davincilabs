@@ -46,7 +46,8 @@
                     "showWhen": "!ScreenTools.isMobile"
                 },
                 {
-                    "setting": "appSettings.clearSettingsNextBoot"
+                    "setting": "appSettings.clearSettingsNextBoot",
+                    "showWhen": "QGroundControl.corePlugin.showAdvancedUI"
                 }
             ]
         },

@@ -50,15 +50,16 @@ Rectangle {
         return !!_expandedComponents[compIndex]
     }
 
-    /// True if a vehicle component may be shown to an operator. Maintenance mode shows everything.
+    /// True if a vehicle component may be shown to an operator. Developer mode shows everything.
     /// Keyed on KnownVehicleComponent rather than name, since VehicleComponent::name() is tr()'d.
-    /// Sensors/Power are gated by APMAutoPilotPlugin.cc:201 on Airframe setup being complete. The Airframe
-    /// page is hidden here, so FRAME_CLASS must be non-zero at shipping time for these two pages to open.
+    /// Only sensor calibration is left to the operator. Power edits battery parameters inline, which
+    /// bypasses the read only guard in ParameterEditorDialog, so it moved behind developer mode.
+    /// Sensors is gated by APMAutoPilotPlugin.cc:201 on Airframe setup being complete. The Airframe page
+    /// is hidden here, so FRAME_CLASS must be non-zero at shipping time for the sensor page to open.
     function _componentAllowed(comp) {
         if (_corePlugin.showAdvancedUI) return true
         if (!comp) return false
-        return comp.KnownVehicleComponent === AutoPilotPlugin.KnownSensorsVehicleComponent ||
-               comp.KnownVehicleComponent === AutoPilotPlugin.KnownPowerVehicleComponent
+        return comp.KnownVehicleComponent === AutoPilotPlugin.KnownSensorsVehicleComponent
     }
 
     /// Translated display name for a section ID. JSON-driven components translate via the JSON

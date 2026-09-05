@@ -7,7 +7,7 @@ import QGroundControl.Controls
 
 SettingsPage {
     id:         root
-    objectName: "settingsPage_ServiceMode"
+    objectName: "settingsPage_DeveloperMode"
 
     // TODO: Move to the Android Keystore before shipping and derive it from the
     // vehicle serial number. This literal is a development placeholder only: QML
@@ -15,13 +15,13 @@ SettingsPage {
     // The failure counter and the lockout below live on this page instance, so
     // leaving the page and coming back clears them. Move that state out at the
     // same time as the PIN.
-    readonly property string _servicePin: "704183"
+    readonly property string _developerPin: "704183"
 
     readonly property int  _tapsToUnlock:   7
     readonly property int  _maxPinFailures: 5
     readonly property real _touchHeight:    ScreenTools.defaultFontPixelHeight * 2.5
 
-    property bool   _serviceMode:   QGroundControl.corePlugin.showAdvancedUI
+    property bool   _developerMode:   QGroundControl.corePlugin.showAdvancedUI
     property bool   _pinPrompt:     false
     property int    _tapCount:      0
     property int    _failCount:     0
@@ -45,7 +45,7 @@ SettingsPage {
         if (lockoutTimer.running) {
             return
         }
-        if (pinField.text === _servicePin) {
+        if (pinField.text === _developerPin) {
             pinField.text = ""
             _failCount = 0
             _pinPrompt = false
@@ -78,12 +78,12 @@ SettingsPage {
 
     SettingsGroupLayout {
         Layout.fillWidth:   true
-        heading:            qsTr("Service Mode")
+        heading:            qsTr("Developer Mode")
 
         LabelledLabel {
             Layout.fillWidth:   true
             label:              qsTr("Status")
-            labelText:          root._serviceMode ? qsTr("Enabled") : qsTr("Disabled")
+            labelText:          root._developerMode ? qsTr("Enabled") : qsTr("Disabled")
         }
 
         RowLayout {
@@ -102,7 +102,7 @@ SettingsPage {
 
                 QGCMouseArea {
                     fillItem:   parent
-                    enabled:    !root._serviceMode
+                    enabled:    !root._developerMode
                     onClicked:  root._registerTap()
                 }
             }
@@ -116,16 +116,16 @@ SettingsPage {
 
         QGCButton {
             Layout.preferredHeight: root._touchHeight
-            text:                   qsTr("Turn Off Service Mode")
-            visible:                root._serviceMode
+            text:                   qsTr("Turn Off Developer Mode")
+            visible:                root._developerMode
             onClicked:              QGroundControl.corePlugin.showAdvancedUI = false
         }
     }
 
     SettingsGroupLayout {
         Layout.fillWidth:   true
-        heading:            qsTr("Enter Service PIN")
-        visible:            root._pinPrompt && !root._serviceMode
+        heading:            qsTr("Enter Developer PIN")
+        visible:            root._pinPrompt && !root._developerMode
 
         RowLayout {
             Layout.fillWidth:   true

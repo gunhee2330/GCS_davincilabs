@@ -8,7 +8,8 @@ import QGroundControl.FactControls
 // This indicator page is used both when showing RTK status only with no vehicle connect and when showing GPS/RTK status with a vehicle connected
 
 ToolIndicatorPage {
-    showExpand: true
+    // 펼침 영역이 통째로 RTK 기준국 설정이다. 개발자 모드에서만 연다.
+    showExpand: QGroundControl.corePlugin.showAdvancedUI
 
     property var    activeVehicle:      QGroundControl.multiVehicleManager.activeVehicle
     property string na:                 qsTr("N/A", "No data to display")

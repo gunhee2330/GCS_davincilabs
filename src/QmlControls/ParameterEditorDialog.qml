@@ -23,7 +23,10 @@ QGCPopupDialog {
     property bool   _allowForceSave:            QGroundControl.corePlugin.showAdvancedUI && _editingParameter
     property bool   _allowDefaultReset:         fact.defaultValueAvailable
     property bool   _showCombo:                 fact.enumStrings.length !== 0 && fact.bitmaskStrings.length === 0
-    property bool   _readOnlyDisplay:           fact.readOnly && !forceEdit.checked
+    // 운용자 모드에서는 기체 파라미터를 읽기만 한다. 이 창을 여는 곳이 다섯 군데라
+    // 호출부마다 막는 대신 여기 한 곳에서 막는다. 설정 fact(componentId 0)는 해당 없음.
+    property bool   _operatorLocked:            _editingParameter && !QGroundControl.corePlugin.showAdvancedUI
+    property bool   _readOnlyDisplay:           _operatorLocked || (fact.readOnly && !forceEdit.checked)
     property bool   _allowForceEdit:            fact.readOnly && _allowForceSave
     property real   _rowSpacing:                ScreenTools.defaultFontPixelHeight / 2
     property real   _columnSpacing:             ScreenTools.defaultFontPixelWidth
