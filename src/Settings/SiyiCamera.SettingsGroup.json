@@ -74,9 +74,9 @@
         {
             "name": "aiRtspUrl",
             "shortDesc": "AI module RTSP URL",
-            "longDesc": "RTSP stream carrying the AI recognition boxes. The AI Tracking Module II sits inline between the pod and the air unit and republishes on the pod's own address and port: video0 is the annotated feed, video1 the main stream, video2 the sub stream. Only the module's control link uses 192.168.144.60. Which gimbal the module reads is set in setip.txt on its SD card (VideoAddress), so this address follows the pod.",
+            "longDesc": "RTSP stream carrying the AI recognition boxes. Verified on the actual Module II hardware: the module publishes this on its OWN address, port 554 - not on the pod's address the manual mirrors suggest. The pod's plain main/sub streams stay at the pod address. Which gimbal the module reads is set in setip.txt on its SD card (VideoAddress).",
             "type": "string",
-            "default": "rtsp://192.168.144.26:8554/video0",
+            "default": "rtsp://192.168.144.60:554/video0",
             "label": "AI module RTSP URL",
             "keywords": "siyi,ai,rtsp,video0,tracking,stream"
         },

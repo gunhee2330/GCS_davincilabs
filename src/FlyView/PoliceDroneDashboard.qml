@@ -186,8 +186,8 @@ Item {
     /// so the IR window is unaffected by this choice.
     property bool eoShowsWideAngle: false
 
-    /// The AI module's own RTSP feed replaces the pod sub stream in the third window when it
-    /// is configured, so the panel labels itself accordingly.
+    /// The AI module's own RTSP feed replaces the main window when it is enabled - the same
+    /// picture with the module's boxes drawn in. The thermal window always keeps the sub stream.
     readonly property bool _aiStreamActive:
         QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue &&
         QGroundControl.settingsManager.siyiCameraSettings.aiRtspUrl.rawValue !== ""
@@ -721,14 +721,15 @@ Item {
 
     CameraWindow {
         id:     secondaryWindow
-        title:  root.eoShowsWideAngle ? qsTr("EO · 광각") : qsTr("EO · 줌")
+        title:  root._aiStreamActive ? qsTr("AI · 인식")
+                                     : (root.eoShowsWideAngle ? qsTr("EO · 광각") : qsTr("EO · 줌"))
         detail: qsTr("드래그 짐벌 · 탭 전체화면")
     }
 
     CameraWindow {
         id:     sharedWindow
-        title:  root._aiStreamActive ? qsTr("AI · 인식") : qsTr("IR · 열상")
-        detail: root._aiStreamActive ? qsTr("AI 모듈") : qsTr("ZT30 보조")
+        title:  qsTr("IR · 열상")
+        detail: qsTr("ZT30 보조")
     }
 
     // ------------------------------------------------------------------- fly tools
@@ -1332,7 +1333,8 @@ Item {
         id:                   secondaryPanel
         parent:               root.expandedPanel === "secondary" ? fullscreenLayer : secondaryWindow.slot
         anchors.fill:         parent
-        panelTitle:           root.eoShowsWideAngle ? qsTr("EO · 광각") : qsTr("EO · 줌")
+        panelTitle:           root._aiStreamActive ? qsTr("AI · 인식")
+                                                    : (root.eoShowsWideAngle ? qsTr("EO · 광각") : qsTr("EO · 줌"))
         showChrome:           root.expandedPanel === "secondary"
         streamObjectName:     "videoContent"
         gimbalControlEnabled: true
@@ -1352,12 +1354,12 @@ Item {
         id:                   sharedPipPanel
         parent:               root.expandedPanel === "shared" ? fullscreenLayer : sharedWindow.slot
         anchors.fill:         parent
-        panelTitle:           root._aiStreamActive ? qsTr("AI · 인식") : qsTr("IR · 열상")
+        panelTitle:           qsTr("IR · 열상")
         showChrome:           root.expandedPanel === "shared"
         streamObjectName:     "thermalVideo"
-        targetPickEnabled:    root._aiPickEnabled
+        // No target picking here any more: this window is always thermal now, and a tap on
+        // the thermal frame would hand the module coordinates from a different sensor's view.
         onActivated:          root._toggleExpanded("shared")
-        onTargetPicked:       (nx, ny) => App.SiyiAiController.trackPoint(nx, ny)
     }
 
 }

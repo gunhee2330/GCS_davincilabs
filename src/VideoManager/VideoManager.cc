@@ -710,22 +710,29 @@ bool VideoManager::_updateSettings(VideoReceiver *receiver)
         if (streamInfo && !streamInfo->uri().isEmpty()) {
             settingsChanged |= _updateAutoStream(receiver);
         } else {
+            // The sub stream is the only thermal source there is, and a night search cannot
+            // give it up, so the AI feed no longer takes this slot over. It replaces the main
+            // panel instead (below): video0 is the main picture with boxes drawn in.
             SiyiCameraSettings *const siyiSettings = SettingsManager::instance()->siyiCameraSettings();
-            // The AI tracking module re-encodes the pod feed with its recognition boxes drawn in,
-            // so when it is configured its stream takes this panel over from the pod sub stream.
-            const QString aiRtspUrl = siyiSettings->aiEnabled()->rawValue().toBool()
-                                          ? siyiSettings->aiRtspUrl()->rawValue().toString().trimmed()
-                                          : QString();
-            const QString secondaryUri = aiRtspUrl.isEmpty()
-                                             ? siyiSettings->secondaryRtspUrl()->rawValue().toString().trimmed()
-                                             : aiRtspUrl;
-            settingsChanged |= _updateVideoUri(receiver, secondaryUri);
+            settingsChanged |= _updateVideoUri(receiver, siyiSettings->secondaryRtspUrl()->rawValue().toString().trimmed());
         }
         return settingsChanged;
     }
 
     settingsChanged |= _updateUVC(receiver);
     settingsChanged |= _updateAutoStream(receiver);
+
+    // With the AI tracking module enabled its annotated feed takes the main panel: the same
+    // picture the pod main stream carries, with the module's recognition boxes drawn in.
+    // Nothing is lost and the thermal window keeps the sub stream.
+    SiyiCameraSettings *const siyiAiSettings = SettingsManager::instance()->siyiCameraSettings();
+    if (siyiAiSettings->aiEnabled()->rawValue().toBool()) {
+        const QString aiUri = siyiAiSettings->aiRtspUrl()->rawValue().toString().trimmed();
+        if (!aiUri.isEmpty()) {
+            settingsChanged |= _updateVideoUri(receiver, aiUri);
+            return settingsChanged;
+        }
+    }
 
     const QString source = _videoSettings->videoSource()->rawValue().toString();
     if (source == VideoSettings::videoSourceUDPH264) {
