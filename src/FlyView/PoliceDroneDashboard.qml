@@ -239,12 +239,11 @@ Item {
     // by the height left between the top bar and the control panel below them — sized on width
     // alone the last window would run off the bottom.
     readonly property real _windowWidth: {
-        // Windows are flush now: no gaps between them, borderless, sharing the full column
-        // height. Width follows that height at 16:9 so the three stack edge to edge, capped
-        // at a quarter of the screen so they never crowd the map.
-        const avail = height - _bottomInset - topBar.height
-        const byHeight = avail * 16 / (9 * _windowCount)
-        return Math.max(ScreenTools.minTouchPixels * 2.5, Math.min(width * 0.28, byHeight))
+        // The three windows fill the whole right column, top bar to bottom edge, flush and
+        // borderless. Height drives width at 16:9, so they stack edge to edge with no gap
+        // above or below. No width cap: filling the column top-to-bottom is what was asked.
+        const avail = height - topBar.height
+        return avail * 16 / (9 * _windowCount)
     }
 
     property bool _userMovedWindows: false
@@ -658,7 +657,6 @@ Item {
         Item {
             id:              contentSlot
             anchors.fill:    parent
-            anchors.margins: 1
         }
 
         Rectangle {
