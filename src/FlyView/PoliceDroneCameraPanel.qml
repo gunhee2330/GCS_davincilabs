@@ -10,6 +10,9 @@ Item {
 
     property string panelTitle
     property string panelDetail
+    /// Windowed panels sit under a title bar that already names them, so the chips only come
+    /// out full screen, where there is no bar and the operator needs to know what they are on.
+    property bool   showChrome: true
     property string streamObjectName
 
     property bool gimbalControlEnabled: true
@@ -88,6 +91,7 @@ Item {
         height:         panelHeading.implicitHeight + 10
         radius:         3
         color:          "#c0121b24"
+        visible:        root.showChrome
 
         Text {
             id:             panelHeading
@@ -107,7 +111,7 @@ Item {
         height:          detailText.implicitHeight + 8
         radius:          3
         color:           "#b0121b24"
-        visible:         root.panelDetail.length > 0
+        visible:         root.showChrome && root.panelDetail.length > 0
 
         Text {
             id:             detailText

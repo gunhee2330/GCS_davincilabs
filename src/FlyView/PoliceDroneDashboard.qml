@@ -632,8 +632,9 @@ Item {
     component CameraWindow : Item {
         id: win
 
-        property alias title: gripTitle.text
-        property alias slot: contentSlot
+        property alias title:  gripTitle.text
+        property alias detail: gripDetail.text
+        property alias slot:   contentSlot
 
         width:  root._windowWidth
         height: root._gripHeight + (root._windowWidth * 9 / 16)
@@ -655,17 +656,36 @@ Item {
             anchors.margins: 1
             height:          root._gripHeight
             radius:          5
-            color:           "#5a3a4a5c"
+            // Was 35% translucent, which let the map wash the bar out to a pale smear over
+            // bright ground. The window is chrome, not part of the picture.
+            color:           "#1d2a38"
+
+            // One title line for the window. The panel inside used to repeat the same name
+            // and its detail as chips floating over the video, which both duplicated this bar
+            // and covered the picture.
+            Text {
+                id:                     gripTitle
+                anchors.left:           parent.left
+                anchors.leftMargin:     10
+                anchors.right:          gripDetail.left
+                anchors.rightMargin:    8
+                anchors.verticalCenter: parent.verticalCenter
+                color:                  "white"
+                font.bold:              true
+                font.pixelSize:         Math.max(11, ScreenTools.defaultFontPixelHeight * 0.65)
+                elide:                  Text.ElideRight
+            }
 
             Text {
-                id:               gripTitle
-                anchors.centerIn: parent
-                color:            "white"
-                font.bold:        true
-                font.pixelSize:   Math.max(11, ScreenTools.defaultFontPixelHeight * 0.65)
-                elide:            Text.ElideRight
-                width:            parent.width - 16
-                horizontalAlignment: Text.AlignHCenter
+                id:                     gripDetail
+                anchors.right:          parent.right
+                anchors.rightMargin:    10
+                anchors.verticalCenter: parent.verticalCenter
+                color:                  "#93a6b8"
+                font.pixelSize:         Math.max(10, ScreenTools.defaultFontPixelHeight * 0.58)
+                elide:                  Text.ElideRight
+                width:                  Math.min(implicitWidth, parent.width * 0.5)
+                horizontalAlignment:    Text.AlignRight
             }
 
             // No xAxis/yAxis limits here: their bindings re-evaluate as the dashboard
@@ -694,18 +714,21 @@ Item {
     }
 
     CameraWindow {
-        id:    primaryWindow
-        title: qsTr("FPV CAM")
+        id:     primaryWindow
+        title:  qsTr("FPV · 전방")
+        detail: root._fpvConfigured ? qsTr("에어유닛 LAN2") : qsTr("주소 미설정")
     }
 
     CameraWindow {
-        id:    secondaryWindow
-        title: qsTr("EO")
+        id:     secondaryWindow
+        title:  root.eoShowsWideAngle ? qsTr("EO · 광각") : qsTr("EO · 줌")
+        detail: qsTr("드래그 짐벌 · 탭 전체화면")
     }
 
     CameraWindow {
-        id:    sharedWindow
-        title: qsTr("IR")
+        id:     sharedWindow
+        title:  root._aiStreamActive ? qsTr("AI · 인식") : qsTr("IR · 열상")
+        detail: root._aiStreamActive ? qsTr("AI 모듈") : qsTr("ZT30 보조")
     }
 
     // ------------------------------------------------------------------- fly tools
@@ -1298,8 +1321,8 @@ Item {
         id:                   primaryPanel
         parent:               root.expandedPanel === "primary" ? fullscreenLayer : primaryWindow.slot
         anchors.fill:         parent
-        panelTitle:           qsTr("FPV CAM · 전방")
-        panelDetail:          root._fpvConfigured ? qsTr("에어유닛 LAN2") : qsTr("주소 미설정")
+        panelTitle:           qsTr("FPV · 전방")
+        showChrome:           root.expandedPanel === "primary"
         streamObjectName:     "fpvVideo"
         gimbalControlEnabled: false
         onActivated:          root._toggleExpanded("primary")
@@ -1310,7 +1333,7 @@ Item {
         parent:               root.expandedPanel === "secondary" ? fullscreenLayer : secondaryWindow.slot
         anchors.fill:         parent
         panelTitle:           root.eoShowsWideAngle ? qsTr("EO · 광각") : qsTr("EO · 줌")
-        panelDetail:          qsTr("드래그: 짐벌 · 터치: 전체화면")
+        showChrome:           root.expandedPanel === "secondary"
         streamObjectName:     "videoContent"
         gimbalControlEnabled: true
         aiTargetVisible:      root.aiTargetVisible
@@ -1330,7 +1353,7 @@ Item {
         parent:               root.expandedPanel === "shared" ? fullscreenLayer : sharedWindow.slot
         anchors.fill:         parent
         panelTitle:           root._aiStreamActive ? qsTr("AI · 인식") : qsTr("IR · 열상")
-        panelDetail:          root._aiStreamActive ? qsTr("AI 모듈 스트림") : qsTr("ZT30 보조 스트림")
+        showChrome:           root.expandedPanel === "shared"
         streamObjectName:     "thermalVideo"
         targetPickEnabled:    root._aiPickEnabled
         onActivated:          root._toggleExpanded("shared")
