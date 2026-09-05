@@ -504,6 +504,16 @@ void VideoManager::setfullScreen(bool on)
     }
 }
 
+void VideoManager::setFrameTapEnabled(bool enabled)
+{
+    _frameTapEnabled = enabled;
+    for (VideoReceiver *receiver : std::as_const(_videoReceivers)) {
+        if (receiver->name() == QStringLiteral("videoContent")) {
+            receiver->setFrameTapEnabled(enabled);
+        }
+    }
+}
+
 bool VideoManager::isStreamSource() const
 {
     static const QStringList videoSourceList = {
@@ -916,6 +926,14 @@ void VideoManager::_initVideoReceiver(VideoReceiver *receiver, QQuickWindow *win
         return;
     }
     receiver->setSink(sink);
+
+    if (receiver->name() == QStringLiteral("videoContent")) {
+        receiver->setFrameTapEnabled(_frameTapEnabled);
+        // Direct: fires on the GStreamer streaming thread; PersonDetector re-queues to its worker.
+        (void) connect(receiver, &VideoReceiver::videoFrameTapped, this, &VideoManager::videoFrameTapped,
+                       Qt::DirectConnection);
+        (void) connect(receiver, &VideoReceiver::recordingFinished, this, &VideoManager::eoRecordingFinished);
+    }
 
     VideoBackend::attachSink(receiver, sink, widget);
 

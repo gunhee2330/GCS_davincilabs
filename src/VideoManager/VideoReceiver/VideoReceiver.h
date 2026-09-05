@@ -5,10 +5,22 @@
 #include <QtCore/QObject>
 #include <QtCore/QSize>
 #include <QtCore/QTimer>
+#include <QtGui/QImage>
 #include <QtQmlIntegration/QtQmlIntegration>
 
 class QGCVideoStreamInfo;
 class QQuickItem;
+
+/// One decoded frame handed out of the pipeline for on-device analysis.
+/// image is RGB888, width 640, deep-copied so the pipeline can recycle its buffer.
+/// No sourceSize/rotation: consumers map boxes with VideoOutput.contentRect.
+struct TappedVideoFrame
+{
+    QString streamName;
+    quint64 ptsNs = 0;
+    QImage image;
+};
+Q_DECLARE_METATYPE(TappedVideoFrame)
 
 class VideoReceiver : public QObject
 {
@@ -37,6 +49,7 @@ public:
     bool lowLatency() const { return _lowLatency; }
     int rtpJitterLatencyMs() const { return _rtpJitterLatencyMs; }
     bool autoReconnect() const { return _autoReconnect; }
+    bool frameTapEnabled() const { return _frameTapEnabled; }
     QGCVideoStreamInfo *videoStreamInfo() { return _videoStreamInfo; }
     QString recordingOutput() const { return _recordingOutput; }
 
@@ -48,6 +61,9 @@ public:
     void setLowLatency(bool lowLatency) { if (lowLatency != _lowLatency) { _lowLatency = lowLatency; emit lowLatencyChanged(_lowLatency); } }
     void setRtpJitterLatencyMs(int ms) { if (ms != _rtpJitterLatencyMs) { _rtpJitterLatencyMs = ms; emit rtpJitterLatencyMsChanged(_rtpJitterLatencyMs); } }
     void setAutoReconnect(bool enabled) { if (enabled != _autoReconnect) { _autoReconnect = enabled; emit autoReconnectChanged(_autoReconnect); } }
+    /// Ask the receiver to branch scaled RGB frames out of the decode path. Takes effect on the
+    /// next decoding start; the tap is skipped silently when the pipeline can't take it.
+    void setFrameTapEnabled(bool enabled) { _frameTapEnabled = enabled; }
     void setVideoStreamInfo(QGCVideoStreamInfo *videoStreamInfo) { if (videoStreamInfo != _videoStreamInfo) { _videoStreamInfo = videoStreamInfo; emit videoStreamInfoChanged(); } }
 
     // QMediaFormat::FileFormat
@@ -80,6 +96,9 @@ signals:
     void recordingChanged(bool active);
     void recordingStarted(const QString &filename);
     void videoSizeChanged(QSize size);
+    void videoFrameTapped(const TappedVideoFrame &frame);
+    /// A recording file is closed and complete on disk.
+    void recordingFinished(const QString &filePath);
 
     void sinkChanged(VideoSinkHandle sink);
     void nameChanged(const QString &name);
@@ -123,6 +142,7 @@ protected:
     int _rtpJitterLatencyMs = 80;
     // Written live on the GUI thread, read on the receiver worker thread.
     std::atomic<bool> _autoReconnect = true;     ///< RTSP/UDP auto-reconnect with exponential backoff on watchdog/error.
+    std::atomic<bool> _frameTapEnabled = false;
     bool _resetVideoSink = false;
     bool _endOfStream = false;
     bool _removingDecoder = false;

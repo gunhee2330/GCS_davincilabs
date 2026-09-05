@@ -16,6 +16,7 @@
 
 class QQuickWindow;
 class SubtitleWriter;
+struct TappedVideoFrame;
 class Vehicle;
 class VideoReceiver;
 class VideoSettings;
@@ -26,6 +27,7 @@ class VideoManager : public QObject
     QML_ELEMENT
     QML_UNCREATABLE("")
     Q_MOC_INCLUDE("Vehicle.h")
+    Q_MOC_INCLUDE("VideoReceiver.h")
 
     Q_PROPERTY(bool     autoStreamConfigured    READ autoStreamConfigured                       NOTIFY autoStreamConfiguredChanged)
     Q_PROPERTY(bool     decoding                READ decoding                                   NOTIFY decodingChanged)
@@ -79,11 +81,14 @@ public:
     QString imageFile() const { return _imageFile; }
     QString uvcVideoSourceID() const { return _uvcVideoSourceID; }
     void setfullScreen(bool on);
+    /// EO stream only ("videoContent"). Set before init(); later calls apply on next stream start.
+    void setFrameTapEnabled(bool enabled);
 
 signals:
     void aspectRatioChanged();
     void autoStreamConfiguredChanged();
     void decodingChanged();
+    void eoRecordingFinished(const QString &filePath);
     void fullScreenChanged();
     void hasVideoChanged();
     void imageFileChanged(const QString &filename);
@@ -94,6 +99,7 @@ signals:
     void recordingStarted(const QString &filename);
     void streamingChanged();
     void uvcVideoSourceIDChanged();
+    void videoFrameTapped(const TappedVideoFrame &frame);
     void videoSizeChanged();
 
 private slots:
@@ -138,6 +144,7 @@ private:
     bool _initialized = false;
     bool _backendDisabledForTests = false;
     bool _fullScreen = false;
+    bool _frameTapEnabled = false;
 
     QAtomicInteger<bool> _decoding = false;
     QAtomicInteger<bool> _recording = false;
