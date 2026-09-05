@@ -40,6 +40,9 @@
 #include "SettingsManager.h"
 #include "SiyiAiController.h"
 #include "SiyiCameraController.h"
+#include "PoliceLinkDefaults.h"
+#include "PoliceVideoDefaults.h"
+#include "TakeoffCounter.h"
 #include "SpeakerController.h"
 #include "Vehicle.h"
 #include "VideoManager.h"
@@ -313,6 +316,7 @@ void QGCApplication::_initForNormalAppBoot()
     SiyiCameraController::instance()->init();
     SiyiAiController::instance()->init();
     SpeakerController::instance()->init();
+    TakeoffCounter::instance()->init();
 
     // Set the window icon now that custom plugin has a chance to override it
 #ifdef Q_OS_LINUX
@@ -366,6 +370,12 @@ void QGCApplication::_initForNormalAppBoot()
                           "Your saved settings have been reset to defaults.")
                            .arg(applicationName()));
     }
+
+    // The UniRC 7 handheld's UDP link and the pod's video stream ship pre-configured so the
+    // first start on the controller connects and shows a picture without the operator
+    // adding anything.
+    PoliceLinkDefaults::ensureUniRcLink();
+    PoliceVideoDefaults::ensurePodStream();
 
     // Connect links with flag AutoconnectLink
     LinkManager::instance()->startAutoConnectedLinks();

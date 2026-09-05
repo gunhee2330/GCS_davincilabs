@@ -21,4 +21,5 @@ public:
     DEFINE_SETTINGFACT(aiIpAddress)
     DEFINE_SETTINGFACT(aiPort)
     DEFINE_SETTINGFACT(aiRtspUrl)
+    DEFINE_SETTINGFACT(fpvRtspUrl)
 };

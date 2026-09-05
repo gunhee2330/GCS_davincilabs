@@ -5,18 +5,18 @@
         {
             "name": "enabled",
             "shortDesc": "Enable SIYI camera control",
-            "longDesc": "Control a SIYI optical pod (ZT30, ZT6, ZR30, ZR10, A8) directly over its own Ethernet link using the SIYI SDK protocol. The ground station must share a network with the camera. Video is configured separately under Video settings.",
+            "longDesc": "Control a SIYI optical pod (ZT30, ZT6, ZR30, ZR10, A8) directly over its own Ethernet link using the SIYI SDK protocol. The ground station must share a network with the camera. On this airframe a ZT30 is always fitted, so this is on by default; with no pod answering the controller simply reports it as disconnected. Video is configured separately under Video settings.",
             "type": "bool",
-            "default": false,
+            "default": true,
             "label": "Enable SIYI camera control",
             "keywords": "siyi,zt30,gimbal,camera,payload"
         },
         {
             "name": "ipAddress",
             "shortDesc": "Camera IP address",
-            "longDesc": "IP address of the SIYI optical pod. Factory default is 192.168.144.25.",
+            "longDesc": "IP address of the SIYI optical pod. The SIYI factory default is 192.168.144.25; on this airframe the pod is readdressed to 192.168.144.26 so the FPV camera can keep .25.",
             "type": "string",
-            "default": "192.168.144.25",
+            "default": "192.168.144.26",
             "label": "Camera IP address",
             "keywords": "siyi,address,ip"
         },
@@ -35,9 +35,9 @@
         {
             "name": "secondaryRtspUrl",
             "shortDesc": "Secondary RTSP stream URL",
-            "longDesc": "RTSP URL for the ZT30 sub stream shown in the second camera panel. The path varies by camera firmware, so verify it on the installed payload (for example, rtsp://192.168.144.25:8554/video2).",
+            "longDesc": "RTSP URL for the ZT30 sub stream shown in the second camera panel. The pod publishes its main stream on /video1 and its sub stream on /video2; the path varies by camera firmware, so verify it on the installed payload.",
             "type": "string",
-            "default": "",
+            "default": "rtsp://192.168.144.26:8554/video2",
             "label": "Secondary RTSP URL",
             "keywords": "siyi,zt30,secondary,sub stream,rtsp,video2"
         },
@@ -79,6 +79,15 @@
             "default": "",
             "label": "AI module RTSP URL",
             "keywords": "siyi,ai,rtsp,video0,tracking,stream"
+        },
+        {
+            "name": "fpvRtspUrl",
+            "shortDesc": "RTSP address of the FPV camera on the air unit LAN2 port.",
+            "longDesc": "RTSP address of the forward-looking FPV camera on the air unit's LAN2 port. Left empty the FPV window stays closed. On this airframe the FPV camera keeps the SIYI default 192.168.144.25 and the pod moved to .26; a third-party camera uses its own address.",
+            "type": "string",
+            "default": "rtsp://192.168.144.25:8554/video1",
+            "label": "FPV camera RTSP URL",
+            "keywords": "fpv,rtsp,camera,lan2,forward"
         }
     ]
 }

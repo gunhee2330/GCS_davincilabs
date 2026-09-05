@@ -126,6 +126,9 @@
                     "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue"
                 },
                 {
+                    "setting": "siyiCameraSettings.fpvRtspUrl"
+                },
+                {
                     "setting": "siyiCameraSettings.aiEnabled"
                 },
                 {

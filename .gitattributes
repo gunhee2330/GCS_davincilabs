@@ -133,3 +133,8 @@ CMakeLists.txt  text=auto
 src/CMakeLists.txt          merge=union
 src/Settings/CMakeLists.txt merge=union
 test/CMakeLists.txt         merge=union
+
+# cmd.exe reads a batch file with LF-only endings as garbage: every "rem" line runs as
+# the command "m" and set/if lines lose characters. Pin CRLF regardless of the
+# contributor's core.autocrlf.
+*.bat text eol=crlf

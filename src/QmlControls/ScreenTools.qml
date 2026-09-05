@@ -193,6 +193,14 @@ Item {
                     }
                 } else if((Screen.width / realPixelDensity) < 120) {
                     platformFontPointSize = 11;
+                // A handheld ground controller such as the UniRC 7 Pro is a 7 inch panel about
+                // 151 by 94 mm carrying the entire flight interface, read at arm's length. The
+                // phone size below does not catch it and 14pt leaves too little layout budget,
+                // so it gets its own step. Screen.width / realPixelDensity is physical
+                // millimetres because the device pixel ratio cancels out of the quotient; the
+                // height test keeps landscape phones, which are shorter, on the phone sizing.
+                } else if((Screen.width / realPixelDensity) < 180 && (Screen.height / realPixelDensity) > 80) {
+                    platformFontPointSize = 12;
                 // Other Android
                 } else {
                     platformFontPointSize = 14;

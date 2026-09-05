@@ -24,6 +24,10 @@ public:
     {}
 
     bool isThermal() const { return (_name == QStringLiteral("thermalVideo")); }
+    /// Third receiver, added for the FPV camera on the air unit's second LAN port. It is
+    /// driven purely by a configured RTSP address, so it takes neither the autopilot's
+    /// advertised stream nor the video source setting.
+    bool isFpv() const { return (_name == QStringLiteral("fpvVideo")); }
 
     VideoSinkHandle sink() const { return _sink; }
     QQuickItem *widget() { return _widget; }

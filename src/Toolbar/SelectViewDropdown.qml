@@ -5,14 +5,18 @@ import QtQuick.Layouts
 import QGroundControl
 import QGroundControl.Controls
 
+// The view menu of the police GCS: Korean names and line icons drawn for this product,
+// in place of QGC's paper plane, gear and logo, so the menu reads as this station's
+// rather than the upstream tool's.
 ToolIndicatorPage {
     id: root
 
-    property real _toolButtonHeight: ScreenTools.defaultFontPixelHeight * 3
+    property real _toolButtonHeight: Math.max(ScreenTools.minTouchPixels * 1.4, ScreenTools.defaultFontPixelHeight * 2.2)
 
     contentComponent: Component {
+        // One column: the operator reads the list top to bottom rather than scanning a grid.
         GridLayout {
-            columns: 2
+            columns: 1
             columnSpacing: ScreenTools.defaultFontPixelWidth
             rowSpacing: columnSpacing
 
@@ -20,8 +24,8 @@ ToolIndicatorPage {
                 objectName: "toolbar_viewFly"
                 implicitHeight: root._toolButtonHeight
                 Layout.fillWidth: true
-                text: qsTr("Fly")
-                imageResource: "/res/FlyingPaperPlane.svg"
+                text: qsTr("비행")
+                imageResource: "/res/police_menu_fly.svg"
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
                         mainWindow.closeIndicatorDrawer()
@@ -34,8 +38,8 @@ ToolIndicatorPage {
                 objectName: "toolbar_viewPlan"
                 implicitHeight: root._toolButtonHeight
                 Layout.fillWidth: true
-                text: qsTr("Plan")
-                imageResource: "/qmlimages/Plan.svg"
+                text: qsTr("미션")
+                imageResource: "/res/police_menu_mission.svg"
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
                         mainWindow.closeIndicatorDrawer()
@@ -63,8 +67,8 @@ ToolIndicatorPage {
                 objectName: "toolbar_viewAnalyze"
                 implicitHeight: root._toolButtonHeight
                 Layout.fillWidth: true
-                text: qsTr("Analyze")
-                imageResource: "/qmlimages/Analyze.svg"
+                text: qsTr("분석")
+                imageResource: "/res/police_menu_analyze.svg"
                 visible: QGroundControl.corePlugin.showAdvancedUI
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
@@ -79,8 +83,8 @@ ToolIndicatorPage {
                 objectName: "toolbar_viewConfigure"
                 implicitHeight: root._toolButtonHeight
                 Layout.fillWidth: true
-                text: qsTr("Configure")
-                imageResource: "/res/GearWithPaperPlane.svg"
+                text: qsTr("기체 설정")
+                imageResource: "/res/police_menu_vehicle.svg"
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
                         mainWindow.closeIndicatorDrawer()
@@ -94,8 +98,8 @@ ToolIndicatorPage {
                 objectName: "toolbar_viewSettings"
                 implicitHeight: root._toolButtonHeight
                 Layout.fillWidth: true
-                text: qsTr("Settings")
-                imageResource: "/res/QGCLogoWhite.svg"
+                text: qsTr("환경설정")
+                imageResource: "/res/police_menu_settings.svg"
                 visible: !QGroundControl.corePlugin.options.combineSettingsAndSetup
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
@@ -110,8 +114,8 @@ ToolIndicatorPage {
                 objectName: "toolbar_viewClose"
                 implicitHeight: root._toolButtonHeight
                 Layout.fillWidth: true
-                text: qsTr("Close")
-                imageResource: "/res/OpenDoor.svg"
+                text: qsTr("종료")
+                imageResource: "/res/police_menu_power.svg"
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
                         mainWindow.closeIndicatorDrawer()
@@ -126,14 +130,14 @@ ToolIndicatorPage {
             ColumnLayout {
                 id: versionColumnLayout
                 Layout.fillWidth: true
-                Layout.columnSpan: 2
+                Layout.columnSpan: 1
                 spacing: 0
 
                 QGCLabel {
                     id: versionLabel
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
-                    text: qsTr("%1 Version").arg(QGroundControl.appName)
+                    text: qsTr("%1 버전").arg(QGroundControl.appName)
                     font.pointSize: ScreenTools.smallFontPointSize
                     wrapMode: QGCLabel.WordWrap
                 }
@@ -164,8 +168,8 @@ ToolIndicatorPage {
                                 showTouchAreasNotification.open()
                             } else if (ScreenTools.isMobile || mouse.modifiers & Qt.ShiftModifier) {
                                 mainWindow.closeIndicatorDrawer()
-                                // Service mode is entered only through the PIN gated
-                                // Service settings page. This gesture can turn it off.
+                                // Developer mode is entered only through the PIN gated
+                                // Developer settings page. This gesture can turn it off.
                                 if (QGroundControl.corePlugin.showAdvancedUI) {
                                     advancedModeOffConfirmation.open()
                                 }

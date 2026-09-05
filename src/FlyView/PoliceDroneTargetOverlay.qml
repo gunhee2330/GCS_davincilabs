@@ -1,5 +1,7 @@
 import QtQuick
 
+import QGroundControl.Controls
+
 Item {
     id: root
 
@@ -32,7 +34,7 @@ Item {
         height:      root.targetHeight * root._scaleY
         color:       "transparent"
         border.color: "#ff3b30"
-        border.width: Math.max(2, Screen.pixelDensity * 0.5)
+        border.width: Math.max(1, ScreenTools.defaultFontPixelWidth * 0.2)
 
         Rectangle {
             anchors.left:   parent.left
@@ -46,7 +48,7 @@ Item {
                 anchors.centerIn: parent
                 color:          "white"
                 font.bold:      true
-                font.pixelSize: Math.max(12, Screen.pixelDensity * 3)
+                font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.62
                 text:           root.targetLabel
             }
         }

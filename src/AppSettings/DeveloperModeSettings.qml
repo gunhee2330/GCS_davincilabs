@@ -19,7 +19,9 @@ SettingsPage {
 
     readonly property int  _tapsToUnlock:   7
     readonly property int  _maxPinFailures: 5
-    readonly property real _touchHeight:    ScreenTools.defaultFontPixelHeight * 2.5
+    // 7인치 1280x800 에서 1mm = 8.49px. 터치 최소 7mm = 59px 를 바닥으로 깐다.
+    // main 이 이 화면 크기의 기본 글꼴을 12pt 로 낮췄기 때문에 비율만으로는 부족하다.
+    readonly property real _touchHeight:    Math.max(59, ScreenTools.defaultFontPixelHeight * 2.5)
 
     property bool   _developerMode:   QGroundControl.corePlugin.showAdvancedUI
     property bool   _pinPrompt:     false

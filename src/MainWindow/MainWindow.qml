@@ -166,11 +166,11 @@ ApplicationWindow {
     }
 
     function showAnalyzeTool() {
-        showTool(qsTr("Analyze Tools"), "qrc:/qml/QGroundControl/AnalyzeView/AnalyzeView.qml", "/qmlimages/Analyze.svg")
+        showTool(qsTr("분석"), "qrc:/qml/QGroundControl/AnalyzeView/AnalyzeView.qml", "/res/police_menu_analyze.svg")
     }
 
     function showVehicleConfig() {
-        showTool(qsTr("Vehicle Configuration"), "qrc:/qml/QGroundControl/VehicleSetup/VehicleConfigView.qml", "/qmlimages/Gears.svg")
+        showTool(qsTr("기체 설정"), "qrc:/qml/QGroundControl/VehicleSetup/VehicleConfigView.qml", "/res/police_menu_vehicle.svg")
     }
 
     function showVehicleConfigParametersPage() {
@@ -187,7 +187,7 @@ ApplicationWindow {
     }
 
     function showSettingsTool(settingsPage = "") {
-        showTool(qsTr("Application Settings"), "qrc:/qml/QGroundControl/Controls/AppSettings.qml", "/res/QGCLogoWhite")
+        showTool(qsTr("환경설정"), "qrc:/qml/QGroundControl/Controls/AppSettings.qml", "/res/police_menu_settings.svg")
         if (settingsPage !== "") {
             toolDrawerLoader.item.showSettingsPage(settingsPage)
         }

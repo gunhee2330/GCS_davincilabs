@@ -186,6 +186,19 @@ std::optional<int> Platform::initialize(int argc, char* argv[],
 #endif
 #endif
 
+#ifdef Q_OS_ANDROID
+    // Qt Quick packs small images into one atlas texture. An Image with mipmap: true (there
+    // are dozens in QGC) later has to be pulled back out, and on the GL backend that is a
+    // GPU-side QRhi texture copy which QRhiGles2 implements with glCopyTexSubImage2D. The
+    // UniRC 7 Pro's Adreno 610 driver faults inside that call and takes the render thread
+    // down within seconds of launch. A size limit of 0 keeps every image out of the atlas,
+    // so the extraction copy never runs (glyph caches on GLES already avoid texture copies).
+    // Cost is a few more draw batches, which this UI does not notice.
+    if (!qEnvironmentVariableIsSet("QSG_ATLAS_SIZE_LIMIT")) {
+        (void) qputenv("QSG_ATLAS_SIZE_LIMIT", "0");
+    }
+#endif
+
 #ifdef Q_OS_WIN
     if (!qEnvironmentVariableIsSet("QT_WIN_DEBUG_CONSOLE")) {
         (void) qputenv("QT_WIN_DEBUG_CONSOLE", "attach");

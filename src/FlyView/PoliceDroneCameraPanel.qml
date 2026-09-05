@@ -3,6 +3,7 @@ import QtMultimedia
 
 import QGC as App
 import QGroundControl
+import QGroundControl.Controls
 
 Item {
     id: root
@@ -10,15 +11,6 @@ Item {
     property string panelTitle
     property string panelDetail
     property string streamObjectName
-    property Item mirrorSource
-
-    /// Which horizontal half of mirrorSource to show. ZT30 split-screen modes pack two
-    /// sensors side by side into one stream, so a panel can present just its half.
-    /// 0 = whole frame, -1 = left half, 1 = right half.
-    property int mirrorHalf: 0
-
-    /// Same convention as mirrorHalf, applied to this panel's own VideoOutput.
-    property int videoCropHalf: 0
 
     property bool gimbalControlEnabled: true
 
@@ -30,8 +22,10 @@ Item {
     property real aiTargetWidth:        0
     property real aiTargetHeight:       0
     property string aiTargetLabel:      qsTr("TARGET")
+    /// Readout drawn along the bottom edge while a target is tracked: class, position, size,
+    /// laser range. Empty hides it.
+    property string aiTargetInfo:       ""
 
-    readonly property alias videoSurface: videoOutput
     readonly property bool _hasDirectStream: streamObjectName.length > 0
     readonly property int _videoFillMode: VideoOutput.PreserveAspectCrop
 
@@ -64,40 +58,15 @@ Item {
         fillMode:     Image.PreserveAspectCrop
         source:       "/res/NoVideoBackground.jpg"
         opacity:      0.34
-        visible:      !root._hasDirectStream && !root.mirrorSource
+        visible:      !root._hasDirectStream
     }
 
-    // Clipping frame: with videoCropHalf set, the VideoOutput is drawn at double width and
-    // shifted so only the requested half of a side-by-side split stream stays visible.
-    Item {
+    VideoOutput {
+        id:           videoOutput
         anchors.fill: parent
-        clip:         root.videoCropHalf !== 0
+        objectName:   root.streamObjectName
+        fillMode:     root._videoFillMode
         visible:      root._hasDirectStream
-
-        VideoOutput {
-            id:         videoOutput
-            objectName: root.streamObjectName
-            fillMode:   root._videoFillMode
-            width:      root.videoCropHalf === 0 ? parent.width : parent.width * 2
-            height:     parent.height
-            x:          root.videoCropHalf > 0 ? -parent.width : 0
-            y:          0
-        }
-    }
-
-    ShaderEffectSource {
-        anchors.fill: parent
-        sourceItem:   root.mirrorSource
-        live:         true
-        recursive:    true
-        visible:      !!root.mirrorSource
-        // A null rect means "whole item"; a half rect crops to one side of a split stream.
-        sourceRect:   root.mirrorHalf === 0 || !root.mirrorSource
-                          ? Qt.rect(0, 0, 0, 0)
-                          : Qt.rect(root.mirrorHalf < 0 ? 0 : root.mirrorSource.width / 2,
-                                    0,
-                                    root.mirrorSource.width / 2,
-                                    root.mirrorSource.height)
     }
 
     PoliceDroneTargetOverlay {
@@ -125,7 +94,7 @@ Item {
             anchors.centerIn: parent
             color:          "white"
             font.bold:      true
-            font.pixelSize: Math.max(12, Screen.pixelDensity * 3.2)
+            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.7
             text:           root.panelTitle
         }
     }
@@ -144,8 +113,30 @@ Item {
             id:             detailText
             anchors.centerIn: parent
             color:          "#c6d6e3"
-            font.pixelSize: Math.max(10, Screen.pixelDensity * 2.7)
+            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
             text:           root.panelDetail
+        }
+    }
+
+    Rectangle {
+        anchors.left:    parent.left
+        anchors.bottom:  parent.bottom
+        anchors.margins: 8
+        width:           Math.min(parent.width - 16, targetInfoText.implicitWidth + 16)
+        height:          targetInfoText.implicitHeight + 8
+        radius:          3
+        color:           "#c0121b24"
+        visible:         root.aiTargetInfo.length > 0
+
+        Text {
+            id:               targetInfoText
+            anchors.centerIn: parent
+            width:            parent.width - 16
+            color:            "#ffd166"
+            font.bold:        true
+            font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.64
+            elide:            Text.ElideRight
+            text:             root.aiTargetInfo
         }
     }
 
@@ -159,7 +150,7 @@ Item {
     Rectangle {
         x:       gimbalDrag.centroid.position.x - width / 2
         y:       gimbalDrag.centroid.position.y - height / 2
-        width:   Math.max(42, Screen.pixelDensity * 10)
+        width:   ScreenTools.minTouchPixels * 1.2
         height:  width
         radius:  width / 2
         color:   "#4033c7ff"
@@ -185,7 +176,7 @@ Item {
 
     Rectangle {
         id:      pickFlash
-        width:   Math.max(48, Screen.pixelDensity * 11)
+        width:   ScreenTools.minTouchPixels * 1.4
         height:  width
         radius:  width / 2
         color:   "transparent"
@@ -216,7 +207,7 @@ Item {
         id:                  gimbalDrag
         target:              null
         enabled:             root.gimbalControlEnabled
-        dragThreshold:       Math.max(10, Screen.pixelDensity * 2)
+        dragThreshold:       ScreenTools.minTouchPixels * 0.4
         grabPermissions:     PointerHandler.CanTakeOverFromItems | PointerHandler.ApprovesTakeOverByAnything
 
         onActiveChanged: {

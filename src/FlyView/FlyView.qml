@@ -208,6 +208,9 @@ Item {
         PoliceDroneDashboard {
             anchors.fill:     parent
             guidedController: _guidedController
+            // The dashboard mirrors the map into a picture-in-picture while a camera is
+            // full screen; it needs the live item, not a second map.
+            mapItem:          _mapControl
             visible:          _policeDroneLayoutEnabled
             z:                QGroundControl.zOrderTopMost
 
