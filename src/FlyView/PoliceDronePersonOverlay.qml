@@ -85,6 +85,7 @@ Item {
 
                     x:      _right  ? person.width  - width  : 0
                     y:      _bottom ? person.height - height : 0
+                    z:      1   // above the mosaic, which covers the top brackets otherwise
                     width:  person._corner
                     height: person._corner
 
