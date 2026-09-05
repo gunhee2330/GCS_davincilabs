@@ -2,6 +2,7 @@
 
 #include <QtCore/QApplicationStatic>
 #include <QtCore/QMutexLocker>
+#include <QtCore/QSettings>
 #include <QtQml/QJSEngine>
 
 #include "QGCLoggingCategory.h"
@@ -12,8 +13,12 @@ QGC_LOGGING_CATEGORY(PersonDetectorLog, "PersonDetection.PersonDetector")
 
 Q_APPLICATION_STATIC(PersonDetector, _personDetectorInstance, nullptr);
 
+namespace {
+constexpr auto kEnabledSettingsKey = QLatin1StringView("PersonDetection/enabled");
+}  // namespace
+
 PersonDetector::PersonDetector(QObject* parent)
-    : QObject(parent)
+    : QObject(parent), _enabled(QSettings().value(kEnabledSettingsKey, true).toBool())
 {
     _worker.moveToThread(&_thread);
     _thread.setObjectName(QStringLiteral("PersonDetector"));
@@ -47,7 +52,8 @@ PersonDetector* PersonDetector::create(QQmlEngine* qmlEngine, QJSEngine* jsEngin
 
 void PersonDetector::init()
 {
-    if (!_loadWorker()) {
+    _loaded = _loadWorker();
+    if (!_loaded) {
         qCDebug(PersonDetectorLog) << "model unavailable, person detection inactive";
         _thread.quit();
         (void) _thread.wait();
@@ -55,19 +61,54 @@ void PersonDetector::init()
     }
 
     VideoManager* const videoManager = VideoManager::instance();
+    if (!videoManager) {
+        qCWarning(PersonDetectorLog) << "no VideoManager, person detection inactive";
+        return;
+    }
+
+    // Link the tap unconditionally: VideoReceiver only reads this flag when decoding starts, so a
+    // later switch-on could not re-link it. submit() drops frames instead while the switch is off.
     videoManager->setFrameTapEnabled(true);
     // Direct: submit() is a mailbox handoff, so it must not queue frames on the streaming thread.
     (void) connect(videoManager, &VideoManager::videoFrameTapped, this, &PersonDetector::submit,
                    Qt::DirectConnection);
 
-    _active = true;
+    _active = _enabled;
     emit activeChanged();
+}
+
+void PersonDetector::setEnabled(bool enabled)
+{
+    if (_enabled == enabled) {
+        return;
+    }
+    _enabled = enabled;
+    QSettings().setValue(kEnabledSettingsKey, enabled);
+    emit enabledChanged();
+
+    if (!enabled) {
+        {
+            QMutexLocker locker(&_mutex);
+            _pending = QImage();
+        }
+        _boxes.clear();
+        _vehicleBoxes.clear();
+        emit detectionsChanged();
+    }
+
+    const bool active = _loaded && enabled;
+    if (_active != active) {
+        _active = active;
+        emit activeChanged();
+    }
 }
 
 void PersonDetector::submit(const TappedVideoFrame& frame)
 {
+    // Checked under the lock: a frame that read the switch just before setEnabled(false) would
+    // otherwise refill the mailbox after it was cleared, costing one inference while off.
     QMutexLocker locker(&_mutex);
-    if (_shuttingDown) {
+    if (!_enabled || _shuttingDown) {
         return;
     }
 
@@ -108,6 +149,9 @@ void PersonDetector::_runNextFrame()
     const PersonDetectorWorker::Detections detections = _worker.detect(frame, &inferenceMs);
 
     (void) QMetaObject::invokeMethod(this, [this, detections, inferenceMs]() {
+        if (!_enabled) {
+            return;  // Switched off while this frame was in flight
+        }
         _boxes = detections.persons;
         _vehicleBoxes = detections.vehicles;
         _inferenceMs = inferenceMs;

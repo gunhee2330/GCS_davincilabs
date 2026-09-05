@@ -2,6 +2,7 @@
 
 #include <chrono>
 
+#include <QtCore/QMutexLocker>
 #include <QtGui/QImage>
 #include <QtTest/QSignalSpy>
 
@@ -80,4 +81,64 @@ void PersonDetectorTest::_testMailboxDropsStale()
     // Settle: anything still queued is at most the one coalesced follow-up run.
     (void) UnitTest::waitForNoSignal(spy, 1s, u"detectionsChanged");
     QVERIFY2(spy.count() <= 2, qPrintable(QStringLiteral("5 frames produced %1 detections").arg(spy.count())));
+}
+
+void PersonDetectorTest::_testDisabledDropsFrames()
+{
+    PersonDetector detector(nullptr);
+    detector._loaded = detector._loadWorker();
+    if (!detector._loaded) {
+        QSKIP("Person detection model unavailable (built without ONNX Runtime)");
+    }
+    QVERIFY(detector.enabled());  // QSettings default
+
+    TappedVideoFrame frame;
+    frame.image = busFixture();
+    QVERIFY(!frame.image.isNull());
+
+    detector.submit(frame);
+    QTRY_VERIFY(!detector.boxes().isEmpty());
+    QVERIFY(!detector.vehicleBoxes().isEmpty());
+
+    QSignalSpy spy(&detector, &PersonDetector::detectionsChanged);
+    QSignalSpy activeSpy(&detector, &PersonDetector::activeChanged);
+    detector.setEnabled(false);
+    QVERIFY(!detector.enabled());
+    QCOMPARE(spy.count(), 1);
+    QVERIFY(detector.boxes().isEmpty());
+    QVERIFY(detector.vehicleBoxes().isEmpty());
+
+    {
+        PersonDetector restored(nullptr);
+        QVERIFY2(!restored.enabled(), "the switch was not persisted");
+        // No model loaded in this one, so the switch alone must not activate it.
+        restored.setEnabled(true);
+        QVERIFY(!restored.active());
+    }
+
+    // A frame submitted while off must not reach the worker or repopulate the boxes. The literal
+    // timeout has to outlast one inference of the bus frame, or an ungated submit() would go unseen.
+    detector.submit(frame);
+    {
+        QMutexLocker locker(&detector._mutex);
+        QVERIFY2(detector._pending.isNull() && !detector._runPending, "a frame reached the worker while off");
+    }
+    QVERIFY_NO_SIGNAL_WAIT(spy, 1000);
+    QVERIFY(detector.boxes().isEmpty());
+    QVERIFY(detector.vehicleBoxes().isEmpty());
+
+    detector.setEnabled(true);
+    QVERIFY(detector.enabled());
+    QVERIFY(detector.active());  // _loaded && _enabled
+    QCOMPARE(activeSpy.count(), 1);
+
+    // A frame already in flight at switch-off must not repopulate the boxes either. The worker
+    // normally has it before the switch reaches the mailbox; if not, the cleared mailbox covers it.
+    QSignalSpy inFlightSpy(&detector, &PersonDetector::detectionsChanged);
+    detector.submit(frame);
+    detector.setEnabled(false);
+    QVERIFY_NO_SIGNAL_WAIT(inFlightSpy, 1000);
+    QVERIFY(detector.boxes().isEmpty());
+
+    detector.setEnabled(true);
 }

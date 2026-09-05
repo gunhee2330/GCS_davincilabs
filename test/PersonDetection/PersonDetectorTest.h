@@ -9,4 +9,5 @@ class PersonDetectorTest : public UnitTest
 private slots:
     void _testDetectBus();
     void _testMailboxDropsStale();
+    void _testDisabledDropsFrames();
 };

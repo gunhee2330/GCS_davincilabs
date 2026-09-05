@@ -9,6 +9,8 @@
 #include <QtGui/QImage>
 #include <QtQmlIntegration/QtQmlIntegration>
 
+#include <atomic>
+
 #include "PersonDetectorWorker.h"
 
 Q_DECLARE_LOGGING_CATEGORY(PersonDetectorLog)
@@ -31,6 +33,7 @@ class PersonDetector : public QObject
     QML_SINGLETON
 
     Q_PROPERTY(bool             active       READ active         NOTIFY activeChanged)
+    Q_PROPERTY(bool             enabled      READ enabled        WRITE setEnabled NOTIFY enabledChanged)
     Q_PROPERTY(int              count        READ count          NOTIFY detectionsChanged)
     Q_PROPERTY(QList<QRectF>    boxes        READ boxes          NOTIFY detectionsChanged)
     Q_PROPERTY(int              vehicleCount READ vehicleCount   NOTIFY detectionsChanged)
@@ -56,14 +59,20 @@ public:
     void submit(const TappedVideoFrame& frame);
 
     [[nodiscard]] bool active() const { return _active; }
+    [[nodiscard]] bool enabled() const { return _enabled; }
     [[nodiscard]] int count() const { return static_cast<int>(_boxes.size()); }
     [[nodiscard]] QList<QRectF> boxes() const { return _boxes; }
     [[nodiscard]] int vehicleCount() const { return static_cast<int>(_vehicleBoxes.size()); }
     [[nodiscard]] QList<QRectF> vehicleBoxes() const { return _vehicleBoxes; }
     [[nodiscard]] int inferenceMs() const { return _inferenceMs; }
 
+    /// Operator switch, persisted across runs. Switching off drops tapped frames before inference
+    /// and clears the marks; switching on resumes only if the model loaded.
+    void setEnabled(bool enabled);
+
 signals:
     void activeChanged();
+    void enabledChanged();
     void detectionsChanged();
 
 private:
@@ -81,5 +90,7 @@ private:
     QList<QRectF> _boxes;
     QList<QRectF> _vehicleBoxes;
     int _inferenceMs = 0;
+    bool _loaded = false;        ///< Model loaded by init(); the switch cannot activate the detector without it
+    std::atomic<bool> _enabled;  ///< Operator switch, restored from QSettings; read by submit() on the stream thread
     bool _active = false;
 };
