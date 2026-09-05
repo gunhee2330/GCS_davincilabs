@@ -46,6 +46,9 @@ TextArea {
 
     onLinkActivated: (link) => {
         if (link.startsWith('param://')) {
+            if (!QGroundControl.corePlugin.showAdvancedUI) {
+                return
+            }
             var paramName = link.substr(8);
             _fact = controller.getParameterFact(-1, paramName, true)
             if (_fact != null) {

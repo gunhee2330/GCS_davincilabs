@@ -164,9 +164,9 @@ ToolIndicatorPage {
                                 showTouchAreasNotification.open()
                             } else if (ScreenTools.isMobile || mouse.modifiers & Qt.ShiftModifier) {
                                 mainWindow.closeIndicatorDrawer()
-                                if (!QGroundControl.corePlugin.showAdvancedUI) {
-                                    advancedModeOnConfirmation.open()
-                                } else {
+                                // Service mode is entered only through the PIN gated
+                                // Service settings page. This gesture can turn it off.
+                                if (QGroundControl.corePlugin.showAdvancedUI) {
                                     advancedModeOffConfirmation.open()
                                 }
                             }

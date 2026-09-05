@@ -86,10 +86,11 @@
                 },
                 {
                     "setting": "videoSettings.forceCpuVideoPath",
-                    "showWhen": "QGroundControl.settingsManager.videoSettings.forceCpuVideoPath.userVisible"
+                    "showWhen": "QGroundControl.corePlugin.showAdvancedUI && QGroundControl.settingsManager.videoSettings.forceCpuVideoPath.userVisible"
                 },
                 {
-                    "setting": "videoSettings.forceVideoDecoder"
+                    "setting": "videoSettings.forceVideoDecoder",
+                    "showWhen": "QGroundControl.corePlugin.showAdvancedUI"
                 }
             ]
         },

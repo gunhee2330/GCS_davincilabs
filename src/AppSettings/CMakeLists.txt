@@ -94,6 +94,7 @@ qt_add_qml_module(AppSettingsModule
         QmlTest.qml
         RemoteIDGpsLocation.qml
         SerialSettings.qml
+        ServiceModeSettings.qml
         SettingsPage.qml
         TcpSettings.qml
         UdpSettings.qml

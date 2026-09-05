@@ -27,6 +27,7 @@
             "name": "ADSB Server",
             "qml": "ADSBServerSettings.qml",
             "icon": "qrc:/InstrumentValueIcons/airplane.svg",
+            "visible": "QGroundControl.corePlugin.showAdvancedUI",
             "pageDefinition": "ADSBVehicleManager.SettingsUI.json"
         },
         {
@@ -39,12 +40,14 @@
             "name": "App Logging",
             "qml": "LoggingSettings.qml",
             "icon": "qrc:/InstrumentValueIcons/conversation.svg",
+            "visible": "QGroundControl.corePlugin.showAdvancedUI",
             "pageDefinition": "Logging.SettingsUI.json"
         },
         {
             "name": "App Log Viewer",
             "qml": "AppLogging.qml",
-            "icon": "qrc:/InstrumentValueIcons/conversation.svg"
+            "icon": "qrc:/InstrumentValueIcons/conversation.svg",
+            "visible": "QGroundControl.corePlugin.showAdvancedUI"
         },
         {
             "name": "Maps",
@@ -56,26 +59,28 @@
             "name": "NTRIP/RTK",
             "qml": "NTRIPSettings.qml",
             "icon": "qrc:/InstrumentValueIcons/globe.svg",
-            "visible": "QGroundControl.settingsManager && QGroundControl.settingsManager.ntripSettings !== undefined",
+            "visible": "QGroundControl.corePlugin.showAdvancedUI && QGroundControl.settingsManager && QGroundControl.settingsManager.ntripSettings !== undefined",
             "pageDefinition": "NTRIP.SettingsUI.json"
         },
         {
             "name": "PX4 Log Transfer",
             "qml": "PX4LogTransferSettings.qml",
             "icon": "qrc:/InstrumentValueIcons/inbox-download.svg",
-            "visible": "QGroundControl.corePlugin.options.showPX4LogTransferOptions && QGroundControl.px4ProFirmwareSupported && (QGroundControl.multiVehicleManager.activeVehicle ? QGroundControl.multiVehicleManager.activeVehicle.px4Firmware : true)",
+            "visible": "QGroundControl.corePlugin.showAdvancedUI && QGroundControl.corePlugin.options.showPX4LogTransferOptions && QGroundControl.px4ProFirmwareSupported && (QGroundControl.multiVehicleManager.activeVehicle ? QGroundControl.multiVehicleManager.activeVehicle.px4Firmware : true)",
             "pageDefinition": "PX4LogTransfer.SettingsUI.json"
         },
         {
             "name": "Remote ID",
             "qml": "RemoteIDSettings.qml",
             "icon": "qrc:/qmlimages/RidIconManNoID.svg",
+            "visible": "QGroundControl.corePlugin.showAdvancedUI",
             "pageDefinition": "RemoteID.SettingsUI.json"
         },
         {
             "name": "Telemetry",
             "qml": "TelemetrySettings.qml",
             "icon": "qrc:/InstrumentValueIcons/drone.svg",
+            "visible": "QGroundControl.corePlugin.showAdvancedUI",
             "pageDefinition": "Telemetry.SettingsUI.json"
         },
         {
@@ -91,10 +96,15 @@
             "qml": "Viewer3DSettings.qml",
             "icon": "qrc:/qml/QGroundControl/Viewer3D/City3DMapIcon.svg",
             "pageDefinition": "Viewer3D.SettingsUI.json",
-            "visible": "QGroundControl.settingsManager.viewer3DSettings.userVisible"
+            "visible": "QGroundControl.corePlugin.showAdvancedUI && QGroundControl.settingsManager.viewer3DSettings.userVisible"
         },
         {
             "divider": true
+        },
+        {
+            "name": "Service",
+            "qml": "ServiceModeSettings.qml",
+            "icon": "qrc:/InstrumentValueIcons/wrench.svg"
         },
         {
             "name": "Help",

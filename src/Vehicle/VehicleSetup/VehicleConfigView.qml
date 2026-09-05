@@ -50,6 +50,17 @@ Rectangle {
         return !!_expandedComponents[compIndex]
     }
 
+    /// True if a vehicle component may be shown to an operator. Maintenance mode shows everything.
+    /// Keyed on KnownVehicleComponent rather than name, since VehicleComponent::name() is tr()'d.
+    /// Sensors/Power are gated by APMAutoPilotPlugin.cc:201 on Airframe setup being complete. The Airframe
+    /// page is hidden here, so FRAME_CLASS must be non-zero at shipping time for these two pages to open.
+    function _componentAllowed(comp) {
+        if (_corePlugin.showAdvancedUI) return true
+        if (!comp) return false
+        return comp.KnownVehicleComponent === AutoPilotPlugin.KnownSensorsVehicleComponent ||
+               comp.KnownVehicleComponent === AutoPilotPlugin.KnownPowerVehicleComponent
+    }
+
     /// Translated display name for a section ID. JSON-driven components translate via the JSON
     /// filename context; hand-coded components provide sectionDisplayName().
     function _sectionDisplayName(component, sectionId) {
@@ -168,6 +179,10 @@ Rectangle {
         var components = _activeVehicle.autopilotPlugin.vehicleComponents
         if (compIndex < 0 || compIndex >= components.length) return
         var vehicleComponent = components[compIndex]
+        if (!_componentAllowed(vehicleComponent)) {
+            _showSummaryPanel()
+            return
+        }
 
         _selectedSpecial = ""
 
@@ -408,8 +423,10 @@ Rectangle {
                         property bool   isExpanded:     hasSections && (isSearching ? matchesSearch : vehicleConfigView._isExpanded(index))
 
                         visible: {
+                            void vehicleConfigView._corePlugin.showAdvancedUI // re-bind when maintenance mode toggles
                             if (!comp) return false
                             if (comp.setupSource.toString() === "") return false
+                            if (!vehicleConfigView._componentAllowed(comp)) return false
                             if (isSearching) return matchesSearch
                             return true
                         }

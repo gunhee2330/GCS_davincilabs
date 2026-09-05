@@ -235,7 +235,7 @@ signals:
 
 protected:
     bool _showTouchAreas = false;
-    bool _showAdvancedUI = true;
+    bool _showAdvancedUI = false;  // Service mode is off by default on delivered builds, opened via Service Mode settings page
 
 private:
     void _setShowTouchAreas(bool show);

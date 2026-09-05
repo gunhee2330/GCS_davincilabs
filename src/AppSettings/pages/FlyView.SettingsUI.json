@@ -27,7 +27,8 @@
                     "setting": "flyViewSettings.keepMapCenteredOnVehicle"
                 },
                 {
-                    "setting": "flyViewSettings.showLogReplayStatusBar"
+                    "setting": "flyViewSettings.showLogReplayStatusBar",
+                    "showWhen": "QGroundControl.corePlugin.showAdvancedUI"
                 },
                 {
                     "setting": "flyViewSettings.showSimpleCameraControl"
@@ -39,11 +40,12 @@
                     "setting": "flyViewSettings.enableAutomaticMissionPopups"
                 },
                 {
-                    "setting": "flyViewSettings.useGeoMapEngine"
+                    "setting": "flyViewSettings.useGeoMapEngine",
+                    "showWhen": "QGroundControl.corePlugin.showAdvancedUI"
                 },
                 {
                     "setting": "flyViewSettings.geoMapDebugUI",
-                    "showWhen": "QGroundControl.settingsManager.flyViewSettings.useGeoMapEngine.rawValue"
+                    "showWhen": "QGroundControl.corePlugin.showAdvancedUI && QGroundControl.settingsManager.flyViewSettings.useGeoMapEngine.rawValue"
                 }
             ]
         },
@@ -81,6 +83,7 @@
         {
             "heading": "Virtual Joystick",
             "keywords": ["joystick", "virtual stick", "throttle", "left handed", "auto center"],
+            "showWhen": "QGroundControl.corePlugin.showAdvancedUI",
             "controls": [
                 {
                     "setting": "appSettings.virtualJoystick"

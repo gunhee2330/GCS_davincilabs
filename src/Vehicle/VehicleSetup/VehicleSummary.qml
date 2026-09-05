@@ -16,6 +16,17 @@ Rectangle {
     property real _summaryBoxSpace: ScreenTools.defaultFontPixelWidth * 2
     property real _margins:        ScreenTools.defaultFontPixelHeight / 2
 
+    property bool _anyComponentVisible: {
+        void QGroundControl.corePlugin.showAdvancedUI // re-bind when maintenance mode toggles
+        var vehicle = QGroundControl.multiVehicleManager.activeVehicle
+        if (!vehicle) return false
+        var components = vehicle.autopilotPlugin.vehicleComponents
+        for (var i = 0; i < components.length; i++) {
+            if (components[i].summaryQmlSource.toString() !== "" && vehicleConfigView._componentAllowed(components[i])) return true
+        }
+        return false
+    }
+
     function capitalizeWords(sentence) {
         return sentence.replace(/(?:^|\s)\S/g, function(a) { return a.toUpperCase(); });
     }
@@ -50,6 +61,14 @@ Rectangle {
                 property bool setupComplete: QGroundControl.multiVehicleManager.activeVehicle ? QGroundControl.multiVehicleManager.activeVehicle.autopilotPlugin.setupComplete : false
             }
 
+            QGCLabel {
+                width:               parent.width
+                wrapMode:            Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+                visible:             !_anyComponentVisible
+                text:                qsTr("No configuration items are available for this vehicle.")
+            }
+
             GridLayout {
                 id:             _gridCtl
                 width:          _summaryRoot.width
@@ -68,7 +87,10 @@ Rectangle {
                         implicitHeight: mainLayout.implicitHeight + (_margins * 2)
                         radius: ScreenTools.defaultFontPixelHeight / 4
                         color: qgcPal.windowShade
-                        visible: modelData.summaryQmlSource.toString() !== ""
+                        visible: {
+                            void QGroundControl.corePlugin.showAdvancedUI // re-bind when maintenance mode toggles
+                            return modelData.summaryQmlSource.toString() !== "" && vehicleConfigView._componentAllowed(modelData)
+                        }
                         border.width: 1
                         border.color: Qt.rgba(qgcPal.text.r, qgcPal.text.g, qgcPal.text.b, 0.1)
 
@@ -103,7 +125,7 @@ Rectangle {
                                 }
 
                                 onClicked : {
-                                    if (modelData.setupSource !== "") {
+                                    if (modelData.setupSource !== "" && vehicleConfigView._componentAllowed(modelData)) {
                                         setupView.showVehicleComponentPanel(modelData)
                                     }
                                 }

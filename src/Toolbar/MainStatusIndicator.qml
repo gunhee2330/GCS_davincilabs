@@ -395,7 +395,7 @@ RowLayout {
                 Layout.fillWidth:   true
                 heading:            qsTr("Force Arm")
                 headingDescription: qsTr("Force arming bypasses pre-arm checks. Use with caution.")
-                visible:            _activeVehicle && !_armed
+                visible:            _activeVehicle && !_armed && QGroundControl.corePlugin.showAdvancedUI
 
                 QGCCheckBoxSlider {
                     Layout.fillWidth:   true
