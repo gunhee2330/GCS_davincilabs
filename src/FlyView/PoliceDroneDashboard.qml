@@ -370,8 +370,9 @@ Item {
         RowLayout {
             anchors.fill:        parent
             anchors.leftMargin:  ScreenTools.defaultFontPixelWidth * 0.6
-            anchors.rightMargin: ScreenTools.defaultFontPixelWidth
-            spacing:             ScreenTools.defaultFontPixelWidth * 0.7
+            anchors.rightMargin: ScreenTools.defaultFontPixelWidth * 2
+            // Status groups need air between them or they read as one run-on string.
+            spacing:             ScreenTools.defaultFontPixelWidth * 1.8
 
             // A plain Button paints the style's own opaque background, which read as a white
             // slab on this dark bar. Transparent background plus an explicitly light icon

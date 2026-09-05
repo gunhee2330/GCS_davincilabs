@@ -211,11 +211,12 @@ Item {
             function getBatteryColor() {
                 switch (battery.chargeState.rawValue) {
                     case MAVLinkEnums.MAV_BATTERY_CHARGE_STATE_OK:
+                        // A healthy battery stays the same colour as every other reading in the
+                        // bar. Colour is reserved for the levels the operator has to act on,
+                        // so the one thing that turns yellow is the one thing that matters.
                         if (!isNaN(battery.percentRemaining.rawValue)) {
-                            if (battery.percentRemaining.rawValue > threshold1) {
-                                return qgcPal.colorGreen
-                            } else if (battery.percentRemaining.rawValue > threshold2) {
-                                return qgcPal.colorYellowGreen
+                            if (battery.percentRemaining.rawValue > threshold2) {
+                                return qgcPal.text
                             } else {
                                 return qgcPal.colorYellow
                             }
