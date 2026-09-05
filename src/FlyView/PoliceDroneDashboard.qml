@@ -635,10 +635,16 @@ Item {
         property alias title:  gripTitle.text
         property alias detail: gripDetail.text
         property alias slot:   contentSlot
+        /// Which panel this window hosts; matches root.expandedPanel values.
+        property string panelKey
 
         width:  root._windowWidth
         height: root._gripHeight + (root._windowWidth * 9 / 16)
-        z:      10
+        // Tapping a camera swaps it with the map: that camera fills the screen and the map
+        // takes its window. The other two windows stay where they are, floating above the
+        // full screen layer instead of vanishing under its black backdrop.
+        visible: root.expandedPanel !== panelKey
+        z:       root.expandedPanel.length > 0 ? 21 : 10
 
         Rectangle {
             anchors.fill: parent
@@ -714,22 +720,29 @@ Item {
     }
 
     CameraWindow {
-        id:     primaryWindow
-        title:  qsTr("FPV · 전방")
+        id:       primaryWindow
+        panelKey: "primary"
+        title:    qsTr("FPV · 전방")
         detail: root._fpvConfigured ? qsTr("에어유닛 LAN2") : qsTr("주소 미설정")
     }
 
     CameraWindow {
-        id:     secondaryWindow
-        title:  root._aiStreamActive ? qsTr("AI · 인식")
+        id:       secondaryWindow
+        panelKey: "secondary"
+        title:    root._aiStreamActive ? qsTr("AI · 인식")
                                      : (root.eoShowsWideAngle ? qsTr("EO · 광각") : qsTr("EO · 줌"))
         detail: qsTr("드래그 짐벌 · 탭 전체화면")
     }
 
     CameraWindow {
-        id:     sharedWindow
-        title:  qsTr("IR · 열상")
-        detail: qsTr("ZT30 보조")
+        id:       sharedWindow
+        panelKey: "shared"
+        title:    qsTr("IR · 열상")
+        // At night thermal and the laser rangefinder work as a pair, so the distance lives
+        // on this window's bar once readings arrive.
+        detail:   App.SiyiCameraController.rangefinderAvailable
+                      ? qsTr("LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
+                      : qsTr("ZT30 보조")
     }
 
     // ------------------------------------------------------------------- fly tools
@@ -1230,10 +1243,16 @@ Item {
         // size so the copy costs little.
         Item {
             id:      mapPip
+            // The map takes the place of whichever window went full screen - a true swap,
+            // so the column keeps its shape and nothing looks lost.
+            readonly property Item swappedWindow: root.expandedPanel === "primary"   ? primaryWindow
+                                                : root.expandedPanel === "secondary" ? secondaryWindow
+                                                : root.expandedPanel === "shared"    ? sharedWindow
+                                                : null
             width:   root._windowWidth
             height:  root._gripHeight + (root._windowWidth * 9 / 16)
-            x:       parent.width - width - 8
-            y:       8
+            x:       swappedWindow ? swappedWindow.x : parent.width - width - 8
+            y:       swappedWindow ? swappedWindow.y : 8
             z:       3
             visible: root.mapItem !== null
 
