@@ -39,7 +39,8 @@ constexpr GstClockTime kFrameTapMinIntervalNs = 90 * GST_MSECOND;   // ~11 fps t
 // contains the display branch's GPU features; a sysmem-only tap would downgrade it.
 constexpr const char *kFrameTapBinDescription =
     "queue leaky=downstream max-size-buffers=1 max-size-bytes=0 max-size-time=0 "
-    "! glupload ! glcolorconvert ! gldownload "
+    // Pin a 2D texture: gldownload reads Android's external-oes decoder textures as black
+    "! glupload ! glcolorconvert ! video/x-raw(memory:GLMemory),format=RGBA,texture-target=2D ! gldownload "
     "! videoscale ! video/x-raw,width=640,pixel-aspect-ratio=1/1 "
     "! videoconvert ! video/x-raw,format=RGB "
     "! appsink name=frametap-sink sync=false async=false max-buffers=1 drop=true emit-signals=true";
