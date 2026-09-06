@@ -246,7 +246,9 @@ Item {
     // indicator's thresholds are display bands (80 / 60 by default) and mean nothing here.
     readonly property int _batteryState: _lowestBattery ? _lowestBattery.chargeState.rawValue : 0
     readonly property bool _batteryLow:      (_batteryState === 2) || (!isNaN(_batteryPercent) && _batteryPercent <= 30)
-    readonly property bool _batteryCritical: (_batteryState >= 3) || (!isNaN(_batteryPercent) && _batteryPercent <= 20)
+    // 3 CRITICAL to 6 UNHEALTHY; 7 is CHARGING, which is the opposite of an alarm.
+    readonly property bool _batteryCritical: ((_batteryState >= 3) && (_batteryState <= 6)) ||
+                                             (!isNaN(_batteryPercent) && (_batteryPercent <= 20))
 
     readonly property color _batteryColor: {
         if (!_lowestBattery) {
@@ -750,9 +752,13 @@ Item {
                     font.bold:              true
                     font.pixelSize:         root._valueSize
                     // Percentage when the pack reports one, its voltage when it does not.
-                    text:                   isNaN(root._batteryPercent)
-                                                ? root._lowestBattery.voltage.valueString + qsTr(" V")
-                                                : qsTr("%1 %").arg(Math.round(root._batteryPercent))
+                    // Bindings run whether or not the group is visible, so the pack is
+                    // checked here too rather than only in the group's visibility.
+                    text:                   !root._lowestBattery
+                                                ? ""
+                                                : (isNaN(root._batteryPercent)
+                                                       ? root._lowestBattery.voltage.valueString + qsTr(" V")
+                                                       : qsTr("%1 %").arg(Math.round(root._batteryPercent)))
                 }
             }
 
@@ -763,7 +769,10 @@ Item {
                 Layout.alignment:       Qt.AlignVCenter
                 Layout.preferredWidth:  root._barIconSize
                 Layout.preferredHeight: root._barIconSize * 1.6
-                visible:                root._activeVehicle && (root._activeVehicle.messageCount > 0)
+                // Always there once a vehicle is: opening the drawer clears the unread count,
+                // and a pictogram that vanishes on the tap that read it leaves no way back to
+                // the list. The colour, not the presence, says whether anything is new.
+                visible:                root._activeVehicle
 
                 QGCColoredImage {
                     anchors.centerIn:  parent

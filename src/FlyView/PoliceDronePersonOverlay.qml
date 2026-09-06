@@ -43,9 +43,7 @@ Item {
 
     Timer {
         id: staleTimer
-        // Longer than a full detector sweep: the frame is covered a region at a time, so a
-        // person's box is refreshed once a cycle, not once a frame.
-        interval:    3000
+        interval:    1500
         onTriggered: root._fresh = false
     }
 

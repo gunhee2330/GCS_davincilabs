@@ -82,4 +82,14 @@ void PersonDetectorCoreTest::_testMergeDropsTheSamePersonSeenTwice()
     QCOMPARE(merged.first(), person);  // the earlier list wins, so the whole frame pass does
     QCOMPARE(merged.last(), neighbour);
     QVERIFY(PersonDetectorCore::mergeBoxes({person, QRectF()}).size() == 1);
+
+    // A tile that caught only the head and shoulders: it sits inside the whole frame's box and
+    // shares almost none of its union, so IoU alone would report two people.
+    const QRectF shouldersOnly(0.405, 0.405, 0.05, 0.05);
+    QCOMPARE(PersonDetectorCore::mergeBoxes({person, shouldersOnly}).size(), 1);
+
+    // Small is not the same as swallowed: a child beside them is half the size but mostly
+    // outside the box, and both rules have to hold before a box is dropped.
+    const QRectF child(0.45, 0.46, 0.03, 0.07);
+    QCOMPARE(PersonDetectorCore::mergeBoxes({person, child}).size(), 2);
 }
