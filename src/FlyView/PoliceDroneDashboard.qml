@@ -1296,6 +1296,17 @@ Item {
         }
     }
 
+    // Detection summary beside the camera column, on the bottom edge, so the counts sit next to
+    // the picture they describe. Floats above the full screen layer the way the windows do.
+    PoliceDroneAiPanel {
+        // Left of the column, but never over the telemetry bar when a large font widens it.
+        x:                    Math.max(flightInstruments.x + flightInstruments.width + 8,
+                                       parent.width - root._windowWidth - 8 - width)
+        anchors.bottom:       parent.bottom
+        anchors.bottomMargin: root._bottomInset
+        z:                    root.expandedPanel.length > 0 ? 21 : 3
+    }
+
     // The forward-looking camera on the air unit's second LAN port. It is fixed to the
     // airframe, so it takes neither gimbal drag nor AI target picking.
     PoliceDroneCameraPanel {

@@ -4,9 +4,10 @@ import QtMultimedia
 import QGC as App
 import QGroundControl.Controls
 
-/// Live person and vehicle counts, head mosaics, over the EO video. The detector reports boxes
-/// normalised in the decoded frame, so they are mapped through the VideoOutput's contentRect,
-/// which also accounts for the crop when the panel fills with PreserveAspectCrop.
+/// Person and vehicle brackets and head mosaics over the EO video; the counts are shown by
+/// PoliceDroneAiPanel. The detector reports boxes normalised in the decoded frame, so they are
+/// mapped through the VideoOutput's contentRect, which also accounts for the crop when the
+/// panel fills with PreserveAspectCrop.
 Item {
     id: root
 
@@ -24,25 +25,15 @@ Item {
 
     /// Results older than this are hidden so a stalled stream does not leave boxes frozen.
     property bool _fresh: false
-    /// The badge rises at once but falls only on the settle tick, so a person the detector
-    /// misses for a frame does not make the number flicker.
-    property int _shownCount: 0
-    property int _shownVehicles: 0
 
     clip:    true
-    visible: enabled
+    visible: enabled && App.PersonDetector.active && _fresh
 
     Connections {
         target: App.PersonDetector
         function onDetectionsChanged() {
             root._fresh = true
             staleTimer.restart()
-            if (App.PersonDetector.count > root._shownCount) {
-                root._shownCount = App.PersonDetector.count
-            }
-            if (App.PersonDetector.vehicleCount > root._shownVehicles) {
-                root._shownVehicles = App.PersonDetector.vehicleCount
-            }
         }
     }
 
@@ -50,16 +41,6 @@ Item {
         id:          staleTimer
         interval:    1500
         onTriggered: root._fresh = false
-    }
-
-    Timer {
-        interval:    1000
-        repeat:      true
-        running:     marks.visible
-        onTriggered: {
-            root._shownCount = App.PersonDetector.count
-            root._shownVehicles = App.PersonDetector.vehicleCount
-        }
     }
 
     // Four corner brackets around one detection, drawn inside the item's bounds.
@@ -101,100 +82,61 @@ Item {
         }
     }
 
-    Item {
-        id:           marks
-        anchors.fill: parent
-        visible:      App.PersonDetector.active && root._fresh
+    Repeater {
+        // Fixed pool: a person the detector loses for a frame hides its delegate instead of
+        // destroying and rebuilding it, and its mosaic layer, at detector rate.
+        model: root.maxBoxes
 
-        Repeater {
-            // Fixed pool: a person the detector loses for a frame hides its delegate instead of
-            // destroying and rebuilding it, and its mosaic layer, at detector rate.
-            model: root.maxBoxes
+        delegate: Item {
+            id: person
+            required property int index
+            readonly property bool detected: index < root._boxes.length
+            readonly property rect box:      detected ? root._boxes[index] : Qt.rect(0, 0, 0, 0)
 
-            delegate: Item {
-                id: person
-                required property int index
-                readonly property bool detected: index < root._boxes.length
-                readonly property rect box:      detected ? root._boxes[index] : Qt.rect(0, 0, 0, 0)
+            visible: detected
+            x:       root._content.x + box.x * root._content.width
+            y:       root._content.y + box.y * root._content.height
+            width:   box.width * root._content.width
+            height:  box.height * root._content.height
 
-                visible: detected
-                x:       root._content.x + box.x * root._content.width
-                y:       root._content.y + box.y * root._content.height
-                width:   box.width * root._content.width
-                height:  box.height * root._content.height
-
-                // Corner brackets instead of a hairline box: each detected person reads as one
-                // bracketed target, so the badge count can be checked by eye.
-                Brackets {
-                    anchors.fill: parent
-                    z:            1  // above the mosaic, which covers the top brackets otherwise
-                    color:        root.markColor
-                }
-
-                // The video re-rendered into a fixed 8x4 texture and drawn back unsmoothed: a
-                // mosaic with no shader code, whose layer is allocated once per delegate because
-                // the texture size does not follow the box.
-                ShaderEffectSource {
-                    width:       person.width
-                    height:      person.height * root.headFraction
-                    sourceItem:  root.videoOutput
-                    sourceRect:  Qt.rect(person.x, person.y, width, height)
-                    textureSize: Qt.size(8, 4)
-                    smooth:      false
-                    live:        true
-                }
+            // Corner brackets instead of a hairline box: each detected person reads as one
+            // bracketed target, so the count on the AI panel can be checked by eye.
+            Brackets {
+                anchors.fill: parent
+                z:            1  // above the mosaic, which covers the top brackets otherwise
+                color:        root.markColor
             }
-        }
 
-        Repeater {
-            // Same fixed pool as the persons, without the mosaic: vehicles are marked, not hidden.
-            model: root.maxBoxes
-
-            delegate: Brackets {
-                required property int index
-                readonly property bool detected: index < root._vehicleBoxes.length
-                readonly property rect box:      detected ? root._vehicleBoxes[index] : Qt.rect(0, 0, 0, 0)
-
-                visible: detected
-                x:       root._content.x + box.x * root._content.width
-                y:       root._content.y + box.y * root._content.height
-                width:   box.width * root._content.width
-                height:  box.height * root._content.height
-                color:   root.vehicleColor
+            // The video re-rendered into a fixed 8x4 texture and drawn back unsmoothed: a
+            // mosaic with no shader code, whose layer is allocated once per delegate because
+            // the texture size does not follow the box.
+            ShaderEffectSource {
+                width:       person.width
+                height:      person.height * root.headFraction
+                sourceItem:  root.videoOutput
+                sourceRect:  Qt.rect(person.x, person.y, width, height)
+                textureSize: Qt.size(8, 4)
+                smooth:      false
+                live:        true
             }
         }
     }
 
-    Row {
-        anchors.right:   parent.right
-        anchors.top:     parent.top
-        anchors.margins: 8
-        spacing:         8
+    Repeater {
+        // Same fixed pool as the persons, without the mosaic: vehicles are marked, not hidden.
+        model: root.maxBoxes
 
-        // Accepts the press itself, so a tap here does not reach the camera panel's tap/drag handlers.
-        QGCCheckBoxSlider {
-            anchors.verticalCenter: parent.verticalCenter
-            height:                 ScreenTools.minTouchPixels
-            checked:                App.PersonDetector.enabled
-            onClicked:              App.PersonDetector.enabled = checked
-        }
+        delegate: Brackets {
+            required property int index
+            readonly property bool detected: index < root._vehicleBoxes.length
+            readonly property rect box:      detected ? root._vehicleBoxes[index] : Qt.rect(0, 0, 0, 0)
 
-        Rectangle {
-            anchors.verticalCenter: parent.verticalCenter
-            width:                  countText.implicitWidth + 18
-            height:                 countText.implicitHeight + 10
-            radius:                 3
-            color:                  "#c0121b24"
-            opacity:                marks.visible ? 1 : 0
-
-            Text {
-                id:               countText
-                anchors.centerIn: parent
-                color:            root.markColor
-                font.bold:        true
-                font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.7
-                text:             qsTr("인원 %1 · 차량 %2").arg(root._shownCount).arg(root._shownVehicles)
-            }
+            visible: detected
+            x:       root._content.x + box.x * root._content.width
+            y:       root._content.y + box.y * root._content.height
+            width:   box.width * root._content.width
+            height:  box.height * root._content.height
+            color:   root.vehicleColor
         }
     }
 }
