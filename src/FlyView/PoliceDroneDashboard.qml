@@ -182,9 +182,15 @@ Item {
 
     // Camera window sizing and one-time docking along the bottom edge. Windows keep user
     // positions afterwards; a resize only re-clamps them through the drag axis limits.
-    /// Which pod sensor the EO window shows. The pod's sub stream stays thermal either way,
-    /// so the IR window is unaffected by this choice.
-    property bool eoShowsWideAngle: false
+    /// Which pod sensor the EO window shows, read back from the controller so the tool strip,
+    /// the window label and the handheld's own button cannot disagree. The pod's sub stream
+    /// stays thermal either way, so the IR window is unaffected by this choice.
+    readonly property bool eoShowsWideAngle:
+        App.SiyiCameraController.cameraImageType === root._imageTypeWideMain
+
+    /// SiyiProtocol::CameraImageType values. Both leave thermal on the sub stream.
+    readonly property int _imageTypeZoomMain: 3
+    readonly property int _imageTypeWideMain: 5
 
     /// The AI module's own RTSP feed replaces the main window when it is enabled - the same
     /// picture with the module's boxes drawn in. The thermal window always keeps the sub stream.
@@ -199,7 +205,7 @@ Item {
         target: App.SiyiCameraController
         function onConnectedChanged() {
             if (App.SiyiCameraController.connected) {
-                root._applyPodStreams()
+                root._applyPodStreams(root.eoShowsWideAngle)
             }
         }
     }
@@ -208,11 +214,11 @@ Item {
     // Image mode 3 is zoom on main, 5 is wide angle on main, and both leave thermal on sub.
     // The AI module infers on the main stream and its manual requires the zoom camera, so
     // enabling AI forces the zoom choice.
-    function _applyPodStreams() {
-        const wide = eoShowsWideAngle &&
+    function _applyPodStreams(wantWideAngle) {
+        const wide = wantWideAngle &&
                      !QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue
-        App.SiyiCameraController.setCameraImageType(wide ? 5 : 3)
-        eoShowsWideAngle = wide
+        App.SiyiCameraController.setCameraImageType(wide ? root._imageTypeWideMain
+                                                         : root._imageTypeZoomMain)
     }
 
     // Re-apply when AI is switched on or off, since AI pins the main stream to the zoom
@@ -221,7 +227,7 @@ Item {
         target: QGroundControl.settingsManager.siyiCameraSettings.aiEnabled
         function onRawValueChanged() {
             if (App.SiyiCameraController.connected) {
-                root._applyPodStreams()
+                root._applyPodStreams(root.eoShowsWideAngle)
             }
         }
     }
@@ -276,7 +282,7 @@ Item {
     Component.onCompleted: {
         _redockIfPristine()
         if (App.SiyiCameraController.connected) {
-            _applyPodStreams()
+            _applyPodStreams(eoShowsWideAngle)
         }
     }
 
@@ -791,10 +797,7 @@ Item {
                 iconSource:  root.eoShowsWideAngle ? "qrc:/InstrumentValueIcons/zoom-in.svg"
                                                    : "qrc:/InstrumentValueIcons/zoom-out.svg"
                 enabled:     App.SiyiCameraController.connected
-                onTriggered: {
-                    root.eoShowsWideAngle = !root.eoShowsWideAngle
-                    root._applyPodStreams()
-                }
+                onTriggered: root._applyPodStreams(!root.eoShowsWideAngle)
             },
             ToolStripAction {
                 text:        qsTr("20x")

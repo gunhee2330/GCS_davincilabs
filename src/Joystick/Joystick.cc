@@ -1786,6 +1786,41 @@ void Joystick::_buildAvailableButtonsActionList(Vehicle *vehicle)
         [this]() { emit gimbalYawLock(true); }));
     _availableButtonActions->append(new AvailableButtonAction(_buttonActionGimbalYawFollow,
         [this]() { emit gimbalYawLock(false); }));
+
+    // The pod actions below hold while the button is down, matching the MAVLink gimbal
+    // entries above: press starts a slew, release stops it.
+    _availableButtonActions->append(new AvailableButtonAction(_buttonActionSiyiGimbalUp,
+        [this]() { emit siyiGimbalStart(0, 1); },
+        [this]() { emit siyiGimbalStop(); }));
+    _availableButtonActions->append(new AvailableButtonAction(_buttonActionSiyiGimbalDown,
+        [this]() { emit siyiGimbalStart(0, -1); },
+        [this]() { emit siyiGimbalStop(); }));
+    _availableButtonActions->append(new AvailableButtonAction(_buttonActionSiyiGimbalLeft,
+        [this]() { emit siyiGimbalStart(-1, 0); },
+        [this]() { emit siyiGimbalStop(); }));
+    _availableButtonActions->append(new AvailableButtonAction(_buttonActionSiyiGimbalRight,
+        [this]() { emit siyiGimbalStart(1, 0); },
+        [this]() { emit siyiGimbalStop(); }));
+    _availableButtonActions->append(new AvailableButtonAction(_buttonActionSiyiGimbalCenter,
+        [this]() { emit siyiGimbalCenter(); }));
+    _availableButtonActions->append(new AvailableButtonAction(_buttonActionSiyiZoomIn,
+        [this]() { emit siyiZoomStart(1); },
+        [this]() { emit siyiZoomStop(); }));
+    _availableButtonActions->append(new AvailableButtonAction(_buttonActionSiyiZoomOut,
+        [this]() { emit siyiZoomStart(-1); },
+        [this]() { emit siyiZoomStop(); }));
+    _availableButtonActions->append(new AvailableButtonAction(_buttonActionSiyiZoomWide,
+        [this]() { emit siyiZoomWide(); }));
+    _availableButtonActions->append(new AvailableButtonAction(_buttonActionSiyiZoomTele,
+        [this]() { emit siyiZoomTele(); }));
+    _availableButtonActions->append(new AvailableButtonAction(_buttonActionSiyiTakePhoto,
+        [this]() { emit siyiTakePhoto(); }));
+    _availableButtonActions->append(new AvailableButtonAction(_buttonActionSiyiToggleRecord,
+        [this]() { emit siyiToggleRecording(); }));
+    _availableButtonActions->append(new AvailableButtonAction(_buttonActionSiyiToggleWide,
+        [this]() { emit siyiToggleWideAngle(); }));
+    _availableButtonActions->append(new AvailableButtonAction(_buttonActionSiyiToggleAi,
+        [this]() { emit siyiToggleAiRecognition(); }));
     _availableButtonActions->append(new AvailableButtonAction(_buttonActionEmergencyStop,
         [this]() { emit emergencyStop(); }));
     _availableButtonActions->append(new AvailableButtonAction(_buttonActionGripperGrab,

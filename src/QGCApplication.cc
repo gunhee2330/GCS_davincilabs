@@ -41,6 +41,7 @@
 #include "SettingsManager.h"
 #include "SiyiAiController.h"
 #include "SiyiCameraController.h"
+#include "PoliceGimbalJoystick.h"
 #include "PoliceLinkDefaults.h"
 #include "PoliceVideoDefaults.h"
 #include "TakeoffCounter.h"
@@ -366,6 +367,10 @@ void QGCApplication::_initForNormalAppBoot()
 
     // Probe for joysticks
     JoystickManager::instance()->init();
+
+    // The handheld's buttons reach the SIYI pod, which QGC's own gimbal actions cannot: those
+    // speak MAVLink and the pod does not. Must follow both managers' init().
+    PoliceGimbalJoystick::instance()->init();
 
     if (_settingsUpgraded) {
         showAppMessage(tr("The format for %1 saved settings has been modified. "

@@ -221,6 +221,11 @@ void SiyiCameraController::setCameraImageType(int imageType)
         return;
     }
     _sendSingleByte(SiyiProtocol::CommandId::SetCameraImageType, static_cast<quint8>(imageType));
+
+    if (_cameraImageType != imageType) {
+        _cameraImageType = imageType;
+        emit cameraImageTypeChanged();
+    }
 }
 
 void SiyiCameraController::setThermalPalette(int palette)

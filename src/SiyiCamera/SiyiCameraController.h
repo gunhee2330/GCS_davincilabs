@@ -42,6 +42,7 @@ class SiyiCameraController : public QObject
     Q_PROPERTY(double   rollDeg             READ rollDeg                NOTIFY attitudeChanged)
 
     Q_PROPERTY(double   zoomMultiple        READ zoomMultiple           NOTIFY zoomMultipleChanged)
+    Q_PROPERTY(int      cameraImageType     READ cameraImageType        NOTIFY cameraImageTypeChanged)
     Q_PROPERTY(bool     recording           READ recording              NOTIFY configChanged)
     Q_PROPERTY(bool     hdrEnabled          READ hdrEnabled             NOTIFY configChanged)
     Q_PROPERTY(int      motionMode          READ motionMode             NOTIFY configChanged)
@@ -94,6 +95,11 @@ public:
     /// streams. ZT30 only.
     Q_INVOKABLE void setCameraImageType(int imageType);
 
+    /// The routing last commanded through setCameraImageType. The pod does not report it
+    /// back, so this is what we asked for rather than what it is doing; it is still the one
+    /// place that knows, which keeps the fly view's label and the joystick toggle agreeing.
+    [[nodiscard]] int cameraImageType() const { return _cameraImageType; }
+
     /// SiyiProtocol::ThermalPalette / ThermalGain values.
     Q_INVOKABLE void setThermalPalette(int palette);
     Q_INVOKABLE void setThermalGain(int gain);
@@ -128,6 +134,7 @@ signals:
     void firmwareVersionChanged();
     void attitudeChanged();
     void zoomMultipleChanged();
+    void cameraImageTypeChanged();
     void configChanged();
     void rangefinderDistanceChanged();
     void thermalRangeChanged();
@@ -171,6 +178,8 @@ private:
     SiyiProtocol::Attitude _attitude;
     SiyiProtocol::ConfigInfo _config;
     double _zoomMultiple = 1.0;
+    /// Sensor routing as last commanded; the pod sends no readback.
+    int _cameraImageType = static_cast<int>(SiyiProtocol::CameraImageType::MainZoomSubThermal);
     double _rangefinderDistance = std::numeric_limits<double>::quiet_NaN();
     double _thermalMaxTempC = std::numeric_limits<double>::quiet_NaN();
     double _thermalMinTempC = std::numeric_limits<double>::quiet_NaN();

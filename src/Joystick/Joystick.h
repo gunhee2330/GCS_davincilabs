@@ -360,6 +360,20 @@ signals:
     void gimbalYawStop();
     void centerGimbal();
     void gimbalYawLock(bool lock);
+
+    // SIYI optical pod. Separate from the gimbal signals above because those go to
+    // GimbalController over MAVLink and the pod does not speak it.
+    void siyiGimbalStart(int yawDirection, int pitchDirection);
+    void siyiGimbalStop();
+    void siyiGimbalCenter();
+    void siyiZoomStart(int direction);
+    void siyiZoomStop();
+    void siyiZoomWide();
+    void siyiZoomTele();
+    void siyiTakePhoto();
+    void siyiToggleRecording();
+    void siyiToggleWideAngle();
+    void siyiToggleAiRecognition();
     void setArmed(bool arm);
     void setVtolInFwdFlight(bool set);
     void setFlightMode(const QString &flightMode);
@@ -521,5 +535,19 @@ private:
     static constexpr const char *_buttonActionLandingGearRetract=  QT_TR_NOOP("Landing gear retract");
     static constexpr const char *_buttonActionMotorInterlockEnable=   QT_TR_NOOP("Motor Interlock enable");
     static constexpr const char *_buttonActionMotorInterlockDisable=  QT_TR_NOOP("Motor Interlock disable");
+
+    static constexpr const char *_buttonActionSiyiGimbalUp =       QT_TR_NOOP("SIYI Pod Gimbal Up");
+    static constexpr const char *_buttonActionSiyiGimbalDown =     QT_TR_NOOP("SIYI Pod Gimbal Down");
+    static constexpr const char *_buttonActionSiyiGimbalLeft =     QT_TR_NOOP("SIYI Pod Gimbal Left");
+    static constexpr const char *_buttonActionSiyiGimbalRight =    QT_TR_NOOP("SIYI Pod Gimbal Right");
+    static constexpr const char *_buttonActionSiyiGimbalCenter =   QT_TR_NOOP("SIYI Pod Gimbal Center");
+    static constexpr const char *_buttonActionSiyiZoomIn =         QT_TR_NOOP("SIYI Pod Zoom In");
+    static constexpr const char *_buttonActionSiyiZoomOut =        QT_TR_NOOP("SIYI Pod Zoom Out");
+    static constexpr const char *_buttonActionSiyiZoomWide =       QT_TR_NOOP("SIYI Pod Zoom 1x");
+    static constexpr const char *_buttonActionSiyiZoomTele =       QT_TR_NOOP("SIYI Pod Zoom 20x");
+    static constexpr const char *_buttonActionSiyiTakePhoto =      QT_TR_NOOP("SIYI Pod Take Photo");
+    static constexpr const char *_buttonActionSiyiToggleRecord =   QT_TR_NOOP("SIYI Pod Toggle Recording");
+    static constexpr const char *_buttonActionSiyiToggleWide =     QT_TR_NOOP("SIYI Pod Wide/Zoom Camera");
+    static constexpr const char *_buttonActionSiyiToggleAi =       QT_TR_NOOP("SIYI Pod AI Recognition");
 
 };
