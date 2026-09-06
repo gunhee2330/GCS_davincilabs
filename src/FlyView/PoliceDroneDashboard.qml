@@ -174,9 +174,50 @@ Item {
     readonly property color _accentColor: "#33c7ff"
     // Status palette. Grey rests, white is fine, red is the only alarm. Painting every
     // state a different bright colour is what makes a bar unreadable at a glance.
+    // One rhythm for the top bar: every group is a chip of the same height, radius and
+    // ground, with one size for labels and one for values. QGC's own indicators keep their
+    // internals but sit on that height too, so the row reads as one bar rather than a shelf
+    // of parts.
+    readonly property real  _chipHeight: _statusHeight * 0.64
+    readonly property real  _chipPad:    ScreenTools.defaultFontPixelWidth * 1.3
+    readonly property real  _chipRadius: 5
+    readonly property color _chipColor:  "#12ffffff"
+    readonly property real  _labelSize:  Math.max(11, ScreenTools.defaultFontPixelHeight * 0.62)
+    readonly property real  _valueSize:  Math.max(12, ScreenTools.defaultFontPixelHeight * 0.75)
+    readonly property color _labelColor: "#9fb2c4"
+
     readonly property color _idleColor:   "#8a9199"
     readonly property color _normalColor: "#e8edf2"
     readonly property color _alarmColor:  "#ff5b5b"
+
+    // A group of the bar: content centred on the row height, on the same faint ground.
+    component BarChip: Rectangle {
+        id: chip
+
+        default property alias content: chipRow.data
+        property real gap: 6
+
+        /// Tapping the whole chip, padding included. Assigned through data because the
+        /// default property hands plain children to the row.
+        signal clicked()
+
+        Layout.alignment:       Qt.AlignVCenter
+        Layout.preferredHeight: root._chipHeight
+        Layout.preferredWidth:  chipRow.implicitWidth + root._chipPad * 2
+        radius:                 root._chipRadius
+        color:                  root._chipColor
+
+        data: MouseArea {
+            anchors.fill: parent
+            onClicked:    chip.clicked()
+        }
+
+        Row {
+            id:               chipRow
+            anchors.centerIn: parent
+            spacing:          chip.gap
+        }
+    }
 
     signal menuRequested()
 
@@ -253,9 +294,6 @@ Item {
         const xDock = width - _windowWidth
         let y = topBar.height
         for (let i = 0; i < windows.length; ++i) {
-            if (!windows[i].visible) {
-                continue
-            }
             windows[i].x = xDock
             windows[i].y = y
             y += windows[i].height
@@ -337,6 +375,29 @@ Item {
     // reaches it. Bound once per vehicle rather than called from the delegate binding.
     readonly property var _flightTimeFact: _activeVehicle ? _activeVehicle.getFact("flightTime") : null
 
+    /// One AI switch: the on-device detector and the pod module's own recognition follow it,
+    /// so the operator arms one thing before a long press can pick a target.
+    function _setAiEnabled(on) {
+        App.PersonDetector.enabled = on
+        if (App.SiyiAiController.connected) {
+            App.SiyiAiController.setRecognition(on)
+        }
+    }
+
+    // A module that was absent when the switch was flipped never heard the command.
+    Connections {
+        target: App.SiyiAiController
+
+        function onConnectedChanged() {
+            // Only when the module disagrees: the pod's own panel can switch recognition too,
+            // and a reconnect should not quietly undo what was set there.
+            if (App.SiyiAiController.connected &&
+                    App.SiyiAiController.recognitionEnabled !== App.PersonDetector.enabled) {
+                App.SiyiAiController.setRecognition(App.PersonDetector.enabled)
+            }
+        }
+    }
+
     function _toggleExpanded(panelName) {
         expandedPanel = expandedPanel === panelName ? "" : panelName
         if (expandedPanel.length > 0) {
@@ -369,7 +430,7 @@ Item {
             anchors.leftMargin:  ScreenTools.defaultFontPixelWidth * 0.6
             anchors.rightMargin: ScreenTools.defaultFontPixelWidth * 2
             // Status groups need air between them or they read as one run-on string.
-            spacing:             ScreenTools.defaultFontPixelWidth * 1.8
+            spacing:             ScreenTools.defaultFontPixelWidth * 1.2
 
             // A plain Button paints the style's own opaque background, which read as a white
             // slab on this dark bar. Transparent background plus an explicitly light icon
@@ -416,12 +477,13 @@ Item {
             // Only with a vehicle: without one the indicator offers "click to manually
             // connect", and the plug at the bar's right end is the one connect control now.
             Rectangle {
-                Layout.fillHeight:     true
-                Layout.preferredWidth: mainStatus.implicitWidth + ScreenTools.defaultFontPixelWidth * 2
-                visible:               root._activeVehicle
-                color:                 root._mainStatusBGColor
-                opacity:               0.55
-                radius:                4
+                Layout.alignment:       Qt.AlignVCenter
+                Layout.preferredHeight: root._chipHeight
+                Layout.preferredWidth:  mainStatus.implicitWidth + root._chipPad * 2
+                visible:                root._activeVehicle
+                color:                  root._mainStatusBGColor
+                opacity:                0.55
+                radius:                 root._chipRadius
 
                 MainStatusIndicator {
                     id:               mainStatus
@@ -442,12 +504,10 @@ Item {
             // Flight log: takeoff instant, elapsed time, distance flown and the airframe's
             // takeoff count. Elides rather than squeezing the indicators when the window is
             // narrow.
-            RowLayout {
-                id:                    flightLog
-                Layout.fillHeight:     true
-                Layout.maximumWidth:   implicitWidth
-                spacing:               ScreenTools.defaultFontPixelWidth
-                visible:               root._activeVehicle && root.width > ScreenTools.defaultFontPixelWidth * 105
+            BarChip {
+                id:      flightLog
+                gap:     ScreenTools.defaultFontPixelWidth * 1.5
+                visible: root._activeVehicle && root.width > ScreenTools.defaultFontPixelWidth * 105
 
                 Repeater {
                     model: [
@@ -463,20 +523,20 @@ Item {
                     delegate: Row {
                         id: logItem
                         required property var modelData
-                        Layout.alignment: Qt.AlignVCenter
-                        spacing:          4
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing:                5
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            color:                  root._accentColor
-                            font.pixelSize:         Math.max(11, ScreenTools.defaultFontPixelHeight * 0.68)
+                            color:                  root._labelColor
+                            font.pixelSize:         root._labelSize
                             text:                   logItem.modelData.label
                         }
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             color:                  "white"
-                            font.pixelSize:         Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
+                            font.pixelSize:         root._valueSize
                             // Monospace keeps the clock and counters from shifting the row
                             // sideways as digits change.
                             font.family:            "Consolas, monospace"
@@ -494,11 +554,11 @@ Item {
             }
 
             // AI module state, just left of the link plug: the chip icon and AI ON / AI OFF,
-            // keyed on the tracking module answering on its socket.
-            Row {
-                Layout.fillHeight: true
-                Layout.alignment:  Qt.AlignVCenter
-                spacing:           6
+            // keyed on the tracking module answering on its socket. The switch itself is on
+            // the camera rail, with the rest of the pod's controls.
+            BarChip {
+                id:  aiChip
+                gap: 7
 
                 readonly property bool aiUp: App.SiyiAiController.connected
                 // Grey is the resting state. Colour is spent only where it means something:
@@ -510,17 +570,17 @@ Item {
                     width:                  root._menuIconSize
                     height:                 width
                     source:                 "/InstrumentValueIcons/target.svg"
-                    color:                  parent.tint
+                    color:                  aiChip.tint
                     fillMode:               Image.PreserveAspectFit
                     sourceSize.height:      height
                 }
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    color:                  parent.tint
+                    color:                  aiChip.tint
                     font.bold:              true
-                    font.pixelSize:         Math.max(12, ScreenTools.defaultFontPixelHeight * 0.75)
-                    text:                   parent.aiUp ? qsTr("AI 켜짐") : qsTr("AI 꺼짐")
+                    font.pixelSize:         root._valueSize
+                    text:                   aiChip.aiUp ? qsTr("AI 켜짐") : qsTr("AI 꺼짐")
                 }
             }
 
@@ -529,10 +589,9 @@ Item {
             // is the connect button: without a vehicle it opens QGC's link chooser, the page
             // the status label on the left also opens; with one, the links now up, each with
             // its own disconnect.
-            Item {
-                id:                    linkIndicator
-                Layout.fillHeight:     true
-                Layout.preferredWidth: linkRow.implicitWidth
+            BarChip {
+                id:  linkIndicator
+                gap: 7
 
                 // Three states, not two. Nothing attached yet is not the same as a link that
                 // dropped mid flight, and only the second one is an alarm.
@@ -540,37 +599,29 @@ Item {
                 readonly property color tint:   notYet ? root._idleColor
                                                        : (root._linkUp ? root._normalColor : root._alarmColor)
 
-                Row {
-                    id:                     linkRow
+                // A dot reads as state at any size. A plug drawn at 16 px does not.
+                Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing:                7
-
-                    // A dot reads as state at any size. A plug drawn at 16 px does not.
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width:                  Math.max(8, root._menuIconSize * 0.42)
-                        height:                 width
-                        radius:                 width / 2
-                        color:                  linkIndicator.notYet ? "transparent" : linkIndicator.tint
-                        border.width:           linkIndicator.notYet ? Math.max(1, width * 0.16) : 0
-                        border.color:           linkIndicator.tint
-                    }
-
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        color:                  linkIndicator.tint
-                        font.bold:              !linkIndicator.notYet
-                        font.pixelSize:         Math.max(12, ScreenTools.defaultFontPixelHeight * 0.75)
-                        text:                   linkIndicator.notYet ? qsTr("연결 안 됨")
-                                                                     : (root._linkUp ? qsTr("연결됨") : qsTr("신호 끊김"))
-                    }
+                    width:                  Math.max(8, root._menuIconSize * 0.42)
+                    height:                 width
+                    radius:                 width / 2
+                    color:                  linkIndicator.notYet ? "transparent" : linkIndicator.tint
+                    border.width:           linkIndicator.notYet ? Math.max(1, width * 0.16) : 0
+                    border.color:           linkIndicator.tint
                 }
 
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked:    mainWindow.showIndicatorDrawer(root._activeVehicle ? linkConnectedPage : linkSelectPage,
-                                                                 linkIndicator)
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    color:                  linkIndicator.tint
+                    font.bold:              !linkIndicator.notYet
+                    font.pixelSize:         root._valueSize
+                    text:                   linkIndicator.notYet
+                                                ? qsTr("연결 안 됨")
+                                                : (root._linkUp ? qsTr("연결됨") : qsTr("신호 끊김"))
                 }
+
+                onClicked: mainWindow.showIndicatorDrawer(root._activeVehicle ? linkConnectedPage : linkSelectPage,
+                                                          linkIndicator)
             }
         }
     }
@@ -636,10 +687,11 @@ Item {
 
         width:  root._windowWidth
         height: root._windowWidth * 9 / 16
-        // Tapping anywhere on a camera swaps it with the map. The other two windows stay put,
-        // floating above the full screen layer instead of vanishing under its backdrop.
-        visible: root.expandedPanel !== panelKey
-        z:       root.expandedPanel.length > 0 ? 21 : 10
+        // Tapping a camera fills the screen with it. The column goes with it: on a tablet the
+        // three windows cover a third of the width, which is most of what the operator zoomed
+        // in to see. Only the map stays, small, at the bottom.
+        visible: root.expandedPanel.length === 0
+        z:       10
 
         Rectangle {
             anchors.fill: parent
@@ -815,18 +867,27 @@ Item {
                 onTriggered: App.SiyiCameraController.takePhoto()
             },
             ToolStripAction {
-                text:        App.SiyiAiController.hasTarget
-                                 ? qsTr("추적해제")
-                                 : (App.SiyiAiController.recognitionEnabled ? qsTr("AI 끄기") : qsTr("AI 켜기"))
+                // The AI switch: the on-device detector and the pod's recognition together.
+                // Checked draws the strip's highlight, so the button reads as on or off.
+                text:        qsTr("AI")
                 iconSource:  "/res/police_ai.svg"
-                enabled:     App.SiyiAiController.connected
+                checkable:   true
+                checked:     App.PersonDetector.enabled
                 onTriggered: {
-                    if (App.SiyiAiController.hasTarget) {
-                        App.SiyiAiController.cancelTracking()
-                    } else {
-                        App.SiyiAiController.setRecognition(!App.SiyiAiController.recognitionEnabled)
-                    }
+                    root._setAiEnabled(!App.PersonDetector.enabled)
+                    // The strip button owns its own checked state once pressed, which drops
+                    // the binding above; put it back so the highlight keeps following.
+                    checked = Qt.binding(() => App.PersonDetector.enabled)
                 }
+            },
+            ToolStripAction {
+                // Greyed out rather than hidden: the module drops hasTarget on a 1.5 s gap in
+                // the target stream, and a button that comes and goes moves every button under
+                // it while the operator is reaching for one.
+                text:        qsTr("추적해제")
+                iconSource:  "/res/police_ai.svg"
+                enabled:     App.SiyiAiController.hasTarget
+                onTriggered: App.SiyiAiController.cancelTracking()
             },
             ToolStripAction {
                 text:        App.SpeakerController.playing ? qsTr("방송정지") : qsTr("경고방송")
@@ -854,7 +915,8 @@ Item {
         // 복귀고도 panel is open closes that panel instead of firing a camera command.
         z:                  toolStrip.z - 2
         width:              ScreenTools.defaultFontPixelWidth * 7
-        maxHeight:          root.height - root._bottomInset - y - 8
+        // Stops above the detection card, which sits in this column's bottom corner.
+        maxHeight:          aiPanel.y - 8 - y
         model:              cameraToolActions.model
     }
 
@@ -1153,23 +1215,16 @@ Item {
             MouseArea { anchors.fill: parent }
         }
 
-        // The map, at the size and place of the top camera window, so the aircraft's position
-        // stays in view while a camera fills the screen. A tap swaps back: map full, camera in
-        // its window. Mirrored from the live map item rather than a second map instance, the
-        // way the EO window mirrors the main video; the texture is kept at the window's own
-        // size so the copy costs little.
+        // The map, small, in the bottom corner, so the aircraft's position stays in view while
+        // a camera fills the screen. A tap swaps back: map full, camera in its window. Mirrored
+        // from the live map item rather than a second map instance, the way the EO window
+        // mirrors the main video; the texture is kept at the copy's own size so it costs little.
         Item {
             id:      mapPip
-            // The map takes the place of whichever window went full screen - a true swap,
-            // so the column keeps its shape and nothing looks lost.
-            readonly property Item swappedWindow: root.expandedPanel === "primary"   ? primaryWindow
-                                                : root.expandedPanel === "secondary" ? secondaryWindow
-                                                : root.expandedPanel === "shared"    ? sharedWindow
-                                                : null
-            width:   root._windowWidth
-            height:  root._windowWidth * 9 / 16
-            x:       swappedWindow ? swappedWindow.x : parent.width - width - 8
-            y:       swappedWindow ? swappedWindow.y : 8
+            width:   root._windowWidth * 0.55
+            height:  width * 9 / 16
+            x:       parent.width - width - 8
+            y:       parent.height - height - 8
             z:       3
             visible: root.mapItem !== null
 
@@ -1218,9 +1273,10 @@ Item {
         }
 
         Rectangle {
-            anchors.right:   parent.right
-            anchors.bottom:  parent.bottom
-            anchors.margins: 10
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom:       parent.bottom
+            // Above the detection card, which floats over this layer.
+            anchors.bottomMargin: root._bottomInset + aiPanel.height + 12
             width:           fullscreenHint.implicitWidth + 20
             height:          fullscreenHint.implicitHeight + 12
             radius:          4
@@ -1241,9 +1297,23 @@ Item {
     // numbers and the gap beside the camera column stays free. Floats above the full screen
     // layer the way the windows do.
     PoliceDroneAiPanel {
-        x: flightInstruments.x + telemetryBar.x
-        y: flightInstruments.y + telemetryBar.y - 8 - height
-        z: root.expandedPanel.length > 0 ? 21 : 3
+        id: aiPanel
+
+        // Beside the telemetry bar, same height, so the two read as one instrument row. On a
+        // narrow screen the camera column takes that space, and the card sits above the bar
+        // instead of running under the windows.
+        readonly property real _besideX:  flightInstruments.x + telemetryBar.x + telemetryBar.width + 6
+        readonly property real _rightEdge: root.width - root._windowWidth - 6
+        readonly property bool _beside:   _besideX + width <= _rightEdge
+
+        x:      Math.min(_beside ? _besideX : flightInstruments.x + telemetryBar.x,
+                         _rightEdge - width)
+        y:      _beside ? flightInstruments.y + telemetryBar.y
+                        : flightInstruments.y + telemetryBar.y - 6 - height
+        // The bar's height is configurable down to a single row, which is shorter than this
+        // card's own two lines; matching it is what is wanted, being crushed by it is not.
+        height: Math.max(implicitHeight, telemetryBar.height)
+        z:      root.expandedPanel.length > 0 ? 21 : 3
     }
 
     // The forward-looking camera on the air unit's second LAN port. It is fixed to the

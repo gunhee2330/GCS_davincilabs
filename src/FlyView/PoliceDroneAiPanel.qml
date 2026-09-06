@@ -5,9 +5,9 @@ import QGC as App
 import QGroundControl
 import QGroundControl.Controls
 
-/// One-line detection strip: the on-device detector's switch and person and vehicle counts,
-/// and the pod AI module's tracking state. Styled like the telemetry bar it sits above so the
-/// two read as one instrument.
+/// Detection card: person and vehicle counts from the on-device detector and the pod AI
+/// module's tracking state. Styled like the telemetry bar it sits beside so the two read as
+/// one instrument row. The switch itself lives in the top bar.
 Item {
     id: root
 
@@ -26,8 +26,12 @@ Item {
     readonly property bool _moduleOn:  QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue
     readonly property bool _tracking:  App.SiyiAiController.hasTarget && !App.SiyiAiController.targetLost
 
-    implicitWidth:  row.implicitWidth + _em * 1.2
-    implicitHeight: Math.max(ScreenTools.minTouchPixels, _em * 2)
+    /// One band for every value, so a Korean status word and a digit sit on the same line
+    /// however their fonts measure.
+    readonly property real _valueHeight: Math.max(18, _em * 1.25)
+
+    implicitWidth:  row.implicitWidth + _em
+    implicitHeight: Math.max(ScreenTools.minTouchPixels, _em * 2.9)
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
@@ -73,63 +77,69 @@ Item {
         MouseArea { anchors.fill: parent }
     }
 
-    component Stat: RowLayout {
+    component Stat: Column {
         id: stat
         property string label
         property string value
         property color  dot
-        /// A status word rather than a count: set smaller so it sits on the same line.
+        /// A status word rather than a count: set smaller so it still fits the value band.
         property bool   word: false
-        spacing: root._em * 0.3
-        Rectangle {
-            Layout.preferredWidth:  root._em * 0.36
-            Layout.preferredHeight: root._em * 0.36
-            radius:                 width / 2
-            color:                  stat.dot
+
+        spacing: root._em * 0.15
+
+        Row {
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing:                  root._em * 0.28
+
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width:                  root._em * 0.36
+                height:                 root._em * 0.36
+                radius:                 width / 2
+                color:                  stat.dot
+            }
+
+            Text {
+                color:          qgcPal.text
+                opacity:        0.7
+                font.pixelSize: Math.max(12, root._em * 0.62)
+                text:           stat.label
+            }
         }
+
         Text {
-            color:          qgcPal.text
-            opacity:        0.7
-            font.pixelSize: Math.max(12, root._em * 0.64)
-            text:           stat.label
+            anchors.horizontalCenter: parent.horizontalCenter
+            height:                   root._valueHeight
+            verticalAlignment:        Text.AlignVCenter
+            color:                    qgcPal.text
+            font.family:              stat.word ? ScreenTools.normalFontFamily : "Open Sans"
+            font.weight:              Font.DemiBold
+            font.pixelSize:           stat.word ? Math.max(13, root._em * 0.82)
+                                                : Math.max(16, root._em * 1.15)
+            text:                     stat.value
         }
-        Text {
-            color:          qgcPal.text
-            font.family:    stat.word ? ScreenTools.normalFontFamily : "Open Sans"
-            font.weight:    stat.word ? Font.Bold : Font.DemiBold
-            font.pixelSize: stat.word ? Math.max(12, root._em * 0.68) : Math.max(14, root._em * 0.95)
-            text:           stat.value
-        }
+    }
+
+    component Divider: Rectangle {
+        Layout.alignment:       Qt.AlignVCenter
+        Layout.preferredWidth:  1
+        Layout.preferredHeight: root._em * 1.8
+        color:                  qgcPal.text
+        opacity:                0.15
     }
 
     RowLayout {
         id:               row
         anchors.centerIn: parent
-        height:           parent.height
         spacing:          root._em * 0.55
 
-        QGCCheckBoxSlider {
-            Layout.preferredHeight: root.height
-            checked:                App.PersonDetector.enabled
-            onClicked:              App.PersonDetector.enabled = checked
-        }
-
-        Text {
-            color:          qgcPal.text
-            font.bold:      true
-            font.pixelSize: Math.max(12, root._em * 0.64)
-            text:           qsTr("AI")
-        }
-
-        Rectangle {
-            Layout.preferredWidth:  1
-            Layout.preferredHeight: root._em
-            color:                  qgcPal.text
-            opacity:                0.15
-        }
-
         Stat { label: qsTr("인원"); value: root._live ? root._persons  : "–"; dot: "#e0a800" }
+
+        Divider {}
+
         Stat { label: qsTr("차량"); value: root._live ? root._vehicles : "–"; dot: "#1f9fd0" }
+
+        Divider {}
 
         // The pod's own AI module, driven from the long press on the zoom window.
         Stat {
@@ -148,5 +158,6 @@ Item {
                  : root._tracking ? "#42d66b"
                  : (App.SiyiAiController.hasTarget ? "#ff5b5b" : "#1f9fd0")
         }
+
     }
 }
