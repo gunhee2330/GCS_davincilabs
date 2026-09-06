@@ -29,6 +29,9 @@ Item {
     property real aiTargetWidth:        0
     property real aiTargetHeight:       0
     property string aiTargetLabel:      qsTr("TARGET")
+    /// Reference frame the aiTarget* values are expressed in, matching the module's own.
+    readonly property real _aiSourceWidth:  1280
+    readonly property real _aiSourceHeight: 720
     /// Readout drawn along the bottom edge while a target is tracked: class, position, size,
     /// laser range. Empty hides it.
     property string aiTargetInfo:       ""
@@ -89,6 +92,12 @@ Item {
         anchors.fill: parent
         videoOutput:  videoOutput
         enabled:      root.personDetectionEnabled && root._hasDirectStream
+        trackedRect:  root.aiTargetVisible
+                          ? Qt.rect(root.aiTargetX / root._aiSourceWidth,
+                                    root.aiTargetY / root._aiSourceHeight,
+                                    root.aiTargetWidth / root._aiSourceWidth,
+                                    root.aiTargetHeight / root._aiSourceHeight)
+                          : Qt.rect(0, 0, 0, 0)
     }
 
     PoliceDroneTargetOverlay {
@@ -184,8 +193,8 @@ Item {
         visible: gimbalDrag.active
     }
 
-    // Long press selects an AI target. A short tap still toggles fullscreen, and the drag
-    // threshold keeps a gimbal slew from being mistaken for a selection.
+    // Long press proposes an AI target; the slide below commits it. A short tap still toggles
+    // fullscreen, and the drag threshold keeps a gimbal slew from being mistaken for a selection.
     TapHandler {
         id:                 targetPick
         enabled:            root.targetPickEnabled
@@ -193,18 +202,91 @@ Item {
         gesturePolicy:      TapHandler.DragThreshold
         onLongPressed: {
             const p = point.position
-            const box = personOverlay.boxAt(p.x, p.y)
-            if (box) {
-                root.targetBoxPicked(box.x, box.y, box.x + box.width, box.y + box.height)
-            } else {
-                // Through contentRect, not the panel size: fullscreen on a non-16:9 screen crops
-                // the frame, and the module wants frame coordinates.
-                const c = videoOutput.contentRect
-                root.targetPicked((p.x - c.x) / Math.max(1, c.width), (p.y - c.y) / Math.max(1, c.height))
-            }
+            root._proposeTarget(p)
             pickFlash.x = p.x - pickFlash.width / 2
             pickFlash.y = p.y - pickFlash.height / 2
             pickFlash.flash()
+        }
+    }
+
+    /// The pick the operator has proposed and not yet confirmed: a detected box when the press
+    /// landed on one, otherwise the point itself. Null when nothing is pending.
+    property var _pendingBox:   null
+    property var _pendingPoint: null
+
+    function _proposeTarget(p) {
+        const box = personOverlay.boxAt(p.x, p.y)
+        root._pendingBox = box
+        root._pendingPoint = box ? null : Qt.point(p.x, p.y)
+        pendingTimeout.restart()
+    }
+
+    function _clearProposal() {
+        pendingTimeout.stop()
+        root._pendingBox = null
+        root._pendingPoint = null
+    }
+
+    function _commitProposal() {
+        if (root._pendingBox) {
+            const b = root._pendingBox
+            root.targetBoxPicked(b.x, b.y, b.x + b.width, b.y + b.height)
+        } else if (root._pendingPoint) {
+            // Through contentRect, not the panel size: fullscreen on a non-16:9 screen crops
+            // the frame, and the module wants frame coordinates.
+            const c = videoOutput.contentRect
+            const p = root._pendingPoint
+            root.targetPicked((p.x - c.x) / Math.max(1, c.width), (p.y - c.y) / Math.max(1, c.height))
+        }
+        root._clearProposal()
+    }
+
+    // A proposal the operator walks away from must not sit there waiting to be slid by accident.
+    Timer {
+        id:          pendingTimeout
+        interval:    12000
+        onTriggered: root._clearProposal()
+    }
+
+    // The picked box, marked in the colour it will keep once the pod is following it.
+    Rectangle {
+        readonly property rect _content: videoOutput.contentRect
+        visible:      root._pendingBox !== null
+        x:            _content.x + (root._pendingBox ? root._pendingBox.x * _content.width : 0)
+        y:            _content.y + (root._pendingBox ? root._pendingBox.y * _content.height : 0)
+        width:        root._pendingBox ? root._pendingBox.width * _content.width : 0
+        height:       root._pendingBox ? root._pendingBox.height * _content.height : 0
+        color:        "transparent"
+        border.color: "#ff9500"
+        border.width: Math.max(2, ScreenTools.defaultFontPixelWidth * 0.25)
+
+        SequentialAnimation on opacity {
+            running: parent.visible
+            loops:   Animation.Infinite
+            NumberAnimation { to: 0.35; duration: 500 }
+            NumberAnimation { to: 1.0;  duration: 500 }
+        }
+    }
+
+    // Same gesture as takeoff: a deliberate slide, because this one starts pointing the pod.
+    Row {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom:           parent.bottom
+        anchors.bottomMargin:     ScreenTools.defaultFontPixelHeight
+        spacing:                  ScreenTools.defaultFontPixelWidth
+        visible:                  root._pendingBox !== null || root._pendingPoint !== null
+
+        SliderSwitch {
+            anchors.verticalCenter: parent.verticalCenter
+            width:                  Math.min(implicitWidth * 1.2, root.width * 0.6)
+            confirmText:            qsTr("이 대상을 추적")
+            onAccept:               root._commitProposal()
+        }
+
+        QGCButton {
+            anchors.verticalCenter: parent.verticalCenter
+            text:                   qsTr("취소")
+            onClicked:              root._clearProposal()
         }
     }
 

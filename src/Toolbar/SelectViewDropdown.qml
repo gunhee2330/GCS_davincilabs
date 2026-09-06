@@ -85,9 +85,6 @@ ToolIndicatorPage {
                 Layout.fillWidth: true
                 text: qsTr("기체 설정")
                 imageResource: "/res/police_menu_vehicle.svg"
-                // Calibration, frame type and parameters are a maintainer's screen, not an
-                // operator's: gated the same way 분석 already is, behind the PIN'd developer mode.
-                visible: QGroundControl.corePlugin.showAdvancedUI
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
                         mainWindow.closeIndicatorDrawer()

@@ -23,6 +23,11 @@ Item {
     readonly property color markColor:    "#00ff00"
     readonly property color vehicleColor: "#4cc9f0"
 
+    /// The box the pod is following, normalised in the frame, or an empty rect. A detection that
+    /// sits under it is not drawn: the operator picked one box and it changed colour, and two
+    /// marks on one person reads as two people.
+    property rect trackedRect: Qt.rect(0, 0, 0, 0)
+
     readonly property var  _boxes:        App.PersonDetector.boxes
     readonly property var  _vehicleBoxes: App.PersonDetector.vehicleBoxes
     readonly property rect _content:      videoOutput.contentRect
@@ -69,6 +74,16 @@ Item {
         property color markBoxColor
     }
 
+    /// True when @a box is mostly covered by the pod's tracked box.
+    function _isTracked(box) {
+        if ((trackedRect.width <= 0) || (trackedRect.height <= 0) || (box.width <= 0)) {
+            return false
+        }
+        const w = Math.max(0, Math.min(box.x + box.width,  trackedRect.x + trackedRect.width)  - Math.max(box.x, trackedRect.x))
+        const h = Math.max(0, Math.min(box.y + box.height, trackedRect.y + trackedRect.height) - Math.max(box.y, trackedRect.y))
+        return (w * h) > (0.5 * box.width * box.height)
+    }
+
     Repeater {
         // Fixed pool: a person the detector loses for a frame hides its delegate instead of
         // destroying and rebuilding it, and its mosaic layer, at detector rate.
@@ -80,7 +95,7 @@ Item {
             readonly property bool detected: index < root._boxes.length
             readonly property rect box:      detected ? root._boxes[index] : Qt.rect(0, 0, 0, 0)
 
-            visible: detected
+            visible: detected && !root._isTracked(box)
             x:       root._content.x + box.x * root._content.width
             y:       root._content.y + box.y * root._content.height
             width:   box.width * root._content.width
