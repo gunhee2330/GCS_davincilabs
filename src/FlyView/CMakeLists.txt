@@ -63,6 +63,7 @@ qt_add_qml_module(FlyViewModule
         PoliceDroneAiPanel.qml
         PoliceDroneCameraPanel.qml
         PoliceDroneDashboard.qml
+        PoliceDroneHitTest.js
         PoliceDronePersonOverlay.qml
         PoliceDroneTargetOverlay.qml
         PreFlightBatteryCheck.qml

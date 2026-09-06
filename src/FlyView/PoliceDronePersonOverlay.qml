@@ -4,6 +4,8 @@ import QtMultimedia
 import QGC as App
 import QGroundControl.Controls
 
+import "PoliceDroneHitTest.js" as HitTest
+
 /// Person and vehicle brackets and head mosaics over the EO video; the counts are shown by
 /// PoliceDroneAiPanel. The detector reports boxes normalised in the decoded frame, so they are
 /// mapped through the VideoOutput's contentRect, which also accounts for the crop when the
@@ -41,6 +43,16 @@ Item {
         id:          staleTimer
         interval:    1500
         onTriggered: root._fresh = false
+    }
+
+    /// The detected box under a point in this item's coordinates, as the detector's own rect, or
+    /// null. See PoliceDroneHitTest.js for the rules.
+    function boxAt(x, y) {
+        if (!visible) {
+            return null
+        }
+        return HitTest.boxAt([_boxes, _vehicleBoxes], maxBoxes, _content, width, height,
+                             ScreenTools.minTouchPixels, x, y)
     }
 
     // Four corner brackets around one detection, drawn inside the item's bounds.

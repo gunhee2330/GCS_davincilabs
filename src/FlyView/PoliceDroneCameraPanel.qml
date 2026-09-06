@@ -39,8 +39,12 @@ Item {
     signal activated()
 
     /// Long press on the video picks an AI target. Coordinates are normalised 0..1 across
-    /// the panel, which the controller scales into the stream's own resolution.
+    /// the video frame, which the controller scales into the stream's own resolution.
     signal targetPicked(real normalisedX, real normalisedY)
+
+    /// Long press on a box the on-device detector drew hands that box to the AI module instead
+    /// of the bare point, so the tracker starts on the whole object. Same 0..1 frame coordinates.
+    signal targetBoxPicked(real left, real top, real right, real bottom)
 
     function _sendGimbalRate() {
         if (!gimbalControlEnabled || !gimbalDrag.active) {
@@ -77,6 +81,7 @@ Item {
     }
 
     PoliceDronePersonOverlay {
+        id:           personOverlay
         anchors.fill: parent
         videoOutput:  videoOutput
         enabled:      root.personDetectionEnabled && root._hasDirectStream
@@ -184,7 +189,15 @@ Item {
         gesturePolicy:      TapHandler.DragThreshold
         onLongPressed: {
             const p = point.position
-            root.targetPicked(p.x / Math.max(1, root.width), p.y / Math.max(1, root.height))
+            const box = personOverlay.boxAt(p.x, p.y)
+            if (box) {
+                root.targetBoxPicked(box.x, box.y, box.x + box.width, box.y + box.height)
+            } else {
+                // Through contentRect, not the panel size: fullscreen on a non-16:9 screen crops
+                // the frame, and the module wants frame coordinates.
+                const c = videoOutput.contentRect
+                root.targetPicked((p.x - c.x) / Math.max(1, c.width), (p.y - c.y) / Math.max(1, c.height))
+            }
             pickFlash.x = p.x - pickFlash.width / 2
             pickFlash.y = p.y - pickFlash.height / 2
             pickFlash.flash()
@@ -243,6 +256,9 @@ Item {
     TapHandler {
         acceptedButtons: Qt.LeftButton
         gesturePolicy:   TapHandler.DragThreshold
+        // Same threshold as the target pick: a hold that selected a target must not also
+        // count as a tap on release and flip fullscreen.
+        longPressThreshold: targetPick.longPressThreshold
         onTapped:        root.activated()
     }
 

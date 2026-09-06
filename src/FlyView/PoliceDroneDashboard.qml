@@ -1339,6 +1339,7 @@ Item {
         targetPickEnabled:    root._aiPickEnabled
         onActivated:          root._toggleExpanded("secondary")
         onTargetPicked:       (nx, ny) => App.SiyiAiController.trackPoint(nx, ny)
+        onTargetBoxPicked:    (l, t, r, b) => App.SiyiAiController.trackBox(l, t, r, b)
     }
 
     PoliceDroneCameraPanel {
