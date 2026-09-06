@@ -10,9 +10,8 @@ import QGroundControl.PlanView
 Rectangle {
     id: _root
     width: parent.width
-    // 7인치(1280x800)에서 상류 기본 높이는 지도 세로의 6% 를 먹는다. 이 화면에서만 줄인다.
-    height: Math.round(ScreenTools.toolbarHeight * 0.8)
-    color: qgcPal.toolbarBackground
+    height: PoliceBar.height
+    color: PoliceBar.color
 
     property var planMasterController
     property bool showRallyPointsHelp: false
@@ -24,16 +23,6 @@ Rectangle {
 
     QGCPalette { id: qgcPal }
 
-    /// Bottom single pixel divider
-    Rectangle {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        height: 1
-        color: "black"
-        visible: qgcPal.globalTheme === QGCPalette.Light
-    }
-
     // The Fly view's police dashboard carries its own ☰; without this the button vanishes on
     // switching to Plan, leaving the logo as the only — undiscoverable — way back.
     QGCToolBarButton {
@@ -42,6 +31,7 @@ Rectangle {
         height: parent.height
         icon.source: "qrc:/qmlimages/Hamburger.svg"
         iconHeight: ScreenTools.defaultFontPixelHeight * 1.2
+        iconColor: PoliceBar.content
         onClicked: mainWindow.showToolSelectDialog()
     }
 
@@ -53,6 +43,7 @@ Rectangle {
         icon.source: "/res/DavinciLabsLogo.png"
         iconAspectRatio: 1153 / 122
         iconHeight: ScreenTools.defaultFontPixelHeight
+        iconColor: PoliceBar.content
         onClicked: mainWindow.showToolSelectDialog()
     }
 
@@ -72,6 +63,7 @@ Rectangle {
             anchors.bottom: parent.bottom
             planMasterController: _root.planMasterController
             showRallyPointsHelp: _root.showRallyPointsHelp
+            barContent: PoliceBar.content
             onToolbarButtonClicked: _root.toolbarButtonClicked()
         }
     }

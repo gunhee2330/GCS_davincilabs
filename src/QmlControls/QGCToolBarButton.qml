@@ -17,6 +17,10 @@ Button {
     property bool logo: false
     property real iconAspectRatio: 1
 
+    // Bars that paint their own ground need to say how their glyphs are tinted; the default is
+    // the palette's, so every existing caller is unaffected.
+    property color iconColor: button.checked ? qgcPal.buttonHighlightText : qgcPal.buttonText
+
     // Wide wordmark logos override this smaller: their width is derived from the height via
     // iconAspectRatio, so the default icon height would make them span much of the toolbar.
     property real iconHeight: ScreenTools.defaultFontPixelHeight * 2
@@ -50,7 +54,7 @@ Button {
             width:                  height * button.iconAspectRatio
             sourceSize.height:      parent.height
             fillMode:               Image.PreserveAspectFit
-            color:                  button.checked ? qgcPal.buttonHighlightText : qgcPal.buttonText
+            color:                  button.iconColor
             source:                 visible ? button.icon.source : ""
             anchors.verticalCenter: parent.verticalCenter
         }
@@ -58,7 +62,7 @@ Button {
             id:                     _label
             visible:                text !== ""
             text:                   button.text
-            color:                  button.checked ? qgcPal.buttonHighlightText : qgcPal.buttonText
+            color:                  button.iconColor
             anchors.verticalCenter: parent.verticalCenter
         }
     }

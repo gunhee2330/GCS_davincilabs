@@ -162,9 +162,7 @@ Item {
     // Sized to its own pictograms now that QGC's toolbar indicators are not in it: the row
     // needs a touch target's height and nothing more, and every pixel saved here goes to the
     // map and the camera windows.
-    readonly property real _statusHeight: Math.max(ScreenTools.minTouchPixels,
-                                                   ScreenTools.defaultFontPixelHeight * 2.6,
-                                                   _barIconSize * 1.8)
+    readonly property real _statusHeight: PoliceBar.height
     readonly property color _panelColor:  "#e5121b24"
     /// Gap kept clear along the bottom edge now that the control panel floats rather than
     /// occupying two full-width bars.
@@ -177,7 +175,7 @@ Item {
     readonly property real  _labelSize:   Math.max(11, ScreenTools.defaultFontPixelHeight * 0.62)
     readonly property real  _valueSize:   Math.max(12, ScreenTools.defaultFontPixelHeight * 0.78)
     readonly property color _labelColor:  "#9fb2c4"
-    readonly property color _barColor:    "#0c1218"
+    readonly property color _barColor:    PoliceBar.color
     readonly property color _readyColor:  "#22c46a"
     readonly property color _warnColor:   "#ffb020"
 
@@ -1176,7 +1174,9 @@ Item {
                 // the target stream, and a button that comes and goes moves every button under
                 // it while the operator is reaching for one.
                 text:        qsTr("추적해제")
-                iconSource:  "/res/police_ai.svg"
+                // A reticle, not the AI glyph the switch above already wears: two buttons with
+                // the same picture read as two halves of one control.
+                iconSource:  "/qmlimages/TrackingIcon.svg"
                 enabled:     App.SiyiAiController.hasTarget
                 onTriggered: App.SiyiAiController.cancelTracking()
             },

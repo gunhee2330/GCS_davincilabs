@@ -137,7 +137,13 @@ Item {
 
         Divider {}
 
-        Stat { label: qsTr("차량"); value: root._live ? root._vehicles : "–"; dot: "#1f9fd0" }
+        // The stat stays whatever the loaded model can see: the slot is the delivery's, not the
+        // model's, and a person-only model reads as a dash here rather than vanishing.
+        Stat {
+            label: qsTr("차량")
+            value: App.PersonDetector.detectsVehicles ? (root._live ? root._vehicles : "–") : "–"
+            dot:   "#1f9fd0"
+        }
 
         Divider {}
 

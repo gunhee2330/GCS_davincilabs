@@ -458,8 +458,8 @@ ApplicationWindow {
             anchors.left:   parent.left
             anchors.right:  parent.right
             anchors.top:    parent.top
-            height:         ScreenTools.toolbarHeight
-            color:          qgcPal.toolbarBackground
+            height:         PoliceBar.height
+            color:          PoliceBar.color
 
             RowLayout {
                 id:                 toolDrawerToolbarLayout
@@ -476,6 +476,7 @@ ApplicationWindow {
                     Layout.fillHeight: true
                     icon.source: "qrc:/qmlimages/Hamburger.svg"
                     iconHeight: ScreenTools.defaultFontPixelHeight * 1.2
+                    iconColor: PoliceBar.content
                     onClicked: mainWindow.showToolSelectDialog()
                 }
 
@@ -486,12 +487,14 @@ ApplicationWindow {
                     icon.source: "/res/DavinciLabsLogo.png"
                     iconAspectRatio: 1153 / 122
                     iconHeight: ScreenTools.defaultFontPixelHeight
+                    iconColor: PoliceBar.content
                     onClicked: mainWindow.showToolSelectDialog()
                 }
 
                 QGCLabel {
                     id:             toolbarDrawerText
                     text:           toolDrawer.toolTitle
+                    color:          PoliceBar.content
                     font.pointSize: ScreenTools.largeFontPointSize
                 }
             }
