@@ -270,7 +270,9 @@ void SiyiAiController::_handleFrame(const SiyiProtocol::Frame &frame)
         if (target) {
             _target = *target;
             _lastTargetTimer.restart();
-            _hasTarget = true;
+            // A cancel from the hand controller or SIYI's own app is only reported here, so
+            // drop the target now instead of waiting out kTargetTimeoutMs.
+            _hasTarget = (_target.status != SiyiAi::TrackingStatus::CancelledByUser);
             emit targetChanged();
         }
         break;

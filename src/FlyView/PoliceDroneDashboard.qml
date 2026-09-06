@@ -1641,6 +1641,16 @@ Item {
         onActivated:          root._toggleExpanded("secondary")
         onTargetPicked:       (nx, ny) => App.SiyiAiController.trackPoint(nx, ny)
         onTargetBoxPicked:    (l, t, r, b) => App.SiyiAiController.trackBox(l, t, r, b)
+        // The module reads selections in the stream's own resolution and never reports what
+        // that is; left at its 1280x720 default a tap on a 1080p stream lands a third in.
+        // Assigned through the properties: the setters are not callable from QML.
+        onStreamRectChanged: {
+            const frame = secondaryPanel.streamRect
+            if ((frame.width > 0) && (frame.height > 0)) {
+                App.SiyiAiController.streamWidth  = frame.width
+                App.SiyiAiController.streamHeight = frame.height
+            }
+        }
     }
 
     PoliceDroneCameraPanel {

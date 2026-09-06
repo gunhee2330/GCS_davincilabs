@@ -33,6 +33,10 @@ Item {
     /// laser range. Empty hides it.
     property string aiTargetInfo:       ""
 
+    /// Decoded frame size of this panel's stream, empty until frames arrive. The AI module
+    /// scales target selections by the stream resolution, which only this panel can know.
+    readonly property rect streamRect: videoOutput.sourceRect
+
     readonly property bool _hasDirectStream: streamObjectName.length > 0
     readonly property int _videoFillMode: VideoOutput.PreserveAspectCrop
 
