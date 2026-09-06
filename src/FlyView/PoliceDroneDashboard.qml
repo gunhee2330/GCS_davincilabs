@@ -899,6 +899,7 @@ Item {
         }
 
         TelemetryValuesBar {
+            id:                     telemetryBar
             Layout.alignment:       Qt.AlignBottom
             settingsGroup:          factValueGrid.telemetryBarSettingsGroup
             specificVehicleForCard: null // Tracks the active vehicle
@@ -1296,17 +1297,13 @@ Item {
         }
     }
 
-    // Detection summary beside the camera column, on the bottom edge, so the counts sit next to
-    // the picture they describe. Floats above the full screen layer the way the windows do.
+    // Detection strip stacked on the telemetry bar, so the bottom-left corner holds all the
+    // numbers and the gap beside the camera column stays free. Floats above the full screen
+    // layer the way the windows do.
     PoliceDroneAiPanel {
-        // Against the column, shrinking rather than sliding under it or over the telemetry bar
-        // when a large font leaves less room between them.
-        x:                    parent.width - root._windowWidth - 8 - width
-        width:                Math.min(implicitWidth, parent.width - root._windowWidth - 16
-                                                      - flightInstruments.x - flightInstruments.width)
-        anchors.bottom:       parent.bottom
-        anchors.bottomMargin: root._bottomInset
-        z:                    root.expandedPanel.length > 0 ? 21 : 3
+        x: flightInstruments.x + telemetryBar.x
+        y: flightInstruments.y + telemetryBar.y - 8 - height
+        z: root.expandedPanel.length > 0 ? 21 : 3
     }
 
     // The forward-looking camera on the air unit's second LAN port. It is fixed to the
