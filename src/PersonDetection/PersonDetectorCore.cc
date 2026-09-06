@@ -87,4 +87,20 @@ QList<QRectF> decodeBoxes(const float* output, const Letterbox& lb, const QSize&
     return kept;
 }
 
+QList<QRectF> mergeBoxes(const QList<QRectF>& boxes, float iouThreshold)
+{
+    QList<QRectF> kept;
+    for (const QRectF& box : boxes) {
+        if (box.isEmpty()) {
+            continue;
+        }
+        const bool duplicate =
+            std::any_of(kept.cbegin(), kept.cend(), [&](const QRectF& k) { return iou(k, box) > iouThreshold; });
+        if (!duplicate) {
+            kept.append(box);
+        }
+    }
+    return kept;
+}
+
 }  // namespace PersonDetectorCore

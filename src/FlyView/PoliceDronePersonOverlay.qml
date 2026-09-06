@@ -17,7 +17,9 @@ Item {
 
     /// Mosaic covers the top of each person box, where the face is at drone altitudes.
     readonly property real  headFraction: 0.2
-    readonly property int   maxBoxes:     16
+    /// Pool size, and so the most brackets and mosaics drawn at once. A crowd seen from the
+    /// air runs to a few dozen, and a pool of 16 drew only the first tiles' worth.
+    readonly property int   maxBoxes:     128
     readonly property color markColor:    "#ffd166"
     readonly property color vehicleColor: "#4cc9f0"
 
@@ -40,8 +42,10 @@ Item {
     }
 
     Timer {
-        id:          staleTimer
-        interval:    1500
+        id: staleTimer
+        // Longer than a full detector sweep: the frame is covered a region at a time, so a
+        // person's box is refreshed once a cycle, not once a frame.
+        interval:    3000
         onTriggered: root._fresh = false
     }
 
@@ -61,8 +65,11 @@ Item {
 
         property color color
 
-        readonly property real _corner: Math.min(width, height) * 0.25
-        readonly property real _stroke: ScreenTools.defaultFontPixelHeight * 0.15
+        readonly property real _corner: Math.min(width, height) * 0.28
+        // Proportional, not a fixed weight: a crowd seen from the air is dozens of ten pixel
+        // boxes, and a three pixel stroke on those paints the picture over.
+        readonly property real _stroke: Math.max(1, Math.min(ScreenTools.defaultFontPixelHeight * 0.15,
+                                                             Math.min(width, height) * 0.08))
 
         Repeater {
             model: 4

@@ -47,7 +47,10 @@ void PersonDetectorCoreTest::_testDecodeUndoesLetterboxAndSuppressesOverlap()
     set(13, 2, 0.6f, 0.7f, 0.1f, 0.1f, 0.25f);
     set(13, 7, 0.6f, 0.7f, 0.1f, 0.1f, 0.25f);
 
-    const QList<QRectF> persons = decodeBoxes(out.data(), lb, sourceSize, kPersonClasses);
+    // Thresholds are passed rather than defaulted: this test is about the decode, not about
+    // whichever confidence the detector happens to run at.
+    constexpr float conf = 0.4f;
+    const QList<QRectF> persons = decodeBoxes(out.data(), lb, sourceSize, kPersonClasses, conf);
     QCOMPARE(persons.size(), 1);
     // input px: cx 160, cy 160, w 80, h 160 -> x0 120, y0 80; undo pad/scale -> (240, 20, 160, 320) px
     QVERIFY(qAbs(persons[0].x() - 240.0 / 640) < 1e-3);
@@ -56,11 +59,27 @@ void PersonDetectorCoreTest::_testDecodeUndoesLetterboxAndSuppressesOverlap()
     QVERIFY(qAbs(persons[0].height() - 320.0 / 360) < 1e-3);
 
     // Same anchors, the vehicle class group: car and truck, no person.
-    const QList<QRectF> vehicles = decodeBoxes(out.data(), lb, sourceSize, kVehicleClasses);
+    const QList<QRectF> vehicles = decodeBoxes(out.data(), lb, sourceSize, kVehicleClasses, conf);
     QCOMPARE(vehicles.size(), 2);
     // car, input px: cx 256, cy 160, w 32, h 32 -> undo pad/scale -> (480, 148, 64, 64) px
     QVERIFY(qAbs(vehicles[0].x() - 480.0 / 640) < 1e-3);
     QVERIFY(qAbs(vehicles[0].y() - 148.0 / 360) < 1e-3);
     QVERIFY(qAbs(vehicles[0].width() - 64.0 / 640) < 1e-3);
     QVERIFY(qAbs(vehicles[0].height() - 64.0 / 360) < 1e-3);
+}
+
+/// The sweep runs the same person past several tiles, and their overlap is what says they are
+/// one person; a neighbour standing close by is not.
+void PersonDetectorCoreTest::_testMergeDropsTheSamePersonSeenTwice()
+{
+    const QRectF person(0.40, 0.40, 0.06, 0.14);
+    const QRectF sameAgain(0.405, 0.405, 0.06, 0.14);  // the tile next door, a pixel off
+    const QRectF neighbour(0.47, 0.40, 0.06, 0.14);    // shoulder to shoulder, still someone else
+
+    const QList<QRectF> merged = PersonDetectorCore::mergeBoxes({person, sameAgain, neighbour});
+
+    QCOMPARE(merged.size(), 2);
+    QCOMPARE(merged.first(), person);  // the earlier list wins, so the whole frame pass does
+    QCOMPARE(merged.last(), neighbour);
+    QVERIFY(PersonDetectorCore::mergeBoxes({person, QRectF()}).size() == 1);
 }

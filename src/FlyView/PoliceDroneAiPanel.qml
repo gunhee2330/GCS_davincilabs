@@ -52,8 +52,9 @@ Item {
     }
 
     Timer {
-        id:          staleTimer
-        interval:    1500
+        id: staleTimer
+        // Longer than a full detector sweep, which covers the frame a region at a time.
+        interval:    3000
         onTriggered: root._fresh = false
     }
 
