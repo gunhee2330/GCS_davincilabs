@@ -127,8 +127,10 @@ bool PersonDetector::_loadWorker()
     }
 
     bool loaded = false;
-    (void) QMetaObject::invokeMethod(&_worker, [this, &loaded]() { loaded = _worker.load(); },
-                                     Qt::BlockingQueuedConnection);
+    (void) QMetaObject::invokeMethod(&_worker, [this, &loaded]() {
+        loaded = _worker.load();
+        _detectsVehicles = loaded && _worker.detectsVehicles();
+    }, Qt::BlockingQueuedConnection);
     return loaded;
 }
 

@@ -12,7 +12,7 @@
 
 Q_DECLARE_LOGGING_CATEGORY(PersonDetectorWorkerLog)
 
-/// \brief Runs the bundled YOLOv8n ONNX model, one frame at a time.
+/// \brief Runs the bundled person detection ONNX model, one frame at a time.
 ///
 /// Lives on PersonDetector's worker thread; every call blocks for the length of an inference,
 /// so nothing here may be touched from the UI thread. Builds without ONNX Runtime keep the
@@ -32,14 +32,23 @@ public:
     explicit PersonDetectorWorker(QObject* parent = nullptr);
     ~PersonDetectorWorker();
 
-    /// Creates the inference session from the compiled-in model. False when the model is
-    /// missing or unusable; safe to call again.
+    /// Creates the inference session from the compiled-in model, taking its input and output shape
+    /// from the session and its output layout and class mapping from the descriptor beside it. False
+    /// when either is missing, unusable, or disagrees with the other; safe to call again.
     bool load();
+
+    /// False when the loaded model has no vehicle class at all, which makes a vehicle count of zero
+    /// meaningless rather than true. False as well until load() has succeeded.
+    [[nodiscard]] bool detectsVehicles() const;
+
+    /// Regions the current sweep covers the frame in, one per detect() call before it wraps.
+    /// Zero until the first frame sized it.
+    [[nodiscard]] int regionCount() const { return static_cast<int>(_regions.size()); }
 
     /// Persons and vehicles in the frame, empty when not loaded or on failure. The frame is
     /// covered by one pass over the whole picture plus a grid of tiles, since a person seen
     /// from the air is only a few pixels tall once a wide frame is squeezed into the model's
-    /// own 320 px input. @a inferenceMs (optional) receives the wall time of all passes.
+    /// own square input. @a inferenceMs (optional) receives the wall time of all passes.
     Detections detect(const QImage& frame, int* inferenceMs);
 
 private:

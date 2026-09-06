@@ -26,6 +26,7 @@ if(QGC_ENABLE_PERSON_DETECTION)
         PREFIX "/PersonDetection"
         BASE "${CMAKE_CURRENT_SOURCE_DIR}/models"
         FILES
-            "${CMAKE_CURRENT_SOURCE_DIR}/models/yolov8n_320.onnx"
+            "${CMAKE_CURRENT_SOURCE_DIR}/models/rtmdet-n-person.onnx"
+            "${CMAKE_CURRENT_SOURCE_DIR}/models/rtmdet-n-person.json"
     )
 endif()
