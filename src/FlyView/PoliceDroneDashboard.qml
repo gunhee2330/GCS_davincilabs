@@ -728,29 +728,30 @@ Item {
     // widget layer would have supplied.
     readonly property var _guidedController: guidedController
 
-    // Text-only buttons in Korean: the stock strip's pictograms are QGC's own and read as
-    // such. AI folds the camera, AI, speaker and return controls into this column as a
-    // drop panel, so the aircraft and its payload are driven from the one place.
+    // Stock pictograms with Korean labels. The aircraft is driven from the left strip and the
+    // pod from the right one, beside the camera windows, so each side of the screen holds one
+    // kind of control.
     ToolStripActionList {
         id: policeToolActions
 
         model: [
             PreFlightCheckListShowAction {
                 text:        qsTr("점검표")
-                iconSource:  ""
                 onTriggered: root._showPreFlightChecklist()
             },
-            GuidedActionTakeoff            { text: qsTr("이륙");     iconSource: "" },
-            GuidedActionLand               { text: qsTr("착륙");     iconSource: "" },
-            GuidedActionRTL                { text: qsTr("복귀");     iconSource: "" },
-            GuidedActionPause              { text: qsTr("일시정지"); iconSource: "" },
-            FlyViewAdditionalActionsButton { text: qsTr("동작");     iconSource: "" },
-            FlyViewGripperButton           { text: qsTr("그리퍼");   iconSource: "" },
-            SiyiCameraToolStripAction      { text: qsTr("카메라");   iconSource: "" },
+            GuidedActionTakeoff            { text: qsTr("이륙") },
+            GuidedActionLand               { text: qsTr("착륙") },
+            GuidedActionRTL                { text: qsTr("복귀") },
+            GuidedActionPause              { text: qsTr("일시정지") },
+            FlyViewAdditionalActionsButton { text: qsTr("동작") },
+            FlyViewGripperButton           { text: qsTr("그리퍼") },
             ToolStripAction {
-                text:               qsTr("AI")
-                iconSource:         ""
-                dropPanelComponent: controlPanelComponent
+                text:               qsTr("복귀고도")
+                iconSource:         "qrc:/InstrumentValueIcons/home.svg"
+                // Ternary rather than &&: the controller is null before the guided layer is
+                // built, and `null && x` yields undefined, which will not assign to a bool.
+                enabled:            root.guidedController ? root.guidedController.showRTL : false
+                dropPanelComponent: rtlAltComponent
             }
         ]
     }
@@ -767,6 +768,182 @@ Item {
         width:              ScreenTools.defaultFontPixelWidth * 7
         maxHeight:          root.height - root._bottomInset - y - 8
         model:              policeToolActions.model
+    }
+
+    // The pod's controls: camera panel, EO sensor, zoom, shutter, AI tracking and the
+    // loudspeaker. The strip's own drop panel only opens to the right, which here is the
+    // camera column, so the panels are DropPanels opened by hand and told the map is the
+    // viewport, which makes them drop to the left.
+    ToolStripActionList {
+        id: cameraToolActions
+
+        model: [
+            ToolStripAction {
+                text:        qsTr("카메라")
+                iconSource:  "qrc:/InstrumentValueIcons/video-camera.svg"
+                visible:     QGroundControl.settingsManager.siyiCameraSettings.userVisible &&
+                             QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue
+                onTriggered: (source) => root._dropLeft(cameraDropPanelComponent, source)
+            },
+            ToolStripAction {
+                // Labelled with the sensor it switches to, like the AI button.
+                text:        root.eoShowsWideAngle ? qsTr("줌") : qsTr("광각")
+                iconSource:  root.eoShowsWideAngle ? "qrc:/InstrumentValueIcons/zoom-in.svg"
+                                                   : "qrc:/InstrumentValueIcons/zoom-out.svg"
+                enabled:     App.SiyiCameraController.connected
+                onTriggered: {
+                    root.eoShowsWideAngle = !root.eoShowsWideAngle
+                    root._applyPodStreams()
+                }
+            },
+            ToolStripAction {
+                text:        qsTr("20x")
+                iconSource:  "qrc:/InstrumentValueIcons/search.svg"
+                enabled:     App.SiyiCameraController.connected
+                onTriggered: App.SiyiCameraController.setZoom(20)
+            },
+            ToolStripAction {
+                text:        qsTr("중앙")
+                iconSource:  "qrc:/InstrumentValueIcons/gimbal-1.svg"
+                enabled:     App.SiyiCameraController.connected
+                onTriggered: App.SiyiCameraController.center()
+            },
+            ToolStripAction {
+                text:        qsTr("촬영")
+                iconSource:  "qrc:/InstrumentValueIcons/camera.svg"
+                enabled:     App.SiyiCameraController.connected
+                onTriggered: App.SiyiCameraController.takePhoto()
+            },
+            ToolStripAction {
+                text:        App.SiyiAiController.hasTarget
+                                 ? qsTr("추적해제")
+                                 : (App.SiyiAiController.recognitionEnabled ? qsTr("AI 끄기") : qsTr("AI 켜기"))
+                iconSource:  "/res/police_ai.svg"
+                enabled:     App.SiyiAiController.connected
+                onTriggered: {
+                    if (App.SiyiAiController.hasTarget) {
+                        App.SiyiAiController.cancelTracking()
+                    } else {
+                        App.SiyiAiController.setRecognition(!App.SiyiAiController.recognitionEnabled)
+                    }
+                }
+            },
+            ToolStripAction {
+                text:        App.SpeakerController.playing ? qsTr("방송정지") : qsTr("경고방송")
+                iconSource:  "/qmlimages/Megaphone.svg"
+                visible:     QGroundControl.settingsManager.speakerSettings.enabled.rawValue
+                enabled:     App.SpeakerController.connected
+                onTriggered: (source) => {
+                    if (App.SpeakerController.playing) {
+                        App.SpeakerController.stopPlayback()
+                    } else {
+                        root._dropLeft(broadcastDropPanelComponent, source)
+                    }
+                }
+            }
+        ]
+    }
+
+    ToolStrip {
+        id:                 cameraToolStrip
+        // Against the camera column's dock, not a window: the windows can be dragged.
+        x:                  root.width - root._windowWidth - 8 - width
+        anchors.top:        topBar.bottom
+        anchors.topMargin:  8
+        // Under the left strip's click-away layer (its z - 1), so a tap here while the
+        // 복귀고도 panel is open closes that panel instead of firing a camera command.
+        z:                  toolStrip.z - 2
+        width:              ScreenTools.defaultFontPixelWidth * 7
+        maxHeight:          root.height - root._bottomInset - y - 8
+        model:              cameraToolActions.model
+    }
+
+    // A fresh DropPanel per open, as the plan and map views do: the panel positions itself
+    // once in onAboutToShow and does not reset for a second showing.
+    function _dropLeft(component, button) {
+        const p = button.mapToItem(root, 0, 0)
+        component.createObject(root, {
+            clickRect:    Qt.rect(p.x, p.y, button.width, button.height),
+            dropViewPort: Qt.rect(0, topBar.height, cameraToolStrip.x, root.height - topBar.height)
+        }).open()
+    }
+
+    Component {
+        id: cameraDropPanelComponent
+
+        DropPanel {
+            onClosed: destroy()
+
+            // The SIYI panel is taller than the tablet, so it scrolls inside the drop panel.
+            sourceComponent: Component {
+                QGCFlickable {
+                    implicitWidth:  siyiPanel.implicitWidth
+                    implicitHeight: Math.min(siyiPanel.implicitHeight,
+                                             root.height - topBar.height - ScreenTools.defaultFontPixelHeight * 3)
+                    contentHeight:  siyiPanel.implicitHeight
+                    clip:           true
+
+                    SiyiCameraControlPanel { id: siyiPanel; width: parent.width }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: broadcastDropPanelComponent
+
+        DropPanel {
+            id: broadcastDropPanel
+
+            onClosed: destroy()
+
+            sourceComponent: Component {
+                ColumnLayout {
+                    spacing: 6
+
+                    Text {
+                        Layout.alignment: Qt.AlignHCenter
+                        color:            "white"
+                        font.bold:        true
+                        font.pixelSize:   Math.max(12, ScreenTools.defaultFontPixelHeight * 0.7)
+                        text:             qsTr("방송 메시지")
+                    }
+
+                    Repeater {
+                        model: App.SpeakerController.messageNames
+
+                        delegate: Button {
+                            required property string modelData
+                            required property int index
+                            Layout.fillWidth:       true
+                            Layout.preferredWidth:  Math.max(ScreenTools.minTouchPixels * 4,
+                                                             ScreenTools.defaultFontPixelWidth * 14)
+                            Layout.preferredHeight: root._touchHeight
+                            // Track numbers are 1 based on the payload.
+                            text:                   qsTr("%1. %2").arg(index + 1).arg(modelData)
+                            onClicked: {
+                                broadcastDropPanel.close()
+                                App.SpeakerController.play(index + 1)
+                            }
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth:    true
+                        horizontalAlignment: Text.AlignHCenter
+                        color:               "#9fb0bd"
+                        font.pixelSize:      Math.max(10, ScreenTools.defaultFontPixelHeight * 0.6)
+                        wrapMode:            Text.WordWrap
+                        visible:             App.SpeakerController.trackCount > 0 &&
+                                             App.SpeakerController.trackCount !==
+                                                 App.SpeakerController.messageNames.length
+                        text:                qsTr("페이로드 파일 %1개 · 이름 %2개 — 설정에서 맞춰주세요")
+                                                 .arg(App.SpeakerController.trackCount)
+                                                 .arg(App.SpeakerController.messageNames.length)
+                    }
+                }
+            }
+        }
     }
 
     function _showPreFlightChecklist() {
@@ -906,295 +1083,58 @@ Item {
         }
     }
 
-    // ------------------------------------------------------------------ control panel
+    // ------------------------------------------------------------- return altitude
     //
-    // Opened from the AI button in the fly tool strip and drawn beside it by the strip's
-    // own drop panel, which also closes it on a press anywhere else. Status lines first,
-    // then the buttons; the whole column is sized to its content.
+    // Opened from the strip's 복귀고도 button and drawn beside it by the strip's own drop
+    // panel, which also closes it on a press anywhere else.
     Component {
-        id: controlPanelComponent
+        id: rtlAltComponent
 
         ColumnLayout {
-            id:      controlPanel
-            width:   Math.max(ScreenTools.minTouchPixels * 4, ScreenTools.defaultFontPixelWidth * 17)
-            spacing: 4
+            spacing: 6
 
-            Text {
-                color:          root._accentColor
-                font.bold:      true
-                font.pixelSize: Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
-                text:           qsTr("AI 상태")
-            }
+            onVisibleChanged: customAltField.text = ""
 
-            Text {
-                color:          App.SiyiAiController.connected
-                                    ? (App.SiyiAiController.recognitionEnabled ? "#42d66b" : "white")
-                                    : "#ff9c46"
-                font.pixelSize: Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
-                text: {
-                    if (!QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue) {
-                        return qsTr("꺼짐")
+            RowLayout {
+                spacing: 5
+
+                Repeater {
+                    model: [10, 50, 100]
+
+                    delegate: Button {
+                        required property int modelData
+                        Layout.preferredWidth:  Math.max(ScreenTools.minTouchPixels * 1.4,
+                                                         ScreenTools.defaultFontPixelWidth * 6)
+                        Layout.preferredHeight: root._touchHeight
+                        text:                   qsTr("%1 m").arg(modelData)
+                        onClicked: {
+                            dropPanel.hide()
+                            root._returnAt(modelData)
+                        }
                     }
-                    if (!App.SiyiAiController.connected) {
-                        return qsTr("모듈 연결 대기")
-                    }
-                    if (!App.SiyiAiController.recognitionEnabled) {
-                        return qsTr("인식 꺼짐")
-                    }
-                    return App.SiyiAiController.hasTarget
-                        ? (App.SiyiAiController.targetLost
-                            ? qsTr("표적 유실: %1").arg(App.SiyiAiController.targetTypeName)
-                            : qsTr("추적 중: %1").arg(App.SiyiAiController.targetTypeName))
-                        : qsTr("인식 중 · 길게 눌러 표적 지정")
                 }
             }
 
-            Text {
-                visible:        root.aiTargetInfo.length > 0
-                color:          "#ffd166"
-                font.pixelSize: Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
-                wrapMode:       Text.WordWrap
-                Layout.fillWidth: true
-                text:           qsTr("표적 %1").arg(root.aiTargetInfo)
-            }
+            RowLayout {
+                spacing: 5
 
-            Text {
-                color:          App.SiyiCameraController.connected ? "#42d66b" : "#ff9c46"
-                font.pixelSize: Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
-                text:           App.SiyiCameraController.connected
-                                ? qsTr("ZT30 연결 · 줌 %1x").arg(Number(App.SiyiCameraController.zoomMultiple).toFixed(1))
-                                : qsTr("ZT30 연결 대기")
-            }
-
-            Text {
-                visible:        QGroundControl.settingsManager.speakerSettings.enabled.rawValue
-                color:          App.SpeakerController.playing ? "#ffcc33"
-                                    : (App.SpeakerController.connected ? "#42d66b" : "#ff9c46")
-                font.pixelSize: Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
-                text: {
-                    if (!App.SpeakerController.connected) {
-                        return qsTr("스피커 대기")
-                    }
-                    return App.SpeakerController.playing
-                        ? qsTr("방송 중 %1").arg(App.SpeakerController.currentTrack)
-                        : qsTr("스피커 준비")
-                }
-            }
-
-            Text {
-                color:          "white"
-                font.pixelSize: Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
-                text:           App.SiyiCameraController.rangefinderAvailable
-                                ? qsTr("LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
-                                : qsTr("LRF --")
-            }
-
-            Item { Layout.preferredHeight: 2 }
-
-            Repeater {
-                model: [
-                    { label: qsTr("광각"), action: "wide" },
-                    { label: qsTr("줌"), action: "zoomOnly" },
-                    { label: qsTr("20x"), action: "zoom" },
-                    { label: qsTr("중앙"), action: "center" },
-                    { label: qsTr("촬영"), action: "photo" }
-                ]
-
-                delegate: Button {
-                    required property var modelData
-                    Layout.fillWidth:       true
+                TextField {
+                    id:                     customAltField
+                    Layout.preferredWidth:  Math.max(74, ScreenTools.defaultFontPixelWidth * 9)
                     Layout.preferredHeight: root._touchHeight
-                    text:                   modelData.label
-                    enabled:                App.SiyiCameraController.connected
+                    placeholderText:        qsTr("사용자 설정")
+                    inputMethodHints:       Qt.ImhFormattedNumbersOnly
+                    validator:              DoubleValidator { bottom: 1; top: 1000; decimals: 0 }
+                }
+
+                Button {
+                    Layout.preferredHeight: root._touchHeight
+                    text:                   qsTr("복귀")
+                    enabled:                customAltField.acceptableInput
                     onClicked: {
-                        if (modelData.action === "wide") {
-                            root.eoShowsWideAngle = true
-                            root._applyPodStreams()
-                        } else if (modelData.action === "zoomOnly") {
-                            root.eoShowsWideAngle = false
-                            root._applyPodStreams()
-                        } else if (modelData.action === "zoom") {
-                            App.SiyiCameraController.setZoom(20)
-                        } else if (modelData.action === "center") {
-                            App.SiyiCameraController.center()
-                        } else if (modelData.action === "photo") {
-                            App.SiyiCameraController.takePhoto()
-                        }
-                    }
-                }
-            }
-
-            Button {
-                Layout.fillWidth:       true
-                Layout.preferredHeight: root._touchHeight
-                enabled:                App.SiyiAiController.connected
-                text:                   App.SiyiAiController.hasTarget
-                                            ? qsTr("추적 해제")
-                                            : (App.SiyiAiController.recognitionEnabled ? qsTr("AI 끄기") : qsTr("AI 켜기"))
-                onClicked: {
-                    if (App.SiyiAiController.hasTarget) {
-                        App.SiyiAiController.cancelTracking()
-                    } else {
-                        App.SiyiAiController.setRecognition(!App.SiyiAiController.recognitionEnabled)
-                    }
-                }
-            }
-
-            Button {
-                id:                     broadcastButton
-                Layout.fillWidth:       true
-                Layout.preferredHeight: root._touchHeight
-                visible:                QGroundControl.settingsManager.speakerSettings.enabled.rawValue
-                enabled:                App.SpeakerController.connected
-                text:                   App.SpeakerController.playing ? qsTr("방송 정지") : qsTr("경고방송")
-                onClicked: {
-                    if (App.SpeakerController.playing) {
-                        App.SpeakerController.stopPlayback()
-                    } else {
-                        broadcastPopup.open()
-                    }
-                }
-
-                Popup {
-                    id:      broadcastPopup
-                    y:       -height - 6
-                    x:       (broadcastButton.width - width) / 2
-                    padding: 6
-                    modal:   true
-                    dim:     false
-
-                    background: Rectangle {
-                        color:        "#f2121b24"
-                        border.color: "#526675"
-                        border.width: 1
-                        radius:       5
-                    }
-
-                    ColumnLayout {
-                        spacing: 6
-
-                        Text {
-                            Layout.alignment: Qt.AlignHCenter
-                            color:            "white"
-                            font.bold:        true
-                            font.pixelSize:   Math.max(12, ScreenTools.defaultFontPixelHeight * 0.7)
-                            text:             qsTr("방송 메시지")
-                        }
-
-                        Repeater {
-                            model: App.SpeakerController.messageNames
-
-                            delegate: Button {
-                                required property string modelData
-                                required property int index
-                                Layout.fillWidth:       true
-                                Layout.preferredWidth:  Math.max(ScreenTools.minTouchPixels * 4, ScreenTools.defaultFontPixelWidth * 14)
-                                Layout.preferredHeight: root._touchHeight
-                                // Track numbers are 1 based on the payload.
-                                text:                   qsTr("%1. %2").arg(index + 1).arg(modelData)
-                                onClicked: {
-                                    broadcastPopup.close()
-                                    App.SpeakerController.play(index + 1)
-                                }
-                            }
-                        }
-
-                        Text {
-                            Layout.fillWidth:    true
-                            horizontalAlignment: Text.AlignHCenter
-                            color:               "#9fb0bd"
-                            font.pixelSize:      Math.max(10, ScreenTools.defaultFontPixelHeight * 0.6)
-                            wrapMode:            Text.WordWrap
-                            visible:             App.SpeakerController.trackCount > 0 &&
-                                                 App.SpeakerController.trackCount !== App.SpeakerController.messageNames.length
-                            text:                qsTr("페이로드 파일 %1개 · 이름 %2개 — 설정에서 맞춰주세요")
-                                                     .arg(App.SpeakerController.trackCount)
-                                                     .arg(App.SpeakerController.messageNames.length)
-                        }
-                    }
-                }
-            }
-
-            Button {
-                id:                     rtlButton
-                Layout.fillWidth:       true
-                Layout.preferredHeight: root._touchHeight
-                text:                   qsTr("복귀 고도")
-                // Ternary rather than &&: the controller is null before the guided layer is
-                // built, and `null && x` yields undefined, which will not assign to a bool.
-                enabled:                root.guidedController ? root.guidedController.showRTL : false
-                onClicked:              rtlAltPopup.open()
-
-                Popup {
-                    id:      rtlAltPopup
-                    y:       -height - 6
-                    x:       (rtlButton.width - width) / 2
-                    padding: 6
-                    modal:   true
-                    dim:     false
-
-                    background: Rectangle {
-                        color:        "#f2121b24"
-                        border.color: "#526675"
-                        border.width: 1
-                        radius:       5
-                    }
-
-                    onOpened: customAltField.text = ""
-
-                    ColumnLayout {
-                        spacing: 6
-
-                        Text {
-                            Layout.alignment: Qt.AlignHCenter
-                            color:            "white"
-                            font.bold:        true
-                            font.pixelSize:   Math.max(12, ScreenTools.defaultFontPixelHeight * 0.7)
-                            text:             qsTr("복귀 고도")
-                        }
-
-                        RowLayout {
-                            spacing: 5
-
-                            Repeater {
-                                model: [10, 50, 100]
-
-                                delegate: Button {
-                                    required property int modelData
-                                    Layout.preferredWidth:  Math.max(ScreenTools.minTouchPixels * 1.4, ScreenTools.defaultFontPixelWidth * 6)
-                                    Layout.preferredHeight: root._touchHeight
-                                    text:                   qsTr("%1 m").arg(modelData)
-                                    onClicked: {
-                                        rtlAltPopup.close()
-                                        root._returnAt(modelData)
-                                    }
-                                }
-                            }
-                        }
-
-                        RowLayout {
-                            spacing: 5
-
-                            TextField {
-                                id:                     customAltField
-                                Layout.preferredWidth:  Math.max(74, ScreenTools.defaultFontPixelWidth * 9)
-                                Layout.preferredHeight: root._touchHeight
-                                placeholderText:        qsTr("사용자 설정")
-                                inputMethodHints:       Qt.ImhFormattedNumbersOnly
-                                validator:              DoubleValidator { bottom: 1; top: 1000; decimals: 0 }
-                            }
-
-                            Button {
-                                Layout.preferredHeight: root._touchHeight
-                                text:                   qsTr("복귀")
-                                enabled:                customAltField.acceptableInput
-                                onClicked: {
-                                    const alt = Number(customAltField.text)
-                                    rtlAltPopup.close()
-                                    root._returnAt(alt)
-                                }
-                            }
-                        }
+                        const alt = Number(customAltField.text)
+                        dropPanel.hide()
+                        root._returnAt(alt)
                     }
                 }
             }
