@@ -39,7 +39,7 @@ ColumnLayout {
         QGCLabel {
             Layout.fillWidth:   true
             horizontalAlignment: Text.AlignRight
-            text:               root._connected ? qsTr("Connected") : qsTr("Not connected")
+            text:               root._connected ? qsTr("연결됨") : qsTr("연결 안 됨")
             color:              root._connected ? qgcPal.colorGreen : qgcPal.colorOrange
         }
     }
@@ -54,20 +54,20 @@ ColumnLayout {
 
     QGCButton {
         Layout.fillWidth:   true
-        text:               root._connected ? qsTr("Reconnect") : qsTr("Connect")
+        text:               root._connected ? qsTr("재연결") : qsTr("연결")
         onClicked:          SiyiCameraController.start()
     }
 
     // ------------------------------------------------------------------ Gimbal
 
     QGCLabel {
-        text:       qsTr("Gimbal")
+        text:       qsTr("짐벌")
         font.bold:  true
     }
 
     QGCLabel {
         Layout.fillWidth:   true
-        text:               qsTr("Yaw %1°   Pitch %2°")
+        text:               qsTr("좌우 %1°   상하 %2°")
                                 .arg(SiyiCameraController.yawDeg.toFixed(1))
                                 .arg(SiyiCameraController.pitchDeg.toFixed(1))
         font.pointSize:     ScreenTools.smallFontPointSize
@@ -100,7 +100,7 @@ ColumnLayout {
 
         QGCButton {
             Layout.preferredWidth:  root._buttonWidth
-            text:                   qsTr("Center")
+            text:                   qsTr("중앙")
             onClicked:              SiyiCameraController.center()
         }
 
@@ -129,11 +129,11 @@ ColumnLayout {
         Layout.fillWidth:   true
         enabled:            root._connected
 
-        QGCLabel { text: qsTr("Mode") }
+        QGCLabel { text: qsTr("모드") }
 
         QGCComboBox {
             Layout.fillWidth:   true
-            model:              [qsTr("Lock"), qsTr("Follow"), qsTr("FPV")]
+            model:              [qsTr("고정"), qsTr("추종"), qsTr("FPV")]
             currentIndex:       SiyiCameraController.motionMode
             onActivated:        (index) => SiyiCameraController.setMotionMode(index)
         }
@@ -142,7 +142,7 @@ ColumnLayout {
     // ------------------------------------------------------------------ Camera
 
     QGCLabel {
-        text:       qsTr("Camera")
+        text:       qsTr("카메라")
         font.bold:  true
     }
 
@@ -152,7 +152,7 @@ ColumnLayout {
 
         QGCButton {
             Layout.fillWidth:   true
-            text:               qsTr("Zoom −")
+            text:               qsTr("줌 −")
             onPressed:          SiyiCameraController.zoom(-1)
             onReleased:         SiyiCameraController.zoom(0)
             onCanceled:         SiyiCameraController.zoom(0)
@@ -160,7 +160,7 @@ ColumnLayout {
 
         QGCButton {
             Layout.fillWidth:   true
-            text:               qsTr("Zoom +")
+            text:               qsTr("줌 +")
             onPressed:          SiyiCameraController.zoom(1)
             onReleased:         SiyiCameraController.zoom(0)
             onCanceled:         SiyiCameraController.zoom(0)
@@ -175,7 +175,7 @@ ColumnLayout {
 
     QGCLabel {
         Layout.fillWidth:   true
-        text:               qsTr("Zoom %1x").arg(SiyiCameraController.zoomMultiple.toFixed(1))
+        text:               qsTr("줌 %1배").arg(SiyiCameraController.zoomMultiple.toFixed(1))
         font.pointSize:     ScreenTools.smallFontPointSize
     }
 
@@ -185,13 +185,13 @@ ColumnLayout {
 
         QGCButton {
             Layout.fillWidth:   true
-            text:               qsTr("Photo")
+            text:               qsTr("사진")
             onClicked:          SiyiCameraController.takePhoto()
         }
 
         QGCButton {
             Layout.fillWidth:   true
-            text:               SiyiCameraController.recording ? qsTr("Stop") : qsTr("Record")
+            text:               SiyiCameraController.recording ? qsTr("녹화중지") : qsTr("녹화")
             onClicked:          SiyiCameraController.toggleRecording()
         }
     }
@@ -205,7 +205,7 @@ ColumnLayout {
     // ------------------------------------------------------------------ ZT30 only
 
     QGCLabel {
-        text:       qsTr("Sensors")
+        text:       qsTr("센서")
         font.bold:  true
         visible:    root._isZT30
     }
@@ -216,15 +216,15 @@ ColumnLayout {
         enabled:            root._connected
         // Index maps directly to the SDK's camera image type values.
         model: [
-            qsTr("Zoom + thermal PIP / wide sub"),
-            qsTr("Wide + thermal PIP / zoom sub"),
-            qsTr("Zoom + wide PIP / thermal sub"),
-            qsTr("Zoom main / thermal sub"),
-            qsTr("Zoom main / wide sub"),
-            qsTr("Wide main / thermal sub"),
-            qsTr("Wide main / zoom sub"),
-            qsTr("Thermal main / zoom sub"),
-            qsTr("Thermal main / wide sub")
+            qsTr("줌 + 열상 PIP / 보조 광각"),
+            qsTr("광각 + 열상 PIP / 보조 줌"),
+            qsTr("줌 + 광각 PIP / 보조 열상"),
+            qsTr("주 줌 / 보조 열상"),
+            qsTr("주 줌 / 보조 광각"),
+            qsTr("주 광각 / 보조 열상"),
+            qsTr("주 광각 / 보조 줌"),
+            qsTr("주 열상 / 보조 줌"),
+            qsTr("주 열상 / 보조 광각")
         ]
         onActivated: (index) => SiyiCameraController.setCameraImageType(index)
     }
@@ -234,16 +234,16 @@ ColumnLayout {
         visible:            root._isZT30
         enabled:            root._connected
 
-        QGCLabel { text: qsTr("Palette") }
+        QGCLabel { text: qsTr("색상표") }
 
         QGCComboBox {
             Layout.fillWidth:   true
             // Value 1 is unused in the SIYI palette table, hence the explicit value list.
             property var paletteValues: [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
             model: [
-                qsTr("White hot"), qsTr("Sepia"), qsTr("Iron bow"), qsTr("Rainbow"),
-                qsTr("Night"), qsTr("Aurora"), qsTr("Red hot"), qsTr("Jungle"),
-                qsTr("Medical"), qsTr("Black hot"), qsTr("Glory hot")
+                qsTr("화이트핫"), qsTr("세피아"), qsTr("아이언보우"), qsTr("레인보우"),
+                qsTr("나이트"), qsTr("오로라"), qsTr("레드핫"), qsTr("정글"),
+                qsTr("메디컬"), qsTr("블랙핫"), qsTr("글로리핫")
             ]
             onActivated: (index) => SiyiCameraController.setThermalPalette(paletteValues[index])
         }
@@ -253,10 +253,10 @@ ColumnLayout {
         Layout.fillWidth:   true
         visible:            root._isZT30
         text:               SiyiCameraController.thermalRangeAvailable
-                                ? qsTr("Thermal %1 °C … %2 °C")
+                                ? qsTr("열상 %1 °C … %2 °C")
                                     .arg(SiyiCameraController.thermalMinTempC.toFixed(1))
                                     .arg(SiyiCameraController.thermalMaxTempC.toFixed(1))
-                                : qsTr("Thermal data unavailable")
+                                : qsTr("열상 데이터 없음")
         font.pointSize:     ScreenTools.smallFontPointSize
     }
 
@@ -264,15 +264,15 @@ ColumnLayout {
         Layout.fillWidth:   true
         visible:            root._isZT30
         text:               SiyiCameraController.rangefinderAvailable
-                                ? qsTr("Rangefinder %1 m").arg(SiyiCameraController.rangefinderDistance.toFixed(0))
-                                : qsTr("Rangefinder unavailable")
+                                ? qsTr("LRF %1 m").arg(SiyiCameraController.rangefinderDistance.toFixed(0))
+                                : qsTr("LRF --")
         font.pointSize:     ScreenTools.smallFontPointSize
     }
 
     // ------------------------------------------------------------------ AI module
 
     QGCLabel {
-        text:       qsTr("AI Tracking")
+        text:       qsTr("AI 추적")
         font.bold:  true
         visible:    root._aiConfigured
     }
@@ -283,7 +283,7 @@ ColumnLayout {
 
         QGCLabel {
             Layout.fillWidth:   true
-            text:               root._aiConnected ? qsTr("Module connected") : qsTr("Module not connected")
+            text:               root._aiConnected ? qsTr("모듈 연결됨") : qsTr("모듈 연결 안 됨")
             color:              root._aiConnected ? qgcPal.colorGreen : qgcPal.colorOrange
             font.pointSize:     ScreenTools.smallFontPointSize
         }
@@ -296,13 +296,13 @@ ColumnLayout {
 
         QGCButton {
             Layout.fillWidth:   true
-            text:               SiyiAiController.recognitionEnabled ? qsTr("AI On") : qsTr("AI Off")
+            text:               SiyiAiController.recognitionEnabled ? qsTr("AI 끄기") : qsTr("AI 켜기")
             onClicked:          SiyiAiController.setRecognition(!SiyiAiController.recognitionEnabled)
         }
 
         QGCButton {
             Layout.fillWidth:   true
-            text:               qsTr("Cancel Track")
+            text:               qsTr("추적 해제")
             enabled:            SiyiAiController.hasTarget
             onClicked:          SiyiAiController.cancelTracking()
         }
@@ -313,9 +313,9 @@ ColumnLayout {
         visible:            root._aiConfigured
         text:               SiyiAiController.hasTarget
                                 ? (SiyiAiController.targetLost
-                                    ? qsTr("Target lost: %1").arg(SiyiAiController.targetTypeName)
-                                    : qsTr("Tracking: %1").arg(SiyiAiController.targetTypeName))
-                                : qsTr("No target")
+                                    ? qsTr("표적 놓침: %1").arg(SiyiAiController.targetTypeName)
+                                    : qsTr("추적 중: %1").arg(SiyiAiController.targetTypeName))
+                                : qsTr("표적 없음")
         font.pointSize:     ScreenTools.smallFontPointSize
     }
 }
