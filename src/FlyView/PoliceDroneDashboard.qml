@@ -1242,10 +1242,15 @@ Item {
                 onTriggered: root._applyPodStreams(!root.eoShowsWideAngle)
             },
             ToolStripAction {
-                text:        qsTr("20x")
+                // The pod zooms while a button is held and stops on release, which a strip
+                // action cannot express - it only fires on click. So zoom opens a panel, and
+                // the fixed magnifications that used to sit here moved inside it.
+                // "배율" not "줌": the button above already says 줌 when it means the pod's
+                // zoom lens, and two 줌 buttons side by side read as the same control.
+                text:        qsTr("배율")
                 iconSource:  "qrc:/InstrumentValueIcons/search.svg"
                 enabled:     App.SiyiCameraController.connected
-                onTriggered: App.SiyiCameraController.setZoom(20)
+                onTriggered: (source) => root._dropLeft(zoomDropPanelComponent, source)
             },
             ToolStripAction {
                 text:        qsTr("중앙")
@@ -1355,6 +1360,71 @@ Item {
                     clip:           true
 
                     SiyiCameraControlPanel { id: siyiPanel; width: parent.width }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: zoomDropPanelComponent
+
+        DropPanel {
+            id: zoomDropPanel
+
+            // A panel torn down mid-press would leave the lens running, so stop it either way.
+            onClosed: {
+                App.SiyiCameraController.zoom(0)
+                destroy()
+            }
+
+            sourceComponent: Component {
+                ColumnLayout {
+                    spacing: 6
+
+                    Text {
+                        Layout.alignment: Qt.AlignHCenter
+                        color:            "white"
+                        font.bold:        true
+                        font.pixelSize:   Math.max(12, ScreenTools.defaultFontPixelHeight * 0.7)
+                        text:             qsTr("줌 %1배").arg(App.SiyiCameraController.zoomMultiple.toFixed(1))
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing:          6
+
+                        Repeater {
+                            model: [ { label: qsTr("줌 −"), dir: -1 },
+                                     { label: qsTr("줌 +"), dir:  1 } ]
+
+                            delegate: Button {
+                                required property var modelData
+                                Layout.fillWidth:       true
+                                Layout.preferredWidth:  Math.max(ScreenTools.minTouchPixels * 2,
+                                                                 ScreenTools.defaultFontPixelWidth * 7)
+                                Layout.preferredHeight: root._touchHeight
+                                text:                   modelData.label
+                                onPressed:              App.SiyiCameraController.zoom(modelData.dir)
+                                onReleased:             App.SiyiCameraController.zoom(0)
+                                onCanceled:             App.SiyiCameraController.zoom(0)
+                            }
+                        }
+                    }
+
+                    Repeater {
+                        model: [1, 10, 20]
+
+                        delegate: Button {
+                            required property int modelData
+                            Layout.fillWidth:       true
+                            Layout.preferredHeight: root._touchHeight
+                            text:                   qsTr("%1배").arg(modelData)
+                            onClicked: {
+                                zoomDropPanel.close()
+                                App.SiyiCameraController.setZoom(modelData)
+                            }
+                        }
+                    }
                 }
             }
         }
