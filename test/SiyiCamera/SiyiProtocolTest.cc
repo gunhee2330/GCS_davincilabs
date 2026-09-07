@@ -269,6 +269,8 @@ void SiyiProtocolTest::_aiEncodeTrackCommands_test()
     // action 1 + top-left (640,360) little endian + (0,0) marks a point pick.
     QCOMPARE(SiyiAi::encodeTrackPoint(640, 360),
              fromHex("55660109000000" "06" "018002680100000000" "ebfc"));
+    // Nine payload bytes. A shorter frame leaves touch_rx/touch_ry outside DATA, and the
+    // module reads them anyway - see the note on encodeCancelTracking.
     QCOMPARE(SiyiAi::encodeCancelTracking(),
              fromHex("55660109000000" "06" "000000000000000000" "a172"));
 

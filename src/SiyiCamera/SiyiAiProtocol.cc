@@ -76,6 +76,12 @@ QByteArray encodeTrackBox(quint16 left, quint16 top, quint16 right, quint16 bott
 
 QByteArray encodeCancelTracking(quint16 sequence)
 {
+    // Nine bytes, the full command table form, even though the bench answers sta 0. The module
+    // reads touch_rx/touch_ry at payload offsets 5 and 7 unconditionally, whatever DATA_LEN
+    // says, and its receive buffer is not cleared between frames - a short cancel makes those
+    // two fields the previous frame's residue, which can arm a fresh selection box instead of
+    // clearing one. The bench refusal is not a length problem: when the module's own selection
+    // flag is already down, no 0x06 payload cancels anything.
     return encodeTrackAction(kActionCancel, 0, 0, 0, 0, sequence);
 }
 
