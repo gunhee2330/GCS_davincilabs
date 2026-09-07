@@ -1,17 +1,27 @@
 #!/usr/bin/env python3
 """Loudspeaker payload daemon for the police drone.
 
-Listens on UDP for the ground station's playback commands and plays the matching audio
-file through the attached amplifier. The ground station only ever sends a track number;
-the audio itself lives here, so a broadcast already under way is unaffected by a link
-drop.
+Runs on the aircraft's small Linux computer (Raspberry Pi Zero 2 W or a Radxa Zero 3E -
+the code is identical, only the OS setup differs) and drives the loudspeaker two ways:
 
-Wire format is the SIYI packet framing the aircraft already uses for the camera, so the
-airframe carries one format rather than two:
+  * Stored warnings. The ground station sends a track number on the control port; the
+    audio itself lives here, so a broadcast already under way is unaffected by a link
+    drop. This is the reliable path for fixed warnings.
+
+  * Live microphone. The ground station streams raw PCM to the audio port and the daemon
+    plays it as it arrives. A live stream takes priority over a stored track: pressing
+    push-to-talk cuts in over whatever file was playing.
+
+Both come out of the same USB speaker, which the daemon finds by name so the same code
+works on either board no matter which ALSA card number the speaker lands on.
+
+Wire format on the control port is the SIYI packet framing the aircraft already uses for
+the camera, so the airframe carries one control format rather than two:
 
     0x55 0x66 | CTRL(1) | DATA_LEN(2, LE) | SEQ(2, LE) | CMD_ID(1) | DATA | CRC16(2, LE)
 
-CRC is CRC-16/XMODEM (poly 0x1021, init 0).
+CRC is CRC-16/XMODEM (poly 0x1021, init 0). Live audio packets on the audio port carry a
+tiny header of their own (0x55 0x67 + sequence) followed by 16 kHz / 16-bit / mono PCM.
 
 Install as a systemd service so it survives a reboot:
 
@@ -24,6 +34,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import signal
 import socket
@@ -35,13 +46,26 @@ import time
 from pathlib import Path
 
 AUDIO_DIR = Path(os.environ.get("SPEAKER_AUDIO_DIR", "/opt/speaker/audio"))
-LISTEN_PORT = int(os.environ.get("SPEAKER_PORT", "37270"))
+CONTROL_PORT = int(os.environ.get("SPEAKER_PORT", "37270"))
+# Live microphone PCM arrives one port above the control channel.
+AUDIO_PORT = int(os.environ.get("SPEAKER_AUDIO_PORT", str(CONTROL_PORT + 1)))
+
+# The ground station streams 16 kHz / 16-bit / mono. Speech is clear at this rate and it
+# is only 256 kbps, which the SIYI link carries without touching the video budget.
+AUDIO_RATE = int(os.environ.get("SPEAKER_AUDIO_RATE", "16000"))
 
 # A broadcast keeps playing when the link drops, but not forever: an aircraft that flies
 # away still shouting is worse than one that goes quiet. Refreshed by any command.
 DEADMAN_SECONDS = float(os.environ.get("SPEAKER_DEADMAN_SECONDS", "120"))
 
+# The live stream ends when the operator lets go of push-to-talk, which just stops the
+# packets. Close the pipe after this long a gap so the tail of a word is not clipped but
+# the speaker does not sit open hissing.
+AUDIO_IDLE_SECONDS = float(os.environ.get("SPEAKER_AUDIO_IDLE_SECONDS", "0.4"))
+
 STX = b"\x55\x66"
+AUDIO_MAGIC = b"\x55\x67"  # one greater than the control STX, so the two never alias
+AUDIO_HEADER_LEN = 4  # magic(2) + sequence(2)
 HEADER_LEN = 8  # STX(2) + CTRL(1) + LEN(2) + SEQ(2) + CMD(1)
 CRC_LEN = 2
 
@@ -102,11 +126,38 @@ def decode(buffer: bytearray) -> list[tuple[int, int, bytes]]:
     return frames
 
 
-class Player:
-    """Plays one file at a time. Starting a new track replaces whatever is playing."""
+def find_usb_alsa_device() -> str | None:
+    """ALSA device string for the USB speaker, or None to let ALSA pick the default.
 
-    def __init__(self, audio_dir: Path) -> None:
+    The USB speaker enumerates as a different card number on different boards (and can even
+    move between boots), so it is found by the word USB in `aplay -l` rather than a fixed
+    index. SPEAKER_ALSA_DEVICE overrides this when a board needs a hand-picked device.
+    """
+    override = os.environ.get("SPEAKER_ALSA_DEVICE")
+    if override:
+        return override
+    if not shutil.which("aplay"):
+        return None
+    try:
+        listing = subprocess.run(
+            ["aplay", "-l"], capture_output=True, text=True, timeout=5
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    for line in listing.splitlines():
+        match = re.match(r"card (\d+):", line)
+        if match and "usb" in line.lower():
+            # plughw, not hw: it resamples/reformats so a file at some other rate still plays.
+            return f"plughw:{match.group(1)},0"
+    return None
+
+
+class Player:
+    """Plays one stored file at a time. Starting a new track replaces whatever is playing."""
+
+    def __init__(self, audio_dir: Path, device: str | None) -> None:
         self._audio_dir = audio_dir
+        self._device = device
         self._process: subprocess.Popen | None = None
         self._track = 0
         self._volume = 80
@@ -115,7 +166,7 @@ class Player:
 
     @staticmethod
     def _find_player() -> str | None:
-        for candidate in ("mpg123", "ffplay", "aplay"):
+        for candidate in ("mpg123", "aplay", "ffplay"):
             if shutil.which(candidate):
                 return candidate
         return None
@@ -127,6 +178,20 @@ class Player:
             p for p in self._audio_dir.iterdir()
             if p.suffix.lower() in {".mp3", ".wav", ".ogg", ".flac"}
         )
+
+    def _argv(self, path: Path) -> list[str]:
+        if self._player_cmd == "mpg123":
+            argv = ["mpg123", "-q", "-f", str(int(self._volume * 327.68))]
+            if self._device:
+                argv += ["-o", "alsa", "-a", self._device]
+            return argv + [str(path)]
+        if self._player_cmd == "aplay":
+            argv = ["aplay", "-q"]
+            if self._device:
+                argv += ["-D", self._device]
+            return argv + [str(path)]
+        # ffplay has no simple device flag; it falls back to the ALSA default.
+        return ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", str(path)]
 
     def play(self, track: int) -> None:
         files = self.tracks()
@@ -140,14 +205,10 @@ class Player:
         path = files[track - 1]
         with self._lock:
             self._terminate_locked()
-            if self._player_cmd == "mpg123":
-                argv = ["mpg123", "-q", "-f", str(int(self._volume * 327.68)), str(path)]
-            elif self._player_cmd == "ffplay":
-                argv = ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", str(path)]
-            else:
-                argv = ["aplay", "-q", str(path)]
             log.info("playing track %d: %s", track, path.name)
-            self._process = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self._process = subprocess.Popen(
+                self._argv(path), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
             self._track = track
 
     def stop(self) -> None:
@@ -168,20 +229,132 @@ class Player:
 
     def set_volume(self, percent: int) -> None:
         self._volume = max(0, min(100, percent))
-        # amixer is best effort: the exact control name varies by audio HAT.
+        # amixer is best effort: the exact control name varies by USB device and board, and a
+        # bench machine may have no alsa-utils at all. File playback still honours the level
+        # through mpg123's own gain, so a missing mixer must not take the daemon down.
+        if shutil.which("amixer") is None:
+            return
         for control in ("PCM", "Master", "Speaker"):
-            if subprocess.run(
-                ["amixer", "sset", control, f"{self._volume}%"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            ).returncode == 0:
+            try:
+                result = subprocess.run(
+                    ["amixer", "sset", control, f"{self._volume}%"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+            except OSError:
+                return
+            if result.returncode == 0:
                 break
 
-    def state(self) -> bytes:
+    def playing(self) -> bool:
         with self._lock:
-            playing = self._process is not None and self._process.poll() is None
-            if not playing:
+            alive = self._process is not None and self._process.poll() is None
+            if not alive:
                 self._track = 0
+            return alive
+
+    def state(self) -> bytes:
+        playing = self.playing()
         return bytes([1 if playing else 0, self._track, self._volume, min(255, len(self.tracks()))])
+
+
+class LiveAudio:
+    """Plays the ground station's live microphone stream through a held-open aplay pipe.
+
+    Push-to-talk sends a burst of PCM packets and then stops; there is no explicit end
+    marker, so the pipe is torn down once the packets stop arriving (see stop_if_idle).
+    """
+
+    def __init__(self, device: str | None, rate: int) -> None:
+        self._device = device
+        self._rate = rate
+        self._process: subprocess.Popen | None = None
+        self._last_packet = 0.0
+        self._lock = threading.Lock()
+
+    def active(self) -> bool:
+        with self._lock:
+            return self._process is not None and self._process.poll() is None
+
+    def feed(self, pcm: bytes) -> None:
+        if not pcm:
+            return
+        with self._lock:
+            if self._process is None or self._process.poll() is not None:
+                self._start_locked()
+            # aplay missing or failed to launch: already logged, drop the packet rather than
+            # let the receive thread die and take live audio down for good.
+            if self._process is None or self._process.stdin is None:
+                return
+            self._last_packet = time.monotonic()
+            try:
+                self._process.stdin.write(pcm)
+                self._process.stdin.flush()
+            except (BrokenPipeError, OSError) as exc:
+                log.warning("live audio pipe broke: %s", exc)
+                self._stop_locked()
+
+    def stop_if_idle(self, idle_seconds: float) -> None:
+        with self._lock:
+            if self._process is not None and time.monotonic() - self._last_packet > idle_seconds:
+                log.info("live audio idle, closing")
+                self._stop_locked()
+
+    def stop(self) -> None:
+        with self._lock:
+            self._stop_locked()
+
+    def _start_locked(self) -> None:
+        if shutil.which("aplay") is None:
+            # Once, not once per 20 ms packet: a missing aplay would otherwise flood the journal.
+            if not getattr(self, "_warned_no_aplay", False):
+                log.error("aplay not found; install alsa-utils for live audio")
+                self._warned_no_aplay = True
+            return
+        argv = ["aplay", "-q", "-t", "raw", "-f", "S16_LE", "-r", str(self._rate), "-c", "1"]
+        if self._device:
+            argv += ["-D", self._device]
+        argv += ["-"]
+        log.info("live audio starting")
+        self._process = subprocess.Popen(
+            argv, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+
+    def _stop_locked(self) -> None:
+        if self._process is None:
+            return
+        try:
+            if self._process.stdin is not None:
+                self._process.stdin.close()
+        except OSError:
+            pass
+        if self._process.poll() is None:
+            self._process.terminate()
+            try:
+                self._process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                self._process.kill()
+        self._process = None
+
+
+def _audio_loop(sock: socket.socket, live: LiveAudio, player: Player, running: threading.Event) -> None:
+    """Receive live PCM and play it, cutting in over any stored track."""
+    sock.settimeout(0.2)
+    while running.is_set():
+        try:
+            datagram, _sender = sock.recvfrom(4096)
+        except socket.timeout:
+            live.stop_if_idle(AUDIO_IDLE_SECONDS)
+            continue
+        except OSError as exc:
+            log.error("audio socket error: %s", exc)
+            continue
+
+        if len(datagram) <= AUDIO_HEADER_LEN or datagram[:2] != AUDIO_MAGIC:
+            continue
+        # First packet of a burst: silence the stored track so the two do not overlap.
+        if not live.active():
+            player.stop()
+        live.feed(datagram[AUDIO_HEADER_LEN:])
 
 
 def main() -> int:
@@ -191,20 +364,34 @@ def main() -> int:
         stream=sys.stdout,
     )
 
-    player = Player(AUDIO_DIR)
+    device = find_usb_alsa_device()
+    log.info("audio device: %s", device or "(ALSA default)")
+
+    player = Player(AUDIO_DIR, device)
+    live = LiveAudio(device, AUDIO_RATE)
     log.info("audio dir %s (%d files), player=%s", AUDIO_DIR, len(player.tracks()), player._player_cmd)
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("0.0.0.0", LISTEN_PORT))
-    sock.settimeout(1.0)
-    log.info("listening on udp/%d", LISTEN_PORT)
+    control_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    control_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    control_sock.bind(("0.0.0.0", CONTROL_PORT))
+    control_sock.settimeout(1.0)
+    log.info("control on udp/%d", CONTROL_PORT)
 
-    running = True
+    audio_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    audio_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    audio_sock.bind(("0.0.0.0", AUDIO_PORT))
+    log.info("live audio on udp/%d (%d Hz)", AUDIO_PORT, AUDIO_RATE)
+
+    running = threading.Event()
+    running.set()
+
+    audio_thread = threading.Thread(
+        target=_audio_loop, args=(audio_sock, live, player, running), daemon=True
+    )
+    audio_thread.start()
 
     def shutdown(*_args: object) -> None:
-        nonlocal running
-        running = False
+        running.clear()
 
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
@@ -213,27 +400,30 @@ def main() -> int:
     last_command = time.monotonic()
     sequence = 0
 
-    while running:
+    while running.is_set():
         try:
-            datagram, sender = sock.recvfrom(2048)
+            datagram, sender = control_sock.recvfrom(2048)
             buffer.extend(datagram)
         except socket.timeout:
-            # Stop a broadcast that outlives contact with the ground station.
-            if time.monotonic() - last_command > DEADMAN_SECONDS:
-                if player.state()[0]:
-                    log.warning("deadman expired after %.0fs, stopping playback", DEADMAN_SECONDS)
-                    player.stop()
+            # Stop a broadcast that outlives contact with the ground station. Live audio
+            # stops on its own the moment push-to-talk is released, so this only guards
+            # stored tracks.
+            if time.monotonic() - last_command > DEADMAN_SECONDS and player.playing():
+                log.warning("deadman expired after %.0fs, stopping playback", DEADMAN_SECONDS)
+                player.stop()
             continue
         except OSError as exc:
-            log.error("socket error: %s", exc)
+            log.error("control socket error: %s", exc)
             continue
 
         for command_id, _seq, payload in decode(buffer):
             last_command = time.monotonic()
 
             if command_id == CMD_PLAY and payload:
+                live.stop()  # an explicit file request wins over a live stream
                 player.play(payload[0])
             elif command_id == CMD_STOP:
+                live.stop()
                 player.stop()
             elif command_id == CMD_SET_VOLUME and payload:
                 player.set_volume(payload[0])
@@ -242,10 +432,14 @@ def main() -> int:
                 continue
 
             sequence = (sequence + 1) & 0xFFFF
-            sock.sendto(encode(command_id, player.state(), sequence), sender)
+            control_sock.sendto(encode(command_id, player.state(), sequence), sender)
 
+    running.clear()
+    audio_thread.join(timeout=2)
+    live.stop()
     player.stop()
-    sock.close()
+    control_sock.close()
+    audio_sock.close()
     log.info("stopped")
     return 0
 
