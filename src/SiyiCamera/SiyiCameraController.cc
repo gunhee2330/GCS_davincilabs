@@ -28,9 +28,15 @@ constexpr int kRangefinderInterval = 5;   ///< 2 Hz
 constexpr int kThermalInterval = 10;      ///< 1 Hz
 constexpr int kIdentityInterval = 20;     ///< Retry firmware/model discovery at 0.5 Hz.
 
+/// How many times the poll may ask the pod to light its laser before giving up on this link.
+/// Enough to ride out a dropped datagram, and bounded because 0x31 is unverified hardware: a
+/// pod that never answers it would otherwise leave _laserOn false and the poll re-sending
+/// 0x32 at 2 Hz for the whole flight.
+constexpr int kLaserOnAttempts = 5;
+
 } // namespace
 
-Q_APPLICATION_STATIC(SiyiCameraController, _siyiCameraControllerInstance);
+Q_APPLICATION_STATIC(SiyiCameraController, _siyiCameraControllerInstance, nullptr);
 
 SiyiCameraController::SiyiCameraController(QObject *parent)
     : QObject(parent)
@@ -132,6 +138,13 @@ void SiyiCameraController::stop()
     if (_socket) {
         if ((_yawRate != 0) || (_pitchRate != 0)) {
             _send(SiyiProtocol::encodeGimbalRotation(0, 0, _sequence++));
+        }
+        // Nothing else ever turns the laser off, and the pod keeps it lit across a client
+        // going away, so quitting or unchecking the camera setting would leave a Class 3R
+        // laser firing until the pod is power-cycled. Sent regardless of _laserOn: an
+        // unanswered 0x31 leaves that false while the laser is in fact lit.
+        if (isZT30()) {
+            _send(SiyiProtocol::encodeSetLaserState(false, _sequence++));
         }
         (void) disconnect(_socket, nullptr, this, nullptr);
         _socket->deleteLater();
@@ -347,6 +360,27 @@ void SiyiCameraController::_handleFrame(const SiyiProtocol::Frame &frame)
         break;
     }
 
+    case SiyiProtocol::CommandId::ReadLaserState: {
+        const auto state = SiyiProtocol::parseLaserState(frame.data);
+        if (state) {
+            if (*state) {
+                // Lit, so stop asking for good. Otherwise an operator switching the laser off
+                // on the SIYI hand controller would be overridden by the next poll tick.
+                _laserOnAttemptsLeft = 0;
+            }
+            if (*state != _laserOn) {
+                _laserOn = *state;
+                emit laserStateChanged();
+            }
+        }
+        break;
+    }
+
+    case SiyiProtocol::CommandId::SetLaserState:
+        // The reply only says the pod took the command; the next 0x31 says what it did with it.
+        _sendCommand(SiyiProtocol::CommandId::ReadLaserState);
+        break;
+
     case SiyiProtocol::CommandId::ReadRangefinderTarget: {
         const auto target = SiyiProtocol::parseRangefinderTarget(frame.data);
         if (target) {
@@ -419,6 +453,10 @@ void SiyiCameraController::_poll()
         _yawRate = 0;
         _pitchRate = 0;
         _setConnected(false);
+        // Identity goes with the link. A pod that comes back may have power-cycled into a
+        // different image mode, and the dashboard only re-applies its sensor routing when the
+        // model is announced again.
+        _resetCameraState();
     }
 
     if (rangefinderTargetAvailable() && _lastRangefinderTargetTimer.hasExpired(kRangefinderTimeoutMs)) {
@@ -458,8 +496,18 @@ void SiyiCameraController::_poll()
 
     if (isZT30()) {
         if ((_pollTicks % kRangefinderInterval) == 0) {
+            // An unlit laser answers 0x15/0x17 with zeroes, which both parsers refuse, so the
+            // range and target readouts stay blank with nothing on screen saying why. The pod
+            // powers up unlit and forgets across a power cycle, so light it here.
+            if (!_laserOn && (_laserOnAttemptsLeft > 0)) {
+                --_laserOnAttemptsLeft;
+                _send(SiyiProtocol::encodeSetLaserState(true, _sequence++));
+            }
             _sendCommand(SiyiProtocol::CommandId::ReadRangefinder);
             _sendCommand(SiyiProtocol::CommandId::ReadRangefinderTarget);
+        }
+        if ((_pollTicks % kConfigInterval) == 0) {
+            _sendCommand(SiyiProtocol::CommandId::ReadLaserState);
         }
         if ((_pollTicks % kThermalInterval) == 0) {
             _send(SiyiProtocol::encodeThermalRangeRequest(_sequence++));
@@ -515,6 +563,11 @@ void SiyiCameraController::_resetCameraState()
     _lastFrameTimer.invalidate();
     _lastRangefinderTimer.invalidate();
     _lastRangefinderTargetTimer.invalidate();
+    _laserOnAttemptsLeft = kLaserOnAttempts;
+    if (_laserOn) {
+        _laserOn = false;
+        emit laserStateChanged();
+    }
     _lastThermalRangeTimer.invalidate();
 }
 

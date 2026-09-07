@@ -58,13 +58,21 @@ class SiyiCameraController : public QObject
     Q_PROPERTY(QGeoCoordinate rangefinderTarget READ rangefinderTarget NOTIFY rangefinderTargetChanged)
     Q_PROPERTY(bool rangefinderTargetAvailable  READ rangefinderTargetAvailable NOTIFY rangefinderTargetChanged)
 
+    /// True while the pod reports its laser lit. It powers up unlit, so the controller asks for
+    /// it once the pod answers; until then range and target coordinate both read as absent.
+    /// Reads false on a pod that does not answer 0x31, whose laser may still be lit.
+    Q_PROPERTY(bool laserOn READ laserOn NOTIFY laserStateChanged)
+
     /// Hottest and coldest temperature in the thermal image, NaN when unavailable.
     Q_PROPERTY(double   thermalMaxTempC     READ thermalMaxTempC        NOTIFY thermalRangeChanged)
     Q_PROPERTY(double   thermalMinTempC     READ thermalMinTempC        NOTIFY thermalRangeChanged)
     Q_PROPERTY(bool     thermalRangeAvailable READ thermalRangeAvailable NOTIFY thermalRangeChanged)
 
 public:
-    explicit SiyiCameraController(QObject *parent = nullptr);
+    /// No default argument: a default-constructible QML_SINGLETON is default-constructed by the
+    /// engine instead of going through create(), which hands QML a second, inert instance while
+    /// the real one talks to the hardware.
+    explicit SiyiCameraController(QObject *parent);
     ~SiyiCameraController();
 
     static SiyiCameraController *instance();
@@ -124,6 +132,7 @@ public:
     [[nodiscard]] bool rangefinderAvailable() const { return std::isfinite(_rangefinderDistance); }
     [[nodiscard]] QGeoCoordinate rangefinderTarget() const { return _rangefinderTarget; }
     [[nodiscard]] bool rangefinderTargetAvailable() const { return _rangefinderTarget.isValid(); }
+    [[nodiscard]] bool laserOn() const { return _laserOn; }
     [[nodiscard]] double thermalMaxTempC() const { return _thermalMaxTempC; }
     [[nodiscard]] double thermalMinTempC() const { return _thermalMinTempC; }
     [[nodiscard]] bool thermalRangeAvailable() const
@@ -140,6 +149,7 @@ signals:
     void configChanged();
     void rangefinderDistanceChanged();
     void rangefinderTargetChanged();
+    void laserStateChanged();
     void thermalRangeChanged();
 
     /// Raised for failures the camera reports itself, e.g. a photo that could not be saved.
@@ -184,6 +194,11 @@ private:
     double _zoomMultiple = 1.0;
     double _rangefinderDistance = std::numeric_limits<double>::quiet_NaN();
     QGeoCoordinate _rangefinderTarget;
+    bool _laserOn = false;
+
+    /// Laser on-commands the poll may still send on this link. Primed by _resetCameraState(),
+    /// spent as soon as the pod confirms the laser lit.
+    int _laserOnAttemptsLeft = 0;
     double _thermalMaxTempC = std::numeric_limits<double>::quiet_NaN();
     double _thermalMinTempC = std::numeric_limits<double>::quiet_NaN();
 };

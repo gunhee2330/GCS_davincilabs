@@ -21,6 +21,8 @@ private slots:
     void _parseConfigInfo_test();
     void _parseHardwareModel_test();
     void _parseRangefinderTarget_test();
+    void _parseRangefinderDistance_test();
+    void _laserStateCodec_test();
     void _parseRejectsShortPayloads_test();
     void _aiEncodeMatchesFraming_test();
     void _aiEncodeTrackCommands_test();

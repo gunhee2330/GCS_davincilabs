@@ -51,7 +51,7 @@ void SiyiAiControllerTest::_cancelledTargetStopsTracking_test()
 
     // Not the singleton: it is only started on a normal app boot, and a private instance keeps
     // the fake module's loopback port to this test.
-    SiyiAiController controller;
+    SiyiAiController controller(nullptr);
     controller.start();
 
     // start() announces itself, and that datagram carries the ephemeral port replies go back to.

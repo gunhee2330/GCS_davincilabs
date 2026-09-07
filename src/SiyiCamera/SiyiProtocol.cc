@@ -255,7 +255,20 @@ std::optional<float> parseRangefinderDistance(const QByteArray &data)
     if (data.size() < 2) {
         return std::nullopt;
     }
-    return static_cast<float>(readUint16(data, 0));
+
+    // Decimetres, not metres. Measured on the airframe: a wall a few metres away came back as
+    // 65, and the pod's own minimum range is 5 m, which is the documented minimum of 50.
+    const quint16 decimetres = readUint16(data, 0);
+
+    // The same "no measurement" the target parser refuses: an unlit laser, or a lit one that
+    // got no return off sky, glass or water, answers with zeroes. Passing that on prints
+    // "LRF 0.0 m" over a shot that never landed instead of blanking the readout. Only zero is
+    // refused, not everything under the documented 50 dm minimum - a real sensor reading a
+    // little short of its own spec is still a reading.
+    if (decimetres == 0) {
+        return std::nullopt;
+    }
+    return static_cast<float>(decimetres) * 0.1F;
 }
 
 std::optional<RangefinderTarget> parseRangefinderTarget(const QByteArray &data)
@@ -275,7 +288,29 @@ std::optional<RangefinderTarget> parseRangefinderTarget(const QByteArray &data)
         (target.latDeg < -90.0) || (target.latDeg > 90.0)) {
         return std::nullopt;
     }
+
+    // An unlit or unreturned laser answers with eight zero bytes, and zero, zero is a real
+    // place in the Gulf of Guinea: taken at face value it puts a target marker on the map for
+    // a measurement that never happened.
+    if (qFuzzyIsNull(target.lonDeg) && qFuzzyIsNull(target.latDeg)) {
+        return std::nullopt;
+    }
     return target;
+}
+
+QByteArray encodeSetLaserState(bool on, quint16 sequence)
+{
+    QByteArray data;
+    data.append(static_cast<char>(on ? 1 : 0));
+    return encodeRaw(static_cast<quint8>(CommandId::SetLaserState), data, sequence);
+}
+
+std::optional<bool> parseLaserState(const QByteArray &data)
+{
+    if (data.isEmpty()) {
+        return std::nullopt;
+    }
+    return static_cast<quint8>(data.at(0)) != 0;
 }
 
 QString parseHardwareModel(const QByteArray &data)

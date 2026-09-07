@@ -51,7 +51,10 @@ class SiyiAiController : public QObject
     Q_PROPERTY(int      streamHeight        READ streamHeight       WRITE setStreamHeight   NOTIFY streamResolutionChanged)
 
 public:
-    explicit SiyiAiController(QObject *parent = nullptr);
+    /// No default argument: a default-constructible QML_SINGLETON is default-constructed by the
+    /// engine instead of going through create(), which hands QML a second, inert instance while
+    /// the real one talks to the hardware.
+    explicit SiyiAiController(QObject *parent);
     ~SiyiAiController();
 
     static SiyiAiController *instance();

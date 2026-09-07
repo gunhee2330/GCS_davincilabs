@@ -59,6 +59,11 @@ QByteArray encodeSetTargetStream(bool enabled, quint16 sequence)
     return encodeSingleByte(CommandId::SetTargetStreamState, enabled ? 1 : 0, sequence);
 }
 
+QByteArray encodeSetVideoStream(bool enabled, quint16 sequence)
+{
+    return encodeSingleByte(CommandId::SetVideoStream, enabled ? 1 : 0, sequence);
+}
+
 QByteArray encodeTrackPoint(quint16 x, quint16 y, quint16 sequence)
 {
     return encodeTrackAction(kActionTrack, x, y, 0, 0, sequence);

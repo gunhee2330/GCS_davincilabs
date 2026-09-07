@@ -44,6 +44,8 @@ enum class CommandId : quint8 {
     ReadRangefinder         = 0x15,
     ReadRangefinderTarget   = 0x17,
     SetThermalPalette       = 0x1B,
+    ReadLaserState          = 0x31,
+    SetLaserState           = 0x32,
     SetThermalRawData       = 0x34,
     SetThermalGain          = 0x38,
 };
@@ -184,7 +186,9 @@ struct ThermalRange {
 /// Zoom factor reported by the camera in reply to a manual zoom command.
 [[nodiscard]] std::optional<float> parseZoomMultiple(const QByteArray &data);
 
-/// Laser rangefinder distance in metres. ZT30 only.
+/// Laser rangefinder distance in metres, converted from the decimetres the pod sends.
+/// Absent when the pod reports zero, which is what an unlit laser or one that got no return
+/// answers with — never a measurement. ZT30 only.
 [[nodiscard]] std::optional<float> parseRangefinderDistance(const QByteArray &data);
 
 /// Where the laser is pointing, in WGS84 degrees. ZT30 only.
@@ -199,6 +203,16 @@ struct RangefinderTarget
     double latDeg = 0.0;
 };
 [[nodiscard]] std::optional<RangefinderTarget> parseRangefinderTarget(const QByteArray &data);
+
+/// Turns the laser on or off. The pod powers up with it off and answers 0x15/0x17 with zeroes
+/// until it is on, so nothing that depends on a range works until this has been sent.
+[[nodiscard]] QByteArray encodeSetLaserState(bool on, quint16 sequence = 0);
+
+/// True when the pod reports its laser lit. ZT30 only.
+///
+/// 0x32 was confirmed on the airframe, 0x31 was not: the pod may never answer it, in which
+/// case this stays absent while the laser is in fact lit.
+[[nodiscard]] std::optional<bool> parseLaserState(const QByteArray &data);
 
 /// Model name decoded from the first two hardware id characters, e.g. "ZT30".
 /// Empty when the id is not one this driver knows.

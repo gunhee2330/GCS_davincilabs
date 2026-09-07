@@ -33,7 +33,7 @@ quint16 toReference(double normalised, int span)
 
 } // namespace
 
-Q_APPLICATION_STATIC(SiyiAiController, _siyiAiControllerInstance);
+Q_APPLICATION_STATIC(SiyiAiController, _siyiAiControllerInstance, nullptr);
 
 SiyiAiController::SiyiAiController(QObject *parent)
     : QObject(parent)
@@ -298,7 +298,9 @@ void SiyiAiController::_poll()
     if ((_pollTicks % kStatusInterval) == 0) {
         _send(SiyiAi::encodeRequest(SiyiAi::CommandId::RequestRecognitionState, _sequence++));
         if (!_streamRequested) {
-            // Open the coordinate stream once; afterwards only re-open on reported closure.
+            // Open both streams once; afterwards only re-open on reported closure. The video one
+            // is what makes the module's RTSP actually carry frames on a UDP control link.
+            _send(SiyiAi::encodeSetVideoStream(true, _sequence++));
             _send(SiyiAi::encodeSetTargetStream(true, _sequence++));
             _streamRequested = true;
         } else {

@@ -86,6 +86,15 @@ struct TrackedTarget {
 [[nodiscard]] QByteArray encodeSetRecognition(bool enabled, quint16 sequence = 0);
 [[nodiscard]] QByteArray encodeSetTargetStream(bool enabled, quint16 sequence = 0);
 
+/// Opens or closes the module's RTSP video.
+///
+/// Only needed on a UDP or serial control link. Over TCP the module ties the stream to the
+/// connection and this is never sent, which is why SIYI's own app never has to think about it -
+/// and why this went unnoticed until the module was on the bench: the server completes DESCRIBE
+/// whether or not the encoder is running, so the stream looks alive right up until no frame
+/// arrives. Manual v1.2, CN 0x0b note 2.
+[[nodiscard]] QByteArray encodeSetVideoStream(bool enabled, quint16 sequence = 0);
+
 /// Picks whatever the operator tapped. Coordinates are in the video stream's own resolution.
 [[nodiscard]] QByteArray encodeTrackPoint(quint16 x, quint16 y, quint16 sequence = 0);
 

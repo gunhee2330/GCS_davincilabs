@@ -211,6 +211,35 @@ void SiyiProtocolTest::_parseRangefinderTarget_test()
     // a position, and letting them through would put a marker on the map at a real place.
     QVERIFY(!parseRangefinderTarget(fromHex("00000080" "00000080")).has_value());
     QVERIFY(!parseRangefinderTarget(QByteArray(7, '\0')).has_value());
+
+    // An unlit laser answers with eight zero bytes. Zero, zero is inside both ranges and is a
+    // real place at sea, so it has to be refused by value rather than by range - observed on the
+    // airframe with the laser off.
+    QVERIFY(!parseRangefinderTarget(QByteArray(8, '\0')).has_value());
+}
+
+void SiyiProtocolTest::_parseRangefinderDistance_test()
+{
+    // Decimetres on the wire, metres out. 0x0041 = 65 dm is what a wall a few metres away
+    // measured on the airframe; reading it as metres put 65 m on the operator's screen.
+    const auto range = parseRangefinderDistance(fromHex("4100"));
+    QVERIFY(range.has_value());
+    QVERIFY(qAbs(*range - 6.5F) < 0.001F);
+    QCOMPARE(*parseRangefinderDistance(fromHex("3200")), 5.0F);   // the documented minimum
+
+    // Zero is the pod's "no measurement": an unlit laser, or a lit one that got no return.
+    // Accepted it becomes a finite 0.0 m and the window prints "LRF 0.0 m" as a reading.
+    QVERIFY(!parseRangefinderDistance(fromHex("0000")).has_value());
+}
+
+void SiyiProtocolTest::_laserStateCodec_test()
+{
+    QCOMPARE(encodeSetLaserState(true, 0), fromHex("55660101000000" "3201" "8ff8"));
+    QCOMPARE(encodeSetLaserState(false, 0), fromHex("55660101000000" "3200" "aee8"));
+
+    QCOMPARE(parseLaserState(QByteArray(1, '\1')), std::optional<bool>(true));
+    QCOMPARE(parseLaserState(QByteArray(1, '\0')), std::optional<bool>(false));
+    QVERIFY(!parseLaserState(QByteArray()).has_value());
 }
 
 void SiyiProtocolTest::_parseRejectsShortPayloads_test()
