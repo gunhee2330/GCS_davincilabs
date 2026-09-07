@@ -5,6 +5,7 @@
 
 #include <QtCore/QByteArray>
 #include <QtCore/QElapsedTimer>
+#include <QtPositioning/QGeoCoordinate>
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QObject>
 #include <QtCore/QString>
@@ -51,6 +52,12 @@ class SiyiCameraController : public QObject
     /// Laser rangefinder distance in metres, NaN when no recent reading. ZT30 only.
     Q_PROPERTY(double   rangefinderDistance READ rangefinderDistance    NOTIFY rangefinderDistanceChanged)
     Q_PROPERTY(bool     rangefinderAvailable READ rangefinderAvailable  NOTIFY rangefinderDistanceChanged)
+
+    /// Where the laser is pointing. Diagnostic only: this is the laser's aim point, not the
+    /// tracker's target, and it carries no timestamp of its own, so it must be checked against a
+    /// surveyed point before anything flies on it. ZT30 only.
+    Q_PROPERTY(QGeoCoordinate rangefinderTarget READ rangefinderTarget NOTIFY rangefinderTargetChanged)
+    Q_PROPERTY(bool rangefinderTargetAvailable  READ rangefinderTargetAvailable NOTIFY rangefinderTargetChanged)
 
     /// Hottest and coldest temperature in the thermal image, NaN when unavailable.
     Q_PROPERTY(double   thermalMaxTempC     READ thermalMaxTempC        NOTIFY thermalRangeChanged)
@@ -121,6 +128,8 @@ public:
 
     [[nodiscard]] double rangefinderDistance() const { return _rangefinderDistance; }
     [[nodiscard]] bool rangefinderAvailable() const { return std::isfinite(_rangefinderDistance); }
+    [[nodiscard]] QGeoCoordinate rangefinderTarget() const { return _rangefinderTarget; }
+    [[nodiscard]] bool rangefinderTargetAvailable() const { return _rangefinderTarget.isValid(); }
     [[nodiscard]] double thermalMaxTempC() const { return _thermalMaxTempC; }
     [[nodiscard]] double thermalMinTempC() const { return _thermalMinTempC; }
     [[nodiscard]] bool thermalRangeAvailable() const
@@ -137,6 +146,7 @@ signals:
     void cameraImageTypeChanged();
     void configChanged();
     void rangefinderDistanceChanged();
+    void rangefinderTargetChanged();
     void thermalRangeChanged();
 
     /// Raised for failures the camera reports itself, e.g. a photo that could not be saved.
@@ -165,6 +175,7 @@ private:
     /// Milliseconds since the last valid frame, used to decide the connected state.
     QElapsedTimer _lastFrameTimer;
     QElapsedTimer _lastRangefinderTimer;
+    QElapsedTimer _lastRangefinderTargetTimer;
     QElapsedTimer _lastThermalRangeTimer;
     bool _connected = false;
     bool _initialized = false;
@@ -181,6 +192,7 @@ private:
     /// Sensor routing as last commanded; the pod sends no readback.
     int _cameraImageType = static_cast<int>(SiyiProtocol::CameraImageType::MainZoomSubThermal);
     double _rangefinderDistance = std::numeric_limits<double>::quiet_NaN();
+    QGeoCoordinate _rangefinderTarget;
     double _thermalMaxTempC = std::numeric_limits<double>::quiet_NaN();
     double _thermalMinTempC = std::numeric_limits<double>::quiet_NaN();
 };

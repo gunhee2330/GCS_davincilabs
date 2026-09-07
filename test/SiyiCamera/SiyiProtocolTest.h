@@ -20,6 +20,7 @@ private slots:
     void _parseAttitude_test();
     void _parseConfigInfo_test();
     void _parseHardwareModel_test();
+    void _parseRangefinderTarget_test();
     void _parseRejectsShortPayloads_test();
     void _aiEncodeMatchesFraming_test();
     void _aiEncodeTrackCommands_test();

@@ -12,6 +12,8 @@ import QGroundControl.FactControls
 RowLayout {
     required property var planMasterController
     property bool showRallyPointsHelp: false
+    /// Glyph colour for the bar this row sits on, which paints its own dark ground.
+    property color barContent: "white"
 
     signal toolbarButtonClicked()
 
@@ -109,8 +111,7 @@ RowLayout {
 
     QGCPalette { id: qgcPal }
 
-    readonly property bool  _lightTheme: qgcPal.globalTheme === QGCPalette.Light
-    readonly property color _accent:     _lightTheme ? PolicePalette.accentLight : PolicePalette.accentDark
+    readonly property color _accent: PolicePalette.accentDark
 
     /// 순정 툴바 버튼은 둥근 모서리에 qgcPal.button(#626270, 보랏빛 도는 회색)으로 채워져 있다.
     /// 그 두 가지가 이 줄을 QGC 로 읽히게 한다. 채움과 둥근 모서리를 빼고 글자와 아이콘만 남긴다.
@@ -122,7 +123,8 @@ RowLayout {
                                   : hovered ? Qt.rgba(_accent.r, _accent.g, _accent.b, 0.12)
                                             : "transparent"
         // primary(미저장·미전송)는 채움이 아니라 글자색으로 알린다.
-        textColor:       !enabled ? qgcPal.buttonText : primary ? _accent : qgcPal.text
+        textColor:       !enabled ? Qt.rgba(root.barContent.r, root.barContent.g, root.barContent.b, 0.35)
+                                  : primary ? _accent : root.barContent
     }
 
     ToolButton {
@@ -176,6 +178,7 @@ RowLayout {
 
     QGCLabel {
         text:    qsTr("Click in map to add rally points")
+        color:   root.barContent
         visible: root.showRallyPointsHelp
         Layout.alignment: Qt.AlignVCenter
     }

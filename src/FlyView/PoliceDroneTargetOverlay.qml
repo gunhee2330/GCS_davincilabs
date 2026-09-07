@@ -14,6 +14,7 @@ Item {
     property real sourceHeight:  720
     property string targetLabel: qsTr("TARGET")
     property int fillMode:       Image.PreserveAspectCrop
+    readonly property color trackedColor: "#ff9500"
 
     readonly property real _scaleX: fillMode === Image.Stretch ? width / sourceWidth
                                                                 : fillMode === Image.PreserveAspectFit
@@ -33,7 +34,9 @@ Item {
         width:       root.targetWidth * root._scaleX
         height:      root.targetHeight * root._scaleY
         color:       "transparent"
-        border.color: "#ff3b30"
+        // The same box the detector drew, in the colour that means "this one is being followed":
+        // the operator picked a green box and watches it turn, rather than gaining a second mark.
+        border.color: root.trackedColor
         border.width: Math.max(1, ScreenTools.defaultFontPixelWidth * 0.2)
 
         Rectangle {
@@ -41,7 +44,7 @@ Item {
             anchors.bottom: parent.top
             height:         targetText.implicitHeight + 8
             width:          targetText.implicitWidth + 14
-            color:          "#d9b00000"
+            color:          Qt.rgba(1, 0.58, 0, 0.85)
 
             Text {
                 id:             targetText

@@ -8,5 +8,11 @@ class PersonDetectorCoreTest : public UnitTest
 
 private slots:
     void _testLetterboxKeepsAspect();
+    void _testFillInputMatchesRecipe();
     void _testDecodeUndoesLetterboxAndSuppressesOverlap();
+    void _testDecodeDetsLabelsMapsLabelsAndUndoesLetterbox();
+    void _testDescriptorMapsClassIds();
+    void _testDescriptorStatesLayoutAndPreprocess();
+    void _testTileBoxesMapIntoFrame();
+    void _testMergeDropsTheSamePersonSeenTwice();
 };

@@ -1,5 +1,9 @@
 qt_add_library(ToolbarModule STATIC)
 
+set_source_files_properties(PoliceBar.qml PROPERTIES
+    QT_QML_SINGLETON_TYPE TRUE
+)
+
 qt_add_qml_module(ToolbarModule
     URI QGroundControl.Toolbar
     VERSION 1.0
@@ -25,6 +29,7 @@ qt_add_qml_module(ToolbarModule
         MultiVehicleSelector.qml
         ParameterDownloadProgress.qml
         PlanViewToolBar.qml
+        PoliceBar.qml
         RCRSSIIndicator.qml
         RemoteIDIndicator.qml
         RemoteIDIndicatorPage.qml

@@ -352,6 +352,19 @@ void SiyiCameraController::_handleFrame(const SiyiProtocol::Frame &frame)
         break;
     }
 
+    case SiyiProtocol::CommandId::ReadRangefinderTarget: {
+        const auto target = SiyiProtocol::parseRangefinderTarget(frame.data);
+        if (target) {
+            const QGeoCoordinate coordinate(target->latDeg, target->lonDeg);
+            _lastRangefinderTargetTimer.restart();
+            if (coordinate != _rangefinderTarget) {
+                _rangefinderTarget = coordinate;
+                emit rangefinderTargetChanged();
+            }
+        }
+        break;
+    }
+
     case SiyiProtocol::CommandId::ReadRangefinder: {
         const auto distance = SiyiProtocol::parseRangefinderDistance(frame.data);
         if (distance) {
@@ -413,6 +426,10 @@ void SiyiCameraController::_poll()
         _setConnected(false);
     }
 
+    if (rangefinderTargetAvailable() && _lastRangefinderTargetTimer.hasExpired(kRangefinderTimeoutMs)) {
+        _rangefinderTarget = QGeoCoordinate();
+        emit rangefinderTargetChanged();
+    }
     if (rangefinderAvailable() && _lastRangefinderTimer.hasExpired(kRangefinderTimeoutMs)) {
         _rangefinderDistance = std::numeric_limits<double>::quiet_NaN();
         emit rangefinderDistanceChanged();
@@ -447,6 +464,7 @@ void SiyiCameraController::_poll()
     if (isZT30()) {
         if ((_pollTicks % kRangefinderInterval) == 0) {
             _sendCommand(SiyiProtocol::CommandId::ReadRangefinder);
+            _sendCommand(SiyiProtocol::CommandId::ReadRangefinderTarget);
         }
         if ((_pollTicks % kThermalInterval) == 0) {
             _send(SiyiProtocol::encodeThermalRangeRequest(_sequence++));
@@ -485,6 +503,10 @@ void SiyiCameraController::_resetCameraState()
         emit configChanged();
     }
 
+    if (rangefinderTargetAvailable()) {
+        _rangefinderTarget = QGeoCoordinate();
+        emit rangefinderTargetChanged();
+    }
     if (rangefinderAvailable()) {
         _rangefinderDistance = std::numeric_limits<double>::quiet_NaN();
         emit rangefinderDistanceChanged();
@@ -497,6 +519,7 @@ void SiyiCameraController::_resetCameraState()
 
     _lastFrameTimer.invalidate();
     _lastRangefinderTimer.invalidate();
+    _lastRangefinderTargetTimer.invalidate();
     _lastThermalRangeTimer.invalidate();
 }
 

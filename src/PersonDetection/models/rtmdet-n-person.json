@@ -1,0 +1,9 @@
+{
+    "name": "rtmdet-n-person",
+    "layout": "detsLabels",
+    "preprocess": "bgrMeanStd",
+    "person": [0],
+    "vehicle": [],
+    "conf": 0.3,
+    "license": "Apache-2.0"
+}

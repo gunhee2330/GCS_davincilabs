@@ -39,6 +39,8 @@ class PersonDetector : public QObject
     Q_PROPERTY(int              vehicleCount READ vehicleCount   NOTIFY detectionsChanged)
     Q_PROPERTY(QList<QRectF>    vehicleBoxes READ vehicleBoxes   NOTIFY detectionsChanged)
     Q_PROPERTY(int              inferenceMs  READ inferenceMs    NOTIFY detectionsChanged)
+    // Fixed by whichever model loaded, so it is settled by the time active() is
+    Q_PROPERTY(bool detectsVehicles READ detectsVehicles NOTIFY activeChanged)
 
     friend class PersonDetectorTest;
 
@@ -63,6 +65,9 @@ public:
     [[nodiscard]] int count() const { return static_cast<int>(_boxes.size()); }
     [[nodiscard]] QList<QRectF> boxes() const { return _boxes; }
     [[nodiscard]] int vehicleCount() const { return static_cast<int>(_vehicleBoxes.size()); }
+    /// False when the loaded model has no vehicle class: the vehicle count is then nothing to
+    /// report, not a zero, and the UI has no honest number to show.
+    [[nodiscard]] bool detectsVehicles() const { return _detectsVehicles; }
     [[nodiscard]] QList<QRectF> vehicleBoxes() const { return _vehicleBoxes; }
     [[nodiscard]] int inferenceMs() const { return _inferenceMs; }
 
@@ -91,6 +96,7 @@ private:
     QList<QRectF> _vehicleBoxes;
     int _inferenceMs = 0;
     bool _loaded = false;        ///< Model loaded by init(); the switch cannot activate the detector without it
+    bool _detectsVehicles = false;  ///< From the loaded model's descriptor
     std::atomic<bool> _enabled;  ///< Operator switch, restored from QSettings; read by submit() on the stream thread
     bool _active = false;
 };

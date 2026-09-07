@@ -41,7 +41,10 @@ constexpr const char *kFrameTapBinDescription =
     "queue leaky=downstream max-size-buffers=1 max-size-bytes=0 max-size-time=0 "
     // Pin a 2D texture: gldownload reads Android's external-oes decoder textures as black
     "! glupload ! glcolorconvert ! video/x-raw(memory:GLMemory),format=RGBA,texture-target=2D ! gldownload "
-    "! videoscale ! video/x-raw,width=640,pixel-aspect-ratio=1/1 "
+    // Wide enough that a person seen from the air survives to the detector: at 640 a 30 px
+    // person in a 1280 stream arrives 15 px tall and the model sees nothing. Capped so a 4K
+    // stream does not spend the tap's budget on pixels the detector tiles away anyway.
+    "! videoscale ! video/x-raw,width=[1,1280],pixel-aspect-ratio=1/1 "
     "! videoconvert ! video/x-raw,format=RGB "
     "! appsink name=frametap-sink sync=false async=false max-buffers=1 drop=true emit-signals=true";
 

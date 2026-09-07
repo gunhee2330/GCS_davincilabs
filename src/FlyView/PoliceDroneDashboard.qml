@@ -31,7 +31,7 @@ Item {
     // One line the operator can read off: what the module is tracking, where its box centre
     // sits in the module's 1280×720 frame, how big it is, and the laser range if the pod has
     // one. Empty when nothing is tracked, so the panels can key visibility on it.
-    readonly property string aiTargetInfo: aiTargetVisible
+    readonly property string _trackedInfo: aiTargetVisible
         ? qsTr("%1 · 위치 (%2, %3) · 크기 %4×%5 px%6")
               .arg(aiTargetLabel)
               .arg(Math.round(App.SiyiAiController.targetCentreX * _aiRefWidth))
@@ -42,6 +42,21 @@ Item {
                    ? qsTr(" · LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
                    : "")
         : ""
+
+    // Where the pod says its laser is pointing, to seven decimals so it can be read off the
+    // screen and compared against a surveyed point. Shown whenever the pod reports it, tracking
+    // or not, because checking it is done by aiming at a known mark rather than at a person.
+    // It is the LASER's point, not the tracker's — the two agree only while the tracked object
+    // sits under the laser axis, and how far apart they run is exactly what has to be measured.
+    readonly property string _laserInfo: App.SiyiCameraController.rangefinderTargetAvailable
+        ? qsTr("레이저 지점 %1, %2")
+              .arg(Number(App.SiyiCameraController.rangefinderTarget.latitude).toFixed(7))
+              .arg(Number(App.SiyiCameraController.rangefinderTarget.longitude).toFixed(7))
+        : ""
+
+    readonly property string aiTargetInfo:
+        (_trackedInfo.length > 0 && _laserInfo.length > 0) ? (_trackedInfo + " · " + _laserInfo)
+                                                           : (_trackedInfo + _laserInfo)
 
     /// Target picking only makes sense once the module is up and recognising.
     readonly property bool _aiPickEnabled: App.SiyiAiController.connected && App.SiyiAiController.recognitionEnabled
@@ -136,11 +151,6 @@ Item {
 
     QGCPalette { id: qgcPal }
 
-    // MainStatusIndicator assigns its own background tint while computing the status label and
-    // reads the link state, both off the QML context chain that FlyViewToolBar provides. Without
-    // them the assignment throws "Invalid write to global property", the label function aborts
-    // part-way, and the indicator renders as an empty zero-width item.
-    property color _mainStatusBGColor: qgcPal.brandingPurple
     // Up means a vehicle is connected and its link is alive: the plug indicator on the
     // top bar's right end reads this.
     readonly property bool _linkUp: _activeVehicle ? !_communicationLost : false
@@ -164,9 +174,10 @@ Item {
     // QGCToolBarButton's icon height: the ☰ in the Plan and Configuration toolbars is drawn
     // at this size, and the menu button should be one size everywhere.
     readonly property real _menuIconSize: ScreenTools.defaultFontPixelHeight * 1.2
-    // The top bar hosts QGC's own toolbar indicators, which are laid out against
-    // ScreenTools.toolbarHeight; anything shorter clips them.
-    readonly property real _statusHeight: Math.max(ScreenTools.minTouchPixels * 1.2, ScreenTools.toolbarHeight)
+    // Sized to its own pictograms now that QGC's toolbar indicators are not in it: the row
+    // needs a touch target's height and nothing more, and every pixel saved here goes to the
+    // map and the camera windows.
+    readonly property real _statusHeight: PoliceBar.height
     readonly property color _panelColor:  "#e5121b24"
     /// Gap kept clear along the bottom edge now that the control panel floats rather than
     /// occupying two full-width bars.
@@ -174,9 +185,166 @@ Item {
     readonly property color _accentColor: "#33c7ff"
     // Status palette. Grey rests, white is fine, red is the only alarm. Painting every
     // state a different bright colour is what makes a bar unreadable at a glance.
+    // One rhythm for the top bar: pictograms at one size, one label size, one value size.
+    readonly property real  _barIconSize: Math.max(20, ScreenTools.defaultFontPixelHeight * 1.15)
+    readonly property real  _labelSize:   Math.max(11, ScreenTools.defaultFontPixelHeight * 0.62)
+    readonly property real  _valueSize:   Math.max(12, ScreenTools.defaultFontPixelHeight * 0.78)
+    readonly property color _labelColor:  "#9fb2c4"
+    readonly property color _barColor:    PoliceBar.color
+    readonly property color _readyColor:  "#22c46a"
+    readonly property color _warnColor:   "#ffb020"
+
+    // Bars, not numbers, for the radios: four steps is all an operator acts on, and the step
+    // is readable at arm's length in a way that a dBm figure is not.
+    readonly property int _gpsLevel: {
+        if (!_activeVehicle) {
+            return 0
+        }
+        const lock = _activeVehicle.gps.lock.rawValue
+        if (lock < 2) {
+            return 0
+        }
+        if (lock < 3) {
+            return 1
+        }
+        const sats = _activeVehicle.gps.count.rawValue
+        return sats >= 16 ? 4 : sats >= 12 ? 3 : sats >= 8 ? 2 : 1
+    }
+
+    readonly property bool _rcAvailable: _activeVehicle && _activeVehicle.rcRSSI.rawValue > 0 &&
+                                         _activeVehicle.rcRSSI.rawValue <= 100
+    readonly property int  _rcLevel:     _rcAvailable
+                                             ? Math.max(1, Math.ceil(_activeVehicle.rcRSSI.rawValue / 25)) : 0
+
+    // Only a SiK radio's RADIO_STATUS is converted to dBm; everything else forwards the raw
+    // 0..254 field, where a weak 20 would read as a strong -20 and paint four bars on a link
+    // about to drop. Out of that range the group simply does not appear.
+    readonly property bool _telemAvailable: _activeVehicle &&
+                                            (_activeVehicle.radioStatus.lrssi.rawValue < 0) &&
+                                            (_activeVehicle.radioStatus.lrssi.rawValue >= -120)
+    readonly property int  _telemLevel: {
+        if (!_telemAvailable) {
+            return 0
+        }
+        const dbm = _activeVehicle.radioStatus.lrssi.rawValue
+        return dbm >= -70 ? 4 : dbm >= -85 ? 3 : dbm >= -95 ? 2 : 1
+    }
+
+    // The worst pack, not the first: an airframe can report several, and the flight pack is
+    // not always instance 0.
+    readonly property var _lowestBattery: {
+        if (!_activeVehicle) {
+            return null
+        }
+        let worst = null
+        for (let i = 0; i < _activeVehicle.batteries.count; ++i) {
+            const battery = _activeVehicle.batteries.get(i)
+            const percent = battery.percentRemaining.rawValue
+            if (isNaN(percent)) {
+                continue
+            }
+            if (!worst || (percent < worst.percentRemaining.rawValue)) {
+                worst = battery
+            }
+        }
+        // Nothing reports a percentage on a good many ArduPilot setups; the first pack's
+        // voltage is still worth showing.
+        return worst ? worst : (_activeVehicle.batteries.count > 0 ? _activeVehicle.batteries.get(0) : null)
+    }
+
+    readonly property real _batteryPercent: _lowestBattery ? _lowestBattery.percentRemaining.rawValue : NaN
+
+    // MAV_BATTERY_CHARGE_STATE: 2 LOW, 3 CRITICAL, 4 EMERGENCY, 5 FAILED, 6 UNHEALTHY. The
+    // autopilot's own judgement of the pack, which is what a failsafe acts on — the battery
+    // indicator's thresholds are display bands (80 / 60 by default) and mean nothing here.
+    readonly property int _batteryState: _lowestBattery ? _lowestBattery.chargeState.rawValue : 0
+    readonly property bool _batteryLow:      (_batteryState === 2) || (!isNaN(_batteryPercent) && _batteryPercent <= 30)
+    // 3 CRITICAL to 6 UNHEALTHY; 7 is CHARGING, which is the opposite of an alarm.
+    readonly property bool _batteryCritical: ((_batteryState >= 3) && (_batteryState <= 6)) ||
+                                             (!isNaN(_batteryPercent) && (_batteryPercent <= 20))
+
+    readonly property color _batteryColor: {
+        if (!_lowestBattery) {
+            return _idleColor
+        }
+        if (_batteryCritical) {
+            return _alarmColor
+        }
+        return _batteryLow ? _warnColor : "white"
+    }
+
+    /// The one line of prose on the bar: the most urgent thing wrong, or nothing at all.
+    readonly property string _warningText: {
+        if (!_activeVehicle) {
+            return ""
+        }
+        if (_communicationLost) {
+            return qsTr("통신 두절 — 기체 응답 없음")
+        }
+        if (_rcLinkLost) {
+            return qsTr("조종기 신호 끊김")
+        }
+        if (_batteryCritical) {
+            return qsTr("배터리 위급 — 즉시 복귀하십시오")
+        }
+        if (!_activeVehicle.allSensorsHealthy) {
+            return qsTr("센서 이상 — 기체 상태를 확인하십시오")
+        }
+        // Why arming is refused used to be readable on the stock status indicator, which this
+        // bar replaced; without it the operator is left with a button that does nothing.
+        if (_activeVehicle.prearmError.length > 0) {
+            return _activeVehicle.prearmError
+        }
+        if (_batteryLow) {
+            return qsTr("배터리 낮음 — 복귀를 준비하십시오")
+        }
+        return ""
+    }
+
     readonly property color _idleColor:   "#8a9199"
     readonly property color _normalColor: "#e8edf2"
     readonly property color _alarmColor:  "#ff5b5b"
+
+    component BarIcon: QGCColoredImage {
+        property color tint: "white"
+
+        anchors.verticalCenter: parent.verticalCenter
+        width:                  root._barIconSize
+        height:                 root._barIconSize
+        color:                  tint
+        fillMode:               Image.PreserveAspectFit
+        sourceSize.height:      root._barIconSize
+    }
+
+    // Four steps of signal, the filled ones in the group's colour and the rest ghosted.
+    component BarGauge: Row {
+        property int   level: 0
+        property color tint:  "white"
+
+        // Explicit, so the bars can hang from the bottom without sizing their own parent.
+        height:  root._barIconSize
+        spacing: Math.max(2, root._barIconSize * 0.09)
+
+        Repeater {
+            model: 4
+
+            Rectangle {
+                required property int index
+                anchors.bottom: parent.bottom
+                width:          Math.max(3, root._barIconSize * 0.16)
+                height:         root._barIconSize * (0.3 + index * 0.19)
+                radius:         1
+                color:          index < parent.level ? parent.tint : "#38ffffff"
+            }
+        }
+    }
+
+    component BarSep: Rectangle {
+        Layout.alignment:       Qt.AlignVCenter
+        Layout.preferredWidth:  1
+        Layout.preferredHeight: root._barIconSize * 1.2
+        color:                  "#26ffffff"
+    }
 
     signal menuRequested()
 
@@ -305,9 +473,6 @@ Item {
         const xDock = width - _windowWidth
         let y = topBar.height
         for (let i = 0; i < windows.length; ++i) {
-            if (!windows[i].visible) {
-                continue
-            }
             windows[i].x = xDock
             windows[i].y = y
             y += windows[i].height
@@ -341,10 +506,6 @@ Item {
     Connections {
         target: root
         function onHeightChanged() { root._redockIfPristine() }
-    }
-
-    function _factText(fact, fallback) {
-        return fact ? fact.valueString + (fact.units.length > 0 ? " " + fact.units : "") : fallback
     }
 
     // ------------------------------------------------------------------- flight log
@@ -388,12 +549,30 @@ Item {
     }
 
     readonly property string _takeoffText:
-        _takeoffTime ? Qt.formatDateTime(_takeoffTime, "yyyy-MM-dd HH:mm:ss") : qsTr("이륙 전")
+        _takeoffTime ? Qt.formatDateTime(_takeoffTime, "MM-dd HH:mm:ss") : qsTr("이륙 전")
 
-    // flightTime is registered on the fact group but, unlike its sibling flightDistance, has
-    // no Q_PROPERTY accessor — so vehicle.flightTime is undefined and only the name lookup
-    // reaches it. Bound once per vehicle rather than called from the delegate binding.
-    readonly property var _flightTimeFact: _activeVehicle ? _activeVehicle.getFact("flightTime") : null
+    /// One AI switch: the on-device detector and the pod module's own recognition follow it,
+    /// so the operator arms one thing before a long press can pick a target.
+    function _setAiEnabled(on) {
+        App.PersonDetector.enabled = on
+        if (App.SiyiAiController.connected) {
+            App.SiyiAiController.setRecognition(on)
+        }
+    }
+
+    // A module that was absent when the switch was flipped never heard the command.
+    Connections {
+        target: App.SiyiAiController
+
+        function onConnectedChanged() {
+            // Only when the module disagrees: the pod's own panel can switch recognition too,
+            // and a reconnect should not quietly undo what was set there.
+            if (App.SiyiAiController.connected &&
+                    App.SiyiAiController.recognitionEnabled !== App.PersonDetector.enabled) {
+                App.SiyiAiController.setRecognition(App.PersonDetector.enabled)
+            }
+        }
+    }
 
     function _toggleExpanded(panelName) {
         expandedPanel = expandedPanel === panelName ? "" : panelName
@@ -411,29 +590,34 @@ Item {
         }
     }
 
+    // ------------------------------------------------------------------------- top bar
+    //
+    // Read at a glance, never touched: pictograms with a signal gauge rather than words, in
+    // the order a pilot checks them — what the aircraft is doing, then what it is flying on
+    // (satellites, radio, telemetry, battery), then the pod's AI, then the link. Words are
+    // spent only where a picture cannot carry the value: the flight mode, the battery
+    // percentage, and the warning line on the left, which is empty when nothing is wrong.
+    // Colour means something is wrong; everything healthy is plain white.
     Rectangle {
         id: topBar
         anchors.left:  parent.left
         anchors.right: parent.right
         anchors.top:   parent.top
         height:        root._statusHeight
-        color:         root._panelColor
+        color:         root._barColor
         z:             4
 
         MouseArea { anchors.fill: parent }
 
         RowLayout {
             anchors.fill:        parent
-            anchors.leftMargin:  ScreenTools.defaultFontPixelWidth * 0.6
-            anchors.rightMargin: ScreenTools.defaultFontPixelWidth * 2
-            // Status groups need air between them or they read as one run-on string.
-            spacing:             ScreenTools.defaultFontPixelWidth * 1.8
+            anchors.leftMargin:  ScreenTools.defaultFontPixelWidth * 0.4
+            anchors.rightMargin: ScreenTools.defaultFontPixelWidth * 1.2
+            spacing:             ScreenTools.defaultFontPixelWidth * 1.1
 
             // A plain Button paints the style's own opaque background, which read as a white
             // slab on this dark bar. Transparent background plus an explicitly light icon
             // matches how the toolbars in the other views render theirs.
-            // The icon is sized explicitly rather than filling the button: as the content item
-            // it stretched to the bar height and came out larger than the ☰ elsewhere.
             Button {
                 Layout.preferredWidth:  root._menuIconSize + ScreenTools.defaultFontPixelWidth * 2
                 Layout.fillHeight:      true
@@ -458,83 +642,60 @@ Item {
 
             // The police layout replaces FlyViewToolBar, so the brand mark lives here.
             Image {
-                Layout.preferredHeight: root._statusHeight * 0.4
+                Layout.preferredHeight: root._statusHeight * 0.36
                 Layout.preferredWidth:  Layout.preferredHeight * (1153 / 122)
+                Layout.alignment:       Qt.AlignVCenter
                 source:                 "/res/DavinciLabsLogo.png"
                 fillMode:               Image.PreserveAspectFit
                 smooth:                 true
             }
 
-            // QGC's own status indicators rather than a hand-rolled subset: these carry the
-            // arming/health state and open detail popups on click (satellite counts, per-cell
-            // battery, RC and telemetry signal), which a row of labels cannot do. Altitude and
-            // ground speed are deliberately absent — the telemetry bar bottom right owns those.
-            // Carries the status tint the indicator computes — red on comms lost, green when
-            // ready, yellow on a warning — the way the stock toolbar's gradient does.
-            // Only with a vehicle: without one the indicator offers "click to manually
-            // connect", and the plug at the bar's right end is the one connect control now.
-            Rectangle {
-                Layout.fillHeight:     true
-                Layout.preferredWidth: mainStatus.implicitWidth + ScreenTools.defaultFontPixelWidth * 2
-                visible:               root._activeVehicle
-                color:                 root._mainStatusBGColor
-                opacity:               0.55
-                radius:                4
-
-                MainStatusIndicator {
-                    id:               mainStatus
-                    objectName:       "toolbar_mainStatusIndicator"
-                    anchors.centerIn: parent
-                    height:           parent.height
-                }
+            // The one line of prose on the bar, and the reason the middle is kept empty:
+            // when something is wrong it appears here, where nothing else ever draws.
+            Text {
+                Layout.fillWidth:       true
+                Layout.leftMargin:      ScreenTools.defaultFontPixelWidth
+                Layout.alignment:       Qt.AlignVCenter
+                color:                  root._alarmColor
+                font.bold:              true
+                font.pixelSize:         root._valueSize
+                elide:                  Text.ElideRight
+                text:                   root._warningText
             }
 
-            FlightModeIndicator {
-                objectName:        "toolbar_flightModeIndicator"
-                Layout.fillHeight: true
-                visible:           root._activeVehicle
-            }
-
-            Item { Layout.fillWidth: true }
-
-            // Flight log: takeoff instant, elapsed time, distance flown and the airframe's
-            // takeoff count. Elides rather than squeezing the indicators when the window is
-            // narrow.
-            RowLayout {
-                id:                    flightLog
-                Layout.fillHeight:     true
-                Layout.maximumWidth:   implicitWidth
-                spacing:               ScreenTools.defaultFontPixelWidth
-                visible:               root._activeVehicle && root.width > ScreenTools.defaultFontPixelWidth * 105
+            // Required on the video screen for delivery: when this flight began and how many
+            // times this airframe has flown. Duration and distance are on the telemetry bar
+            // bottom left, so they are not repeated here.
+            Row {
+                Layout.alignment: Qt.AlignVCenter
+                spacing:          ScreenTools.defaultFontPixelWidth * 1.1
+                // Gives its space up the moment there is something wrong to read.
+                visible:          root._activeVehicle && (root._warningText.length === 0) &&
+                                  (root.width > ScreenTools.defaultFontPixelWidth * 95)
 
                 Repeater {
                     model: [
-                        { label: qsTr("이륙"), value: root._takeoffText },
-                        { label: qsTr("비행"), value: root._flightTimeFact
-                                                          ? root._flightTimeFact.valueString
-                                                          : "--" },
-                        { label: qsTr("이동"), value: root._factText(root._activeVehicle
-                                                          ? root._activeVehicle.flightDistance : null, "--") },
+                        { label: qsTr("이륙"),   value: root._takeoffText },
                         { label: qsTr("이륙 횟수"), value: qsTr("%1회").arg(App.TakeoffCounter.takeoffCount) }
                     ]
 
                     delegate: Row {
                         id: logItem
                         required property var modelData
-                        Layout.alignment: Qt.AlignVCenter
-                        spacing:          4
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing:                5
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            color:                  root._accentColor
-                            font.pixelSize:         Math.max(11, ScreenTools.defaultFontPixelHeight * 0.68)
+                            color:                  root._labelColor
+                            font.pixelSize:         root._labelSize
                             text:                   logItem.modelData.label
                         }
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             color:                  "white"
-                            font.pixelSize:         Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
+                            font.pixelSize:         root._valueSize
                             // Monospace keeps the clock and counters from shifting the row
                             // sideways as digits change.
                             font.family:            "Consolas, monospace"
@@ -544,69 +705,230 @@ Item {
                 }
             }
 
-            Item { Layout.fillWidth: true }
+            BarSep { visible: root._activeVehicle }
 
-            FlyViewToolBarIndicators {
-                Layout.fillHeight:     true
-                Layout.preferredWidth: implicitWidth
-            }
-
-            // AI module state, just left of the link plug: the chip icon and AI ON / AI OFF,
-            // keyed on the tracking module answering on its socket.
+            // What the aircraft is doing. The airframe glyph turns green while armed, which is
+            // the one state worth a colour of its own.
             Row {
-                Layout.fillHeight: true
-                Layout.alignment:  Qt.AlignVCenter
-                spacing:           6
+                Layout.alignment: Qt.AlignVCenter
+                spacing:          ScreenTools.defaultFontPixelWidth * 0.6
+                visible:          root._activeVehicle
 
-                readonly property bool aiUp: App.SiyiAiController.connected
-                // Grey is the resting state. Colour is spent only where it means something:
-                // the accent when the tracker is actually up.
-                readonly property color tint: aiUp ? root._accentColor : root._idleColor
-
-                QGCColoredImage {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width:                  root._menuIconSize
-                    height:                 width
-                    source:                 "/InstrumentValueIcons/target.svg"
-                    color:                  parent.tint
-                    fillMode:               Image.PreserveAspectFit
-                    sourceSize.height:      height
+                BarIcon {
+                    source: "/qmlimages/Quad.svg"
+                    tint:   (root._activeVehicle && root._activeVehicle.armed) ? root._readyColor : "white"
                 }
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    color:                  parent.tint
+                    width:                  Math.min(implicitWidth, ScreenTools.defaultFontPixelWidth * 12)
+                    elide:                  Text.ElideRight
+                    color:                  "white"
                     font.bold:              true
-                    font.pixelSize:         Math.max(12, ScreenTools.defaultFontPixelHeight * 0.75)
-                    text:                   parent.aiUp ? qsTr("AI 켜짐") : qsTr("AI 꺼짐")
+                    font.pixelSize:         root._valueSize
+                    text:                   root._activeVehicle ? root._activeVehicle.flightMode : ""
                 }
             }
 
-            // Link state at the far right: a plug in or out of its socket, with the word the
-            // operator asked for. Green once a vehicle is connected and talking. Clicking it
-            // is the connect button: without a vehicle it opens QGC's link chooser, the page
-            // the status label on the left also opens; with one, the links now up, each with
-            // its own disconnect.
+            BarSep { visible: root._activeVehicle }
+
+            // Satellites: the count is the number an operator quotes, the gauge is the fix
+            // quality behind it. A tap opens QGC's own GPS page, which this bar replaces.
             Item {
-                id:                    linkIndicator
-                Layout.fillHeight:     true
-                Layout.preferredWidth: linkRow.implicitWidth
+                Layout.alignment:       Qt.AlignVCenter
+                Layout.preferredWidth:  gpsRow.implicitWidth
+                Layout.preferredHeight: root._barIconSize * 1.6
+                visible:                root._activeVehicle
+
+                Row {
+                    id:               gpsRow
+                    anchors.centerIn: parent
+                    spacing:          ScreenTools.defaultFontPixelWidth * 0.5
+
+                    BarIcon {
+                        source: "/qmlimages/Gps.svg"
+                        tint:   root._gpsLevel > 1 ? "white" : root._warnColor
+                    }
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        color:                  root._gpsLevel > 1 ? "white" : root._warnColor
+                        font.bold:              true
+                        font.pixelSize:         root._valueSize
+                        text:                   root._activeVehicle
+                                                    ? root._activeVehicle.gps.count.valueString : "--"
+                    }
+
+                    BarGauge {
+                        anchors.verticalCenter: parent.verticalCenter
+                        level:                  root._gpsLevel
+                        tint:                   root._gpsLevel > 1 ? "white" : root._warnColor
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked:    mainWindow.showIndicatorDrawer(gpsDetailPage, parent)
+                }
+            }
+
+            // The pilot's radio.
+            Row {
+                Layout.alignment: Qt.AlignVCenter
+                spacing:          ScreenTools.defaultFontPixelWidth * 0.5
+                visible:          root._rcAvailable
+
+                BarIcon {
+                    source: "/qmlimages/RC.svg"
+                    tint:   root._rcLevel > 1 ? "white" : root._alarmColor
+                }
+
+                BarGauge {
+                    anchors.verticalCenter: parent.verticalCenter
+                    level:                  root._rcLevel
+                    tint:                   root._rcLevel > 1 ? "white" : root._alarmColor
+                }
+            }
+
+            // The telemetry radio, shown only where one reports its strength.
+            Row {
+                Layout.alignment: Qt.AlignVCenter
+                spacing:          ScreenTools.defaultFontPixelWidth * 0.5
+                visible:          root._telemAvailable
+
+                BarIcon { source: "/qmlimages/TelemRSSI.svg" }
+
+                BarGauge {
+                    anchors.verticalCenter: parent.verticalCenter
+                    level:                  root._telemLevel
+                    tint:                   root._telemLevel > 1 ? "white" : root._warnColor
+                }
+            }
+
+            // Battery: the only number on the bar that changes an operator's plan, so it keeps
+            // its digits, and the glyph carries the warning colours.
+            Row {
+                Layout.alignment: Qt.AlignVCenter
+                spacing:          ScreenTools.defaultFontPixelWidth * 0.5
+                visible:          root._lowestBattery
+
+                BarIcon {
+                    source: "/qmlimages/Battery.svg"
+                    tint:   root._batteryColor
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    color:                  root._batteryColor
+                    font.bold:              true
+                    font.pixelSize:         root._valueSize
+                    // Percentage when the pack reports one, its voltage when it does not.
+                    // Bindings run whether or not the group is visible, so the pack is
+                    // checked here too rather than only in the group's visibility.
+                    text:                   !root._lowestBattery
+                                                ? ""
+                                                : (isNaN(root._batteryPercent)
+                                                       ? root._lowestBattery.voltage.valueString + qsTr(" V")
+                                                       : qsTr("%1 %").arg(Math.round(root._batteryPercent)))
+                }
+            }
+
+            // STATUSTEXT from the aircraft — prearm refusals, EKF and thrust warnings. The
+            // stock status indicator carried this and the police layout hides that toolbar, so
+            // without it the messages have nowhere to appear.
+            Item {
+                Layout.alignment:       Qt.AlignVCenter
+                Layout.preferredWidth:  root._barIconSize
+                Layout.preferredHeight: root._barIconSize * 1.6
+                // Always there once a vehicle is: opening the drawer clears the unread count,
+                // and a pictogram that vanishes on the tap that read it leaves no way back to
+                // the list. The colour, not the presence, says whether anything is new.
+                visible:                root._activeVehicle
+
+                QGCColoredImage {
+                    anchors.centerIn:  parent
+                    width:             root._barIconSize
+                    height:            root._barIconSize
+                    source:            "/res/VehicleMessages.png"
+                    fillMode:          Image.PreserveAspectFit
+                    sourceSize.height: root._barIconSize
+                    color:             !root._activeVehicle          ? root._idleColor
+                                       : root._activeVehicle.messageTypeError   ? root._alarmColor
+                                       : root._activeVehicle.messageTypeWarning ? root._warnColor
+                                                                                : "white"
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked:    mainWindow.showIndicatorDrawer(vehicleMessagesPage, parent)
+                }
+            }
+
+            BarSep {}
+
+            // The pod's tracking module: lit when it is following a target, plain when it is
+            // only watching, grey when it is not there.
+            Row {
+                id:               aiGroup
+                Layout.alignment: Qt.AlignVCenter
+                spacing:          ScreenTools.defaultFontPixelWidth * 0.5
+
+                readonly property bool tracking: App.SiyiAiController.hasTarget &&
+                                                 !App.SiyiAiController.targetLost
+                readonly property color tint: !App.SiyiAiController.connected ? root._idleColor
+                                              : tracking                     ? root._accentColor
+                                                                             : "white"
+
+                BarIcon {
+                    source: "/res/police_ai.svg"
+                    tint:   aiGroup.tint
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    color:                  aiGroup.tint
+                    font.bold:              true
+                    font.pixelSize:         root._valueSize
+                    text: {
+                        if (!App.SiyiAiController.connected) {
+                            return qsTr("AI 없음")
+                        }
+                        if (App.SiyiAiController.hasTarget) {
+                            return App.SiyiAiController.targetLost ? qsTr("유실") : qsTr("추적중")
+                        }
+                        return App.SiyiAiController.recognitionEnabled ? qsTr("준비") : qsTr("대기")
+                    }
+                }
+            }
+
+            // The link, at the far right and the only pill on the bar: it is the one thing here
+            // that is also a button. Without a vehicle it opens QGC's link chooser; with one it
+            // lists the links that are up, each with its own disconnect.
+            Rectangle {
+                id:                     linkIndicator
+                Layout.alignment:       Qt.AlignVCenter
+                Layout.preferredHeight: root._barIconSize * 1.65
+                Layout.preferredWidth:  linkRow.implicitWidth + ScreenTools.defaultFontPixelWidth * 2.2
+                radius:                 height / 2
 
                 // Three states, not two. Nothing attached yet is not the same as a link that
                 // dropped mid flight, and only the second one is an alarm.
-                readonly property bool notYet:  !root._activeVehicle
+                readonly property bool  notYet: !root._activeVehicle
                 readonly property color tint:   notYet ? root._idleColor
-                                                       : (root._linkUp ? root._normalColor : root._alarmColor)
+                                                       : (root._linkUp ? root._readyColor : root._alarmColor)
+
+                color: notYet ? "#14ffffff"
+                              : (root._linkUp ? "#2622c46a" : "#26ff5b5b")
 
                 Row {
                     id:                     linkRow
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing:                7
+                    anchors.centerIn:       parent
+                    spacing:                ScreenTools.defaultFontPixelWidth * 0.6
 
                     // A dot reads as state at any size. A plug drawn at 16 px does not.
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
-                        width:                  Math.max(8, root._menuIconSize * 0.42)
+                        width:                  Math.max(8, root._barIconSize * 0.36)
                         height:                 width
                         radius:                 width / 2
                         color:                  linkIndicator.notYet ? "transparent" : linkIndicator.tint
@@ -617,22 +939,55 @@ Item {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         color:                  linkIndicator.tint
-                        font.bold:              !linkIndicator.notYet
-                        font.pixelSize:         Math.max(12, ScreenTools.defaultFontPixelHeight * 0.75)
-                        text:                   linkIndicator.notYet ? qsTr("연결 안 됨")
-                                                                     : (root._linkUp ? qsTr("연결됨") : qsTr("신호 끊김"))
+                        font.bold:              true
+                        font.pixelSize:         root._valueSize
+                        text:                   linkIndicator.notYet
+                                                    ? qsTr("연결 안 됨")
+                                                    : (root._linkUp ? qsTr("연결됨") : qsTr("신호 끊김"))
                     }
                 }
 
                 MouseArea {
                     anchors.fill: parent
-                    onClicked:    mainWindow.showIndicatorDrawer(root._activeVehicle ? linkConnectedPage : linkSelectPage,
+                    onClicked:    mainWindow.showIndicatorDrawer(root._activeVehicle ? linkConnectedPage
+                                                                                     : linkSelectPage,
                                                                  linkIndicator)
                 }
             }
         }
     }
 
+    // QGC's own GPS detail, behind the satellite group.
+    Component {
+        id: gpsDetailPage
+
+        GPSIndicatorPage {}
+    }
+
+    // The aircraft's own messages, behind the message pictogram.
+    Component {
+        id: vehicleMessagesPage
+
+        ToolIndicatorPage {
+            showExpand: false
+
+            contentComponent: Component {
+                SettingsGroupLayout {
+                    heading: qsTr("기체 메시지")
+
+                    VehicleMessageList {
+                        id:      vehicleMessageList
+                        visible: !noMessages
+                    }
+
+                    QGCLabel {
+                        text:    qsTr("새 메시지 없음")
+                        visible: vehicleMessageList.noMessages
+                    }
+                }
+            }
+        }
+    }
     // Pages behind the plug indicator.
     Component {
         id: linkSelectPage
@@ -694,10 +1049,11 @@ Item {
 
         width:  root._windowWidth
         height: root._windowWidth * 9 / 16
-        // Tapping anywhere on a camera swaps it with the map. The other two windows stay put,
-        // floating above the full screen layer instead of vanishing under its backdrop.
-        visible: root.expandedPanel !== panelKey
-        z:       root.expandedPanel.length > 0 ? 21 : 10
+        // Tapping a camera fills the screen with it. The column goes with it: on a tablet the
+        // three windows cover a third of the width, which is most of what the operator zoomed
+        // in to see. Only the map stays, small, at the bottom.
+        visible: root.expandedPanel.length === 0
+        z:       10
 
         Rectangle {
             anchors.fill: parent
@@ -910,18 +1266,29 @@ Item {
                 onTriggered: App.SiyiCameraController.toggleRecording()
             },
             ToolStripAction {
-                text:        App.SiyiAiController.hasTarget
-                                 ? qsTr("추적해제")
-                                 : (App.SiyiAiController.recognitionEnabled ? qsTr("AI 끄기") : qsTr("AI 켜기"))
+                // The AI switch: the on-device detector and the pod's recognition together.
+                // Checked draws the strip's highlight, so the button reads as on or off.
+                text:        qsTr("AI")
                 iconSource:  "/res/police_ai.svg"
-                enabled:     App.SiyiAiController.connected
+                checkable:   true
+                checked:     App.PersonDetector.enabled
                 onTriggered: {
-                    if (App.SiyiAiController.hasTarget) {
-                        App.SiyiAiController.cancelTracking()
-                    } else {
-                        App.SiyiAiController.setRecognition(!App.SiyiAiController.recognitionEnabled)
-                    }
+                    root._setAiEnabled(!App.PersonDetector.enabled)
+                    // The strip button owns its own checked state once pressed, which drops
+                    // the binding above; put it back so the highlight keeps following.
+                    checked = Qt.binding(() => App.PersonDetector.enabled)
                 }
+            },
+            ToolStripAction {
+                // Greyed out rather than hidden: the module drops hasTarget on a 1.5 s gap in
+                // the target stream, and a button that comes and goes moves every button under
+                // it while the operator is reaching for one.
+                text:        qsTr("추적해제")
+                // A reticle, not the AI glyph the switch above already wears: two buttons with
+                // the same picture read as two halves of one control.
+                iconSource:  "/qmlimages/TrackingIcon.svg"
+                enabled:     App.SiyiAiController.hasTarget
+                onTriggered: App.SiyiAiController.cancelTracking()
             },
             ToolStripAction {
                 text:        App.SpeakerController.playing ? qsTr("방송정지") : qsTr("경고방송")
@@ -956,7 +1323,8 @@ Item {
             id:          cameraToolStrip
             anchors.top: cameraGrip.bottom
             width:       ScreenTools.defaultFontPixelWidth * 7
-            maxHeight:   root.height - root._bottomInset - cameraStripGroup.y - cameraGrip.height - 8
+            // Stops above the detection card, which sits in this column's bottom corner.
+            maxHeight:   aiPanel.y - 8 - cameraStripGroup.y - cameraGrip.height
             model:       cameraToolActions.model
         }
     }
@@ -1256,23 +1624,16 @@ Item {
             MouseArea { anchors.fill: parent }
         }
 
-        // The map, at the size and place of the top camera window, so the aircraft's position
-        // stays in view while a camera fills the screen. A tap swaps back: map full, camera in
-        // its window. Mirrored from the live map item rather than a second map instance, the
-        // way the EO window mirrors the main video; the texture is kept at the window's own
-        // size so the copy costs little.
+        // The map, small, in the bottom corner, so the aircraft's position stays in view while
+        // a camera fills the screen. A tap swaps back: map full, camera in its window. Mirrored
+        // from the live map item rather than a second map instance, the way the EO window
+        // mirrors the main video; the texture is kept at the copy's own size so it costs little.
         Item {
             id:      mapPip
-            // The map takes the place of whichever window went full screen - a true swap,
-            // so the column keeps its shape and nothing looks lost.
-            readonly property Item swappedWindow: root.expandedPanel === "primary"   ? primaryWindow
-                                                : root.expandedPanel === "secondary" ? secondaryWindow
-                                                : root.expandedPanel === "shared"    ? sharedWindow
-                                                : null
-            width:   root._windowWidth
-            height:  root._windowWidth * 9 / 16
-            x:       swappedWindow ? swappedWindow.x : parent.width - width - 8
-            y:       swappedWindow ? swappedWindow.y : 8
+            width:   root._windowWidth * 0.55
+            height:  width * 9 / 16
+            x:       parent.width - width - 8
+            y:       parent.height - height - 8
             z:       3
             visible: root.mapItem !== null
 
@@ -1321,9 +1682,10 @@ Item {
         }
 
         Rectangle {
-            anchors.right:   parent.right
-            anchors.bottom:  parent.bottom
-            anchors.margins: 10
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom:       parent.bottom
+            // Above the detection card, which floats over this layer.
+            anchors.bottomMargin: root._bottomInset + aiPanel.height + 12
             width:           fullscreenHint.implicitWidth + 20
             height:          fullscreenHint.implicitHeight + 12
             radius:          4
@@ -1344,9 +1706,23 @@ Item {
     // numbers and the gap beside the camera column stays free. Floats above the full screen
     // layer the way the windows do.
     PoliceDroneAiPanel {
-        x: flightInstruments.x + telemetryBar.x
-        y: flightInstruments.y + telemetryBar.y - 8 - height
-        z: root.expandedPanel.length > 0 ? 21 : 3
+        id: aiPanel
+
+        // Beside the telemetry bar, same height, so the two read as one instrument row. On a
+        // narrow screen the camera column takes that space, and the card sits above the bar
+        // instead of running under the windows.
+        readonly property real _besideX:  flightInstruments.x + telemetryBar.x + telemetryBar.width + 6
+        readonly property real _rightEdge: root.width - root._windowWidth - 6
+        readonly property bool _beside:   _besideX + width <= _rightEdge
+
+        x:      Math.min(_beside ? _besideX : flightInstruments.x + telemetryBar.x,
+                         _rightEdge - width)
+        y:      _beside ? flightInstruments.y + telemetryBar.y
+                        : flightInstruments.y + telemetryBar.y - 6 - height
+        // The bar's height is configurable down to a single row, which is shorter than this
+        // card's own two lines; matching it is what is wanted, being crushed by it is not.
+        height: Math.max(implicitHeight, telemetryBar.height)
+        z:      root.expandedPanel.length > 0 ? 21 : 3
     }
 
     // The forward-looking camera on the air unit's second LAN port. It is fixed to the
@@ -1383,6 +1759,16 @@ Item {
         onActivated:          root._toggleExpanded("secondary")
         onTargetPicked:       (nx, ny) => App.SiyiAiController.trackPoint(nx, ny)
         onTargetBoxPicked:    (l, t, r, b) => App.SiyiAiController.trackBox(l, t, r, b)
+        // The module reads selections in the stream's own resolution and never reports what
+        // that is; left at its 1280x720 default a tap on a 1080p stream lands a third in.
+        // Assigned through the properties: the setters are not callable from QML.
+        onStreamRectChanged: {
+            const frame = secondaryPanel.streamRect
+            if ((frame.width > 0) && (frame.height > 0)) {
+                App.SiyiAiController.streamWidth  = frame.width
+                App.SiyiAiController.streamHeight = frame.height
+            }
+        }
     }
 
     PoliceDroneCameraPanel {

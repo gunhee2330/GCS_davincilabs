@@ -1,6 +1,6 @@
 # ============================================================================
 # PersonDetection Tests
-# Pure-logic tests for the YOLOv8 letterbox / decode / NMS core, plus an
+# Pure-logic tests for the letterbox / decode / NMS core, plus an
 # end-to-end run of the ONNX model (skipped when it is not built in)
 # ============================================================================
 
