@@ -786,11 +786,12 @@ Item {
         id:       sharedWindow
         panelKey: "shared"
         title:    qsTr("열상")
-        // At night thermal and the laser rangefinder work as a pair, so the distance lives
-        // on this window's bar once readings arrive. No reading, no text.
+        // At night thermal and the laser rangefinder work as a pair, so the distance lives on
+        // this window's bar. It stays put with no reading rather than collapsing the bar: the
+        // spec asks for the range to be on screen at all times.
         detail:   App.SiyiCameraController.rangefinderAvailable
                       ? qsTr("LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
-                      : ""
+                      : qsTr("LRF --")
     }
 
     // ------------------------------------------------------------------- fly tools
@@ -867,6 +868,16 @@ Item {
                 onTriggered: (source) => root._dropLeft(cameraDropPanelComponent, source)
             },
             ToolStripAction {
+                // Both sensors always own a window, so "카메라전환(EO/IR)" means choosing which
+                // one fills the screen. Labelled with the sensor it switches to, like the
+                // 광각/줌 button below.
+                text:        root.expandedPanel === "shared" ? qsTr("EO") : qsTr("IR")
+                iconSource:  root.expandedPanel === "shared" ? "qrc:/InstrumentValueIcons/view-show.svg"
+                                                             : "qrc:/InstrumentValueIcons/thermometer.svg"
+                enabled:     App.SiyiCameraController.connected
+                onTriggered: root._toggleExpanded(root.expandedPanel === "shared" ? "secondary" : "shared")
+            },
+            ToolStripAction {
                 // Labelled with the sensor it switches to, like the AI button.
                 text:        root.eoShowsWideAngle ? qsTr("줌") : qsTr("광각")
                 iconSource:  root.eoShowsWideAngle ? "qrc:/InstrumentValueIcons/zoom-in.svg"
@@ -891,6 +902,12 @@ Item {
                 iconSource:  "qrc:/InstrumentValueIcons/camera.svg"
                 enabled:     App.SiyiCameraController.connected
                 onTriggered: App.SiyiCameraController.takePhoto()
+            },
+            ToolStripAction {
+                text:        App.SiyiCameraController.recording ? qsTr("녹화중지") : qsTr("녹화")
+                iconSource:  "qrc:/InstrumentValueIcons/film.svg"
+                enabled:     App.SiyiCameraController.connected
+                onTriggered: App.SiyiCameraController.toggleRecording()
             },
             ToolStripAction {
                 text:        App.SiyiAiController.hasTarget
