@@ -31,7 +31,7 @@ Item {
     // One line the operator can read off: what the module is tracking, where its box centre
     // sits in the module's 1280×720 frame, how big it is, and the laser range if the pod has
     // one. Empty when nothing is tracked, so the panels can key visibility on it.
-    readonly property string aiTargetInfo: aiTargetVisible
+    readonly property string _trackedInfo: aiTargetVisible
         ? qsTr("%1 · 위치 (%2, %3) · 크기 %4×%5 px%6")
               .arg(aiTargetLabel)
               .arg(Math.round(App.SiyiAiController.targetCentreX * _aiRefWidth))
@@ -42,6 +42,21 @@ Item {
                    ? qsTr(" · LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
                    : "")
         : ""
+
+    // Where the pod says its laser is pointing, to seven decimals so it can be read off the
+    // screen and compared against a surveyed point. Shown whenever the pod reports it, tracking
+    // or not, because checking it is done by aiming at a known mark rather than at a person.
+    // It is the LASER's point, not the tracker's — the two agree only while the tracked object
+    // sits under the laser axis, and how far apart they run is exactly what has to be measured.
+    readonly property string _laserInfo: App.SiyiCameraController.rangefinderTargetAvailable
+        ? qsTr("레이저 지점 %1, %2")
+              .arg(Number(App.SiyiCameraController.rangefinderTarget.latitude).toFixed(7))
+              .arg(Number(App.SiyiCameraController.rangefinderTarget.longitude).toFixed(7))
+        : ""
+
+    readonly property string aiTargetInfo:
+        (_trackedInfo.length > 0 && _laserInfo.length > 0) ? (_trackedInfo + " · " + _laserInfo)
+                                                           : (_trackedInfo + _laserInfo)
 
     /// Target picking only makes sense once the module is up and recognising.
     readonly property bool _aiPickEnabled: App.SiyiAiController.connected && App.SiyiAiController.recognitionEnabled

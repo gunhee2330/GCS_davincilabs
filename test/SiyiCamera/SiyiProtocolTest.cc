@@ -197,8 +197,25 @@ void SiyiProtocolTest::_parseHardwareModel_test()
     QVERIFY(parseHardwareModel(QByteArray("ZZ")).isEmpty());
 }
 
+void SiyiProtocolTest::_parseRangefinderTarget_test()
+{
+    // Longitude first, then latitude, both int32 degE7 little endian: 127.0246810 E, 37.5123456 N.
+    // Getting the order the other way round would put this point in the Southern Ocean, so the
+    // two values are deliberately different enough for a swap to be obvious.
+    const auto target = parseRangefinderTarget(fromHex("9a6db64b" "00ee5b16"));
+    QVERIFY(target.has_value());
+    QVERIFY(qAbs(target->lonDeg - 127.0246810) < 1e-7);
+    QVERIFY(qAbs(target->latDeg - 37.5123456) < 1e-7);
+
+    // A pod that answers without a fix sends values outside the coordinate ranges; those are not
+    // a position, and letting them through would put a marker on the map at a real place.
+    QVERIFY(!parseRangefinderTarget(fromHex("00000080" "00000080")).has_value());
+    QVERIFY(!parseRangefinderTarget(QByteArray(7, '\0')).has_value());
+}
+
 void SiyiProtocolTest::_parseRejectsShortPayloads_test()
 {
+    QVERIFY(!parseRangefinderTarget(QByteArray(7, '\0')).has_value());
     QVERIFY(!parseAttitude(QByteArray(11, '\0')).has_value());
     QVERIFY(!parseConfigInfo(QByteArray(6, '\0')).has_value());
     QVERIFY(!parseFirmwareVersion(QByteArray(7, '\0')).has_value());

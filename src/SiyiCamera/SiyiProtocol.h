@@ -42,6 +42,7 @@ enum class CommandId : quint8 {
     SetCameraImageType      = 0x11,
     GetTempFullImage        = 0x14,
     ReadRangefinder         = 0x15,
+    ReadRangefinderTarget   = 0x17,
     SetThermalPalette       = 0x1B,
     SetThermalRawData       = 0x34,
     SetThermalGain          = 0x38,
@@ -185,6 +186,19 @@ struct ThermalRange {
 
 /// Laser rangefinder distance in metres. ZT30 only.
 [[nodiscard]] std::optional<float> parseRangefinderDistance(const QByteArray &data);
+
+/// Where the laser is pointing, in WGS84 degrees. ZT30 only.
+///
+/// This is the LASER's aim point, not the tracker's target: the two coincide only while the
+/// tracked object sits under the laser axis. The reply carries no timestamp, no altitude and no
+/// validity flag, so a reading that is stale, or taken off glass or water, is indistinguishable
+/// from a good one here — freshness has to come from the caller.
+struct RangefinderTarget
+{
+    double lonDeg = 0.0;
+    double latDeg = 0.0;
+};
+[[nodiscard]] std::optional<RangefinderTarget> parseRangefinderTarget(const QByteArray &data);
 
 /// Model name decoded from the first two hardware id characters, e.g. "ZT30".
 /// Empty when the id is not one this driver knows.

@@ -24,6 +24,12 @@ qint16 readInt16(const QByteArray &data, int offset)
     return static_cast<qint16>(readUint16(data, offset));
 }
 
+qint32 readInt32(const QByteArray &data, int offset)
+{
+    return static_cast<qint32>(static_cast<quint32>(readUint16(data, offset)) |
+                               (static_cast<quint32>(readUint16(data, offset + 2)) << 16));
+}
+
 QString formatVersion(const QByteArray &data, int offset)
 {
     // Each version is stored patch, minor, major on ascending bytes.
@@ -250,6 +256,26 @@ std::optional<float> parseRangefinderDistance(const QByteArray &data)
         return std::nullopt;
     }
     return static_cast<float>(readUint16(data, 0));
+}
+
+std::optional<RangefinderTarget> parseRangefinderTarget(const QByteArray &data)
+{
+    if (data.size() < 8) {
+        return std::nullopt;
+    }
+
+    // Longitude first, then latitude — the order the manual gives, and the reverse of the one
+    // every other geographic pair in this codebase uses.
+    RangefinderTarget target;
+    target.lonDeg = readInt32(data, 0) * 1e-7;
+    target.latDeg = readInt32(data, 4) * 1e-7;
+
+    // Out of range means the pod answered without a fix rather than with a position.
+    if ((target.lonDeg < -180.0) || (target.lonDeg > 180.0) ||
+        (target.latDeg < -90.0) || (target.latDeg > 90.0)) {
+        return std::nullopt;
+    }
+    return target;
 }
 
 QString parseHardwareModel(const QByteArray &data)
