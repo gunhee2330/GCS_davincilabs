@@ -34,7 +34,7 @@
     <application
         android:name="org.qtproject.qt.android.bindings.QtApplication"
         android:hardwareAccelerated="true"
-        android:label="-- %%INSERT_APP_NAME%% --"
+        android:label="@string/app_name"
         android:allowBackup="true"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -46,7 +46,7 @@
         <activity
             android:name="org.mavlink.qgroundcontrol.QGCActivity"
             android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|layoutDirection|locale|fontScale|keyboard|keyboardHidden|navigation|mcc|mnc|density"
-            android:label="-- %%INSERT_APP_NAME%% --"
+            android:label="@string/app_name"
             android:launchMode="singleTop"
             android:screenOrientation="sensorLandscape"
             android:exported="true">

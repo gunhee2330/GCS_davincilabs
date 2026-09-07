@@ -1,5 +1,9 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Launcher entry. Set here rather than through QGC_APP_NAME because that becomes
+         the CMake target name, which cannot hold a space, and because a daily build
+         appends " Daily" to it - neither belongs on the home screen. -->
+    <string name="app_name">DAVINCI GCS</string>
 	<string name="devices">USB Devices</string>
     <string name="CdcAcm">CDC ACM USB Device</string>
     <string name="ChromeCcd">Chrome CCD USB Device</string>

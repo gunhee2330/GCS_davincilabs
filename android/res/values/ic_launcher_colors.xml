@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#4B2C6D</color>
+    <!-- Police navy. Dark enough that the white airframe carries the shape, and far
+         enough from the purple QGC ships with to be findable in a launcher. -->
+    <color name="ic_launcher_background">#12305A</color>
 </resources>
