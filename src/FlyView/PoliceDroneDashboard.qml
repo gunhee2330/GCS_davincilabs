@@ -254,6 +254,52 @@ Item {
 
     property bool _userMovedWindows: false
 
+    /// Set once the operator drags a strip; from then on the strips keep their positions.
+    property bool _userMovedStrips: false
+
+    function _dockStrips() {
+        toolStripGroup.x = 8
+        toolStripGroup.y = topBar.height + 8
+        cameraStripGroup.x = root.width - root._windowWidth - 8 - cameraStripGroup.width
+        cameraStripGroup.y = topBar.height + 8
+    }
+
+    /// A strip's handle. Nothing else on a strip can take a drag - the button column scrolls.
+    component StripGrip : Rectangle {
+        id: grip
+
+        required property Item moves
+
+        width:  parent.width
+        height: Math.max(ScreenTools.minTouchPixels * 0.55, ScreenTools.defaultFontPixelHeight)
+        radius: ScreenTools.defaultFontPixelWidth / 2
+        color:  gripDrag.active ? "#e033c7ff" : "#c8121b24"
+
+        Row {
+            anchors.centerIn: parent
+            spacing:          3
+            Repeater {
+                model: 3
+                Rectangle {
+                    width:  3
+                    height: 3
+                    radius: 1.5
+                    color:  "#9fb2c4"
+                }
+            }
+        }
+
+        DragHandler {
+            id:            gripDrag
+            target:        grip.moves
+            xAxis.minimum: 0
+            xAxis.maximum: Math.max(0, root.width - grip.moves.width)
+            yAxis.minimum: topBar.height
+            yAxis.maximum: Math.max(topBar.height, root.height - grip.moves.height)
+            onActiveChanged: if (active) { root._userMovedStrips = true }
+        }
+    }
+
     function _dockWindows() {
         const windows = [primaryWindow, secondaryWindow, sharedWindow]
         const xDock = width - _windowWidth
@@ -272,8 +318,14 @@ Item {
     // triggers matter: the bar settles vertically after load, and the window width used for
     // the x spacing follows the root width.
     function _redockIfPristine() {
-        if (!_userMovedWindows && height > 200) {
+        if (height <= 200) {
+            return
+        }
+        if (!_userMovedWindows) {
             _dockWindows()
+        }
+        if (!_userMovedStrips) {
+            _dockStrips()
         }
     }
 
@@ -629,7 +681,7 @@ Item {
     // ------------------------------------------------------------------ Floating camera windows
     //
     // The flight map underneath stays full screen. Each camera lives in a small movable
-    // window: the grip bar drags the window around, the video area keeps the
+    // window: the name chip drags the window around, the video area keeps the
     // drag-to-gimbal gesture, and a short tap on the video toggles fullscreen.
 
     component CameraWindow : Item {
@@ -666,14 +718,29 @@ Item {
         }
 
         Rectangle {
+            id:                 nameChipBg
             anchors.left:       parent.left
             anchors.top:        parent.top
             anchors.margins:    6
             width:              nameChip.implicitWidth + 14
             height:             nameChip.implicitHeight + 7
             radius:             3
-            color:              "#c8121b24"
+            color:              windowDrag.active ? "#e033c7ff" : "#c8121b24"
             z:                  5
+
+            // The chip is the window's handle. It cannot be the picture: a tap there swaps the
+            // window with the map and a drag there slews the gimbal, so a third gesture on the
+            // same surface would have to steal from one of them. Clamped to the screen so a
+            // window cannot be flung somewhere the operator cannot reach it again.
+            DragHandler {
+                id:            windowDrag
+                target:        win
+                xAxis.minimum: 0
+                xAxis.maximum: Math.max(0, root.width - win.width)
+                yAxis.minimum: topBar.height
+                yAxis.maximum: Math.max(topBar.height, root.height - win.height)
+                onActiveChanged: if (active) { root._userMovedWindows = true }
+            }
 
             Row {
                 id:                     nameChip
@@ -762,18 +829,26 @@ Item {
         ]
     }
 
-    ToolStrip {
-        id:                 toolStrip
-        anchors.left:       parent.left
-        anchors.leftMargin: 8
-        anchors.top:        topBar.bottom
-        anchors.topMargin:  8
-        z:                  4
-        // ToolStrip's own default, which still clears four Korean characters at the strip's
-        // small font. The buttons size themselves to their labels inside it.
-        width:              ScreenTools.defaultFontPixelWidth * 7
-        maxHeight:          root.height - root._bottomInset - y - 8
-        model:              policeToolActions.model
+    Item {
+        id:     toolStripGroup
+        z:      4
+        width:  toolStrip.width
+        height: flightGrip.height + toolStrip.height
+
+        StripGrip {
+            id:    flightGrip
+            moves: toolStripGroup
+        }
+
+        ToolStrip {
+            id:              toolStrip
+            anchors.top:     flightGrip.bottom
+            // ToolStrip's own default, which still clears four Korean characters at the
+            // strip's small font. The buttons size themselves to their labels inside it.
+            width:           ScreenTools.defaultFontPixelWidth * 7
+            maxHeight:       root.height - root._bottomInset - toolStripGroup.y - flightGrip.height - 8
+            model:           policeToolActions.model
+        }
     }
 
     // The pod's controls: camera panel, EO sensor, zoom, shutter, AI tracking and the
@@ -847,18 +922,26 @@ Item {
         ]
     }
 
-    ToolStrip {
-        id:                 cameraToolStrip
-        // Against the camera column's dock, not a window: the windows can be dragged.
-        x:                  root.width - root._windowWidth - 8 - width
-        anchors.top:        topBar.bottom
-        anchors.topMargin:  8
+    Item {
+        id:     cameraStripGroup
         // Under the left strip's click-away layer (its z - 1), so a tap here while the
         // 복귀고도 panel is open closes that panel instead of firing a camera command.
-        z:                  toolStrip.z - 2
-        width:              ScreenTools.defaultFontPixelWidth * 7
-        maxHeight:          root.height - root._bottomInset - y - 8
-        model:              cameraToolActions.model
+        z:      toolStripGroup.z - 2
+        width:  cameraToolStrip.width
+        height: cameraGrip.height + cameraToolStrip.height
+
+        StripGrip {
+            id:    cameraGrip
+            moves: cameraStripGroup
+        }
+
+        ToolStrip {
+            id:          cameraToolStrip
+            anchors.top: cameraGrip.bottom
+            width:       ScreenTools.defaultFontPixelWidth * 7
+            maxHeight:   root.height - root._bottomInset - cameraStripGroup.y - cameraGrip.height - 8
+            model:       cameraToolActions.model
+        }
     }
 
     // A fresh DropPanel per open, as the plan and map views do: the panel positions itself
@@ -867,7 +950,7 @@ Item {
         const p = button.mapToItem(root, 0, 0)
         component.createObject(root, {
             clickRect:    Qt.rect(p.x, p.y, button.width, button.height),
-            dropViewPort: Qt.rect(0, topBar.height, cameraToolStrip.x, root.height - topBar.height)
+            dropViewPort: Qt.rect(0, topBar.height, cameraStripGroup.x, root.height - topBar.height)
         }).open()
     }
 
