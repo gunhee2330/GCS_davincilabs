@@ -35,7 +35,7 @@ out/
 CMakeFiles
 CMakeLists.txt.user*
 CMakeUserPresets.json
-compile_commands.json
+compile_commands*.json
 cpm_modules
 .cache/
 .ccache/
@@ -53,7 +53,7 @@ ui_*
 *.moc
 *.prl
 *.qm
-.qmlls.ini
+.qmlls*.ini
 
 # ------------------------------------------------------------------------------
 # Compiled Objects & Binaries

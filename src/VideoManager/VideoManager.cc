@@ -735,6 +735,10 @@ bool VideoManager::_updateSettings(VideoReceiver *receiver)
     // With the AI tracking module enabled its annotated feed takes the main panel: the same
     // picture the pod main stream carries, with the module's recognition boxes drawn in.
     // Nothing is lost and the thermal window keeps the sub stream.
+    //
+    // This replaces the main panel outright rather than falling back, so a module whose RTSP
+    // does not deliver leaves the operator's main window black - which is why aiEnabled ships
+    // off while the Module II stream on this airframe answers DESCRIBE but sends no media.
     SiyiCameraSettings *const siyiAiSettings = SettingsManager::instance()->siyiCameraSettings();
     if (siyiAiSettings->aiEnabled()->rawValue().toBool()) {
         const QString aiUri = siyiAiSettings->aiRtspUrl()->rawValue().toString().trimmed();

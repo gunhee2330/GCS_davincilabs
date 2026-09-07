@@ -363,10 +363,17 @@ Item {
     /// Put the pod into the three-sensor layout as soon as it answers, so the operator does
     /// not have to press a button to get all three windows populated. Re-applied on every
     /// reconnect because the pod keeps its own last mode across power cycles.
+    ///
+    /// Keyed on the model, not on the connection: the pod reports connected a beat before it
+    /// says what it is, and sensor routing is refused until it is known to be a ZT30, so a
+    /// connectedChanged handler is one message too early and the pod keeps whatever split-screen
+    /// mode it powered up in - which is how the thermal window came to show an optical sensor.
+    /// A link that times out drops the cached model, so a pod that came back announces itself
+    /// again and this still fires.
     Connections {
         target: App.SiyiCameraController
-        function onConnectedChanged() {
-            if (App.SiyiCameraController.connected) {
+        function onModelChanged() {
+            if (App.SiyiCameraController.isZT30) {
                 root._applyPodStreams()
             }
         }
@@ -388,7 +395,7 @@ Item {
     Connections {
         target: QGroundControl.settingsManager.siyiCameraSettings.aiEnabled
         function onRawValueChanged() {
-            if (App.SiyiCameraController.connected) {
+            if (App.SiyiCameraController.isZT30) {
                 root._applyPodStreams()
             }
         }
@@ -440,7 +447,8 @@ Item {
     onHeightChanged: _redockIfPristine()
     Component.onCompleted: {
         _redockIfPristine()
-        if (App.SiyiCameraController.connected) {
+        // isZT30, not connected: sensor routing is refused until the pod has said what it is.
+        if (App.SiyiCameraController.isZT30) {
             _applyPodStreams()
         }
     }
@@ -1146,7 +1154,10 @@ Item {
                 text:        root.eoShowsWideAngle ? qsTr("줌") : qsTr("광각")
                 iconSource:  root.eoShowsWideAngle ? "qrc:/InstrumentValueIcons/zoom-in.svg"
                                                    : "qrc:/InstrumentValueIcons/zoom-out.svg"
-                enabled:     App.SiyiCameraController.connected
+                // AI pins the main stream to the zoom camera, so with the module on this
+                // button would snap straight back to 광각 with nothing said to the operator.
+                enabled:     App.SiyiCameraController.connected &&
+                             !QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue
                 onTriggered: {
                     root.eoShowsWideAngle = !root.eoShowsWideAngle
                     root._applyPodStreams()
@@ -1221,8 +1232,14 @@ Item {
         // 복귀고도 panel is open closes that panel instead of firing a camera command.
         z:                  toolStrip.z - 2
         width:              ScreenTools.defaultFontPixelWidth * 7
-        // Stops above the detection card, which sits in this column's bottom corner.
-        maxHeight:          aiPanel.y - 8 - y
+        // Stops above the detection card, but only where the card is actually underneath: on a
+        // screen wide enough for the card to sit clear of this column, deferring to it anyway
+        // clipped the top of the strip off.
+        maxHeight: {
+            const clearsCard = (aiPanel.x >= x + width) || (aiPanel.x + aiPanel.width <= x)
+            const floor = clearsCard ? (root.height - root._bottomInset) : (aiPanel.y - 8)
+            return floor - y
+        }
         model:              cameraToolActions.model
     }
 
@@ -1639,7 +1656,9 @@ Item {
         id:                   secondaryPanel
         parent:               root.expandedPanel === "secondary" ? fullscreenLayer : secondaryWindow.slot
         anchors.fill:         parent
-        panelTitle:           root._aiStreamActive ? qsTr("AI 인식")
+        // Named for the sensor on screen, not the pipe it came through: AI pins the main
+        // stream to the zoom camera, so its feed is the zoom picture with boxes drawn in.
+        panelTitle:           root._aiStreamActive ? qsTr("줌 · AI")
                                                     : (root.eoShowsWideAngle ? qsTr("광각") : qsTr("줌"))
         showChrome:           root.expandedPanel === "secondary"
         streamObjectName:     "videoContent"
