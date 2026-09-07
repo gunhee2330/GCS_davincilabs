@@ -28,11 +28,18 @@ class Vehicle;
 /// within the last two seconds. Losing the target for longer disables the publisher outright,
 /// so re-following is always a deliberate operator action. The class never changes flight mode;
 /// putting the aircraft into its follow mode stays an operator action too.
+/// NOT SHIPPED. The first delivery is camera tracking and manual flight; the aircraft does not
+/// fly itself at a target. Deliberately not registered with QML, so no screen can reach it and
+/// no binding can turn it on. The geolocation and its tests are kept because they are the part
+/// worth keeping, but they are not flight-ready: the gimbal yaw sign has never been checked
+/// against a real pod, the ray is intersected with a horizontal plane through whatever the
+/// laser last measured at frame centre (wrong on a slope, on a building, or for a target near
+/// the frame edge), and the sender it would call reports nothing back about whether the
+/// aircraft accepted anything. Before this may command an aircraft, verify the pod's own
+/// target coordinate (SIYI 0x17) against a surveyed point and make that the source instead.
 class PoliceDroneTargetFollow : public QObject
 {
     Q_OBJECT
-    QML_ELEMENT
-    QML_SINGLETON
 
     Q_PROPERTY(bool             enabled             READ enabled        WRITE setEnabled    NOTIFY enabledChanged)
     Q_PROPERTY(bool             following           READ following                          NOTIFY statusChanged)
