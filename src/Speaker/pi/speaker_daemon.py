@@ -76,13 +76,20 @@ AUDIO_RATE = int(os.environ.get("SPEAKER_AUDIO_RATE", "16000"))
 # away still shouting is worse than one that goes quiet. Refreshed by any command.
 DEADMAN_SECONDS = float(os.environ.get("SPEAKER_DEADMAN_SECONDS", "120"))
 
+# The air unit's UDP telemetry session drops without traffic, so the serial transport sends
+# an unsolicited state frame this often to keep the ground->aircraft direction open. Only used
+# by the UART transport; the UDP (bench) transport needs no heartbeat.
+SERIAL_HEARTBEAT_SECONDS = float(os.environ.get("SPEAKER_SERIAL_HEARTBEAT_SECONDS", "0.25"))
+
 # The live stream ends when the operator lets go of push-to-talk, which just stops the
 # packets. Close the pipe after this long a gap so the tail of a word is not clipped but
 # the speaker does not sit open hissing.
 AUDIO_IDLE_SECONDS = float(os.environ.get("SPEAKER_AUDIO_IDLE_SECONDS", "0.4"))
 
-STX = b"\x55\x66"
-AUDIO_MAGIC = b"\x55\x67"  # one greater than the control STX, so the two never alias
+STX = b"\xa5\x5a"
+AUDIO_MAGIC = b"\xa5\x5b"  # one above STX. NOT 0x55 0x66: on the SIYI datalink the controller's
+                          # RC MCU treats a 0x55 0x66 frame as its own SDK command and eats it
+                          # instead of forwarding it to the air unit, so the payload never hears it
 AUDIO_HEADER_LEN = 4  # magic(2) + sequence(2)
 HEADER_LEN = 8  # STX(2) + CTRL(1) + LEN(2) + SEQ(2) + CMD(1)
 CRC_LEN = 2
@@ -374,6 +381,12 @@ class Commands:
         self._sequence = 0
         self.last_command = time.monotonic()
 
+    def state_frame(self) -> bytes:
+        """A state frame for the heartbeat, sequence-numbered like a reply."""
+        with self._lock:
+            self._sequence = (self._sequence + 1) & 0xFFFF
+            return encode(CMD_REQUEST_STATE, self._player.state(), self._sequence)
+
     def handle(self, command_id: int, payload: bytes) -> bytes | None:
         """Reply frame for a command, or None for a frame that is not ours (e.g. RC SDK)."""
         if command_id not in OWN_COMMANDS:
@@ -414,7 +427,14 @@ def _audio_loop(sock: socket.socket, live: LiveAudio, player: Player, running: t
 
 
 def _serial_loop(port: str, baud: int, commands: Commands, running: threading.Event) -> None:
-    """Commands from the air unit's UART; replies back up the same wire."""
+    """Commands from the air unit's UART; replies back up the same wire.
+
+    The air unit's second telemetry channel is set to UDP, which only carries the ground
+    station's commands down to us while its UDP session with the controller is live, and that
+    session only stays up while bytes flow the other way. A daemon that spoke only in reply
+    would never get a first command to reply to, so it heartbeats its state up the wire about
+    once a second. The ground station already polls state, so the extra frames are harmless.
+    """
     try:
         link = serial.Serial(port, baud, timeout=0.2, write_timeout=1.0)
     except (OSError, serial.SerialException) as exc:
@@ -423,7 +443,16 @@ def _serial_loop(port: str, baud: int, commands: Commands, running: threading.Ev
     log.info("serial on %s @ %d", port, baud)
 
     buffer = bytearray()
+    last_heartbeat = 0.0
     while running.is_set():
+        now = time.monotonic()
+        if now - last_heartbeat >= SERIAL_HEARTBEAT_SECONDS:
+            last_heartbeat = now
+            try:
+                link.write(commands.state_frame())
+            except (OSError, serial.SerialException) as exc:
+                log.warning("serial heartbeat failed: %s", exc)
+
         try:
             chunk = link.read(512)
         except (OSError, serial.SerialException) as exc:

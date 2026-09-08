@@ -177,15 +177,15 @@ void SpeakerController::_readPendingDatagrams()
         _rxBuffer.append(datagram);
     }
 
-    const QList<SiyiProtocol::Frame> frames = SiyiProtocol::decode(_rxBuffer);
-    for (const SiyiProtocol::Frame &frame : frames) {
+    const QList<SpeakerProtocol::Frame> frames = SpeakerProtocol::decode(_rxBuffer);
+    for (const SpeakerProtocol::Frame &frame : frames) {
         _lastFrameTimer.restart();
         _setConnected(true);
         _handleFrame(frame);
     }
 }
 
-void SpeakerController::_handleFrame(const SiyiProtocol::Frame &frame)
+void SpeakerController::_handleFrame(const SpeakerProtocol::Frame &frame)
 {
     switch (static_cast<SpeakerProtocol::CommandId>(frame.commandId)) {
     case SpeakerProtocol::CommandId::Play:

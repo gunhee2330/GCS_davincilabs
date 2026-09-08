@@ -10,7 +10,6 @@
 #include <QtNetwork/QHostAddress>
 #include <QtQmlIntegration/QtQmlIntegration>
 
-#include "SiyiProtocol.h"
 #include "SpeakerProtocol.h"
 
 Q_DECLARE_LOGGING_CATEGORY(SpeakerControllerLog)
@@ -77,7 +76,7 @@ private slots:
 
 private:
     void _send(const QByteArray &packet);
-    void _handleFrame(const SiyiProtocol::Frame &frame);
+    void _handleFrame(const SpeakerProtocol::Frame &frame);
     void _setConnected(bool connected);
     void _reloadMessageNames();
 
