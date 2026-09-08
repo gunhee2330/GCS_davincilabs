@@ -88,7 +88,6 @@ signals:
     void aspectRatioChanged();
     void autoStreamConfiguredChanged();
     void decodingChanged();
-    void eoRecordingFinished(const QString &filePath);
     void fullScreenChanged();
     void hasVideoChanged();
     void imageFileChanged(const QString &filename);

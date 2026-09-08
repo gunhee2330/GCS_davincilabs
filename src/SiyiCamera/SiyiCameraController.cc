@@ -21,6 +21,26 @@ constexpr qint64 kConnectionTimeoutMs = 2000;
 constexpr qint64 kRangefinderTimeoutMs = 1000;
 constexpr qint64 kThermalRangeTimeoutMs = 3000;
 
+/// How long a 0xC3 confirmation is worth showing as "following". Not a link timeout: it is the
+/// age at which a past answer stops being evidence about the present, and there is no way to ask
+/// again - a re-query is a re-assert, which would switch follow back on. Whether the gimbal ever
+/// drops follow by itself, and whether it would send anything if it did, is unmeasured: spec
+/// section 6 recovered only the codes it answers a request with, and the gimbal firmware has
+/// never been disassembled. Long enough that an operator who just switched follow on is not told
+/// it is unconfirmed.
+constexpr qint64 kAiFollowStaleMs = 10000;
+
+/// How many times a stop goes out, and how far apart in poll ticks. The link is UDP with no
+/// retransmission of any kind and this is the command that gives the sticks back, so one datagram
+/// is not enough. Repeating is taken to be safe rather than known to be: the residue read that
+/// makes a repeated command dangerous was found in the AI module's apt_select_ai_target@0x577930
+/// - a different device, and the documented 0x06 - while 0xC3 carries its whole meaning in one
+/// 0/1 byte and the gimbal's handler for it has never been disassembled. Bounded because the
+/// reply to a stop was never recovered either (spec section 6 lists 1 and 2..8 for a start): a
+/// gimbal that echoes 1 would otherwise keep this running for the whole flight.
+constexpr int kAiFollowStopSends = 3;
+constexpr int kAiFollowStopIntervalTicks = 5;   ///< 500 ms, ~3x a LAN round trip.
+
 /// Poll tick counts, in units of kPollIntervalMs.
 constexpr int kAttitudeInterval = 2;      ///< 5 Hz
 constexpr int kConfigInterval = 10;       ///< 1 Hz
@@ -135,6 +155,8 @@ void SiyiCameraController::stop()
 {
     _pollTimer.stop();
 
+    bool stopSent = false;
+
     if (_socket) {
         if ((_yawRate != 0) || (_pitchRate != 0)) {
             _send(SiyiProtocol::encodeGimbalRotation(0, 0, _sequence++));
@@ -146,6 +168,15 @@ void SiyiCameraController::stop()
         if (isZT30()) {
             _send(SiyiProtocol::encodeSetLaserState(false, _sequence++));
         }
+        // Follow goes off for exactly the reason the laser does, and it matters more: nothing in
+        // the recovered protocol says the gimbal drops follow when this socket closes, and follow
+        // is what flies the aircraft. Without this, quitting or unchecking the camera setting
+        // leaves the airframe chasing a person with no screen and no operator. Keyed on the
+        // request rather than on _aiFollowEnabled, which an unanswered 0xC3 leaves false while the
+        // gimbal is in fact following.
+        if (_aiFollowRequested || _aiFollowEnabled) {
+            stopSent = _send(SiyiProtocol::encodeSingleByte(SiyiProtocol::CommandId::AiFollow, 0, _sequence++));
+        }
         (void) disconnect(_socket, nullptr, this, nullptr);
         _socket->deleteLater();
         _socket = nullptr;
@@ -156,6 +187,40 @@ void SiyiCameraController::stop()
     _rxBuffer.clear();
     _setConnected(false);
     _resetCameraState();
+
+    // Cleared here, unlike on the link timeout that _resetCameraState() handles: that one keeps it
+    // so a delayed acceptance still counts when the link comes back, whereas this path has just
+    // asked for follow off and has no socket left to hear an answer on.
+    _aiFollowRequested = false;
+
+    // Same reading setAiFollow(false) takes, for the same reason: a stop that left this process
+    // means nothing on this side is asking for follow any more. Without it a settings edit -
+    // init()'s applySettings calls start(), and start() begins with stop() - turns follow off on
+    // the wire while _resetCameraState() above leaves the screen on "unconfirmed", so the banner
+    // that says "follow is off and the aircraft is still in GUIDED" never lights and nobody is
+    // told the aircraft is in GUIDED with nothing flying it. Runs after _resetCameraState()
+    // because that one raises staleness.
+    // Staleness is deliberately left standing. That single 0xC3 went out on UDP with the socket
+    // torn down in the same function - no repeat, and nothing left to hear an answer on - so this
+    // is the one stop path that cannot know it worked. setAiFollow(false) shows "unconfirmed" off
+    // the same evidence after three tries; claiming certainty here off one unheard datagram would
+    // paint the card a confident grey while the gimbal is still flying the aircraft.
+    if (stopSent) {
+        _aiFollowEnabled = false;
+        _aiFollowStopSendsLeft = 0;
+        _aiFollowStopState = AiFollowStop::StopUnconfirmed;
+        emit aiFollowChanged();
+    }
+
+    // The poll that owes the stop repeats is gone, so stop claiming they are still coming - and do
+    // not call it done either: whatever went out was never answered. Not in _resetCameraState():
+    // that also runs on a link timeout, where the poll is still turning and the repeats are
+    // exactly what should keep going.
+    if ((_aiFollowStopSendsLeft > 0) || (_aiFollowStopState == AiFollowStop::StopPending)) {
+        _aiFollowStopSendsLeft = 0;
+        _aiFollowStopState = AiFollowStop::StopUnconfirmed;
+        emit aiFollowChanged();
+    }
 }
 
 void SiyiCameraController::rotate(int yawRate, int pitchRate)
@@ -246,6 +311,76 @@ void SiyiCameraController::setThermalGain(int gain)
     _sendSingleByte(SiyiProtocol::CommandId::SetThermalGain, static_cast<quint8>(gain));
 }
 
+void SiyiCameraController::setAiFollow(bool on)
+{
+    // Payload is the single 0/1 byte UniGCS 3.1.6 sends (o/h.java O0(boolean)). Nothing is
+    // gated here on purpose: the gimbal runs its own preconditions and answers with the reason
+    // it refused, and a second set of checks on this side could only disagree with it.
+    //
+    // What is remembered is what was asked for. No confirmed way to tell which request a 0xC3
+    // reply answers has been recovered - the spec leaves that unmeasured (section 8) - so a late
+    // acceptance is indistinguishable from an acceptance of the newest send. Without this an
+    // operator who slides follow on, waits, changes their mind and presses stop has the late
+    // {0x01} arrive afterwards, and the dashboard reacts to it by putting the aircraft into
+    // GUIDED - a flight mode change and dead sticks after an explicit cancel.
+    _aiFollowRequested = on;
+
+    const bool sent = _sendSingleByte(SiyiProtocol::CommandId::AiFollow, on ? 1 : 0);
+
+    if (on) {
+        // A new request starts from nothing the last one left behind. A refusal reason belongs to
+        // the request that was refused: kept across a retry, an unanswered 0xC3 reads as "refused,
+        // GPS data missing" and the operator goes on chasing a fix they already have, while the
+        // panel's "the gimbal has to confirm it" line stays suppressed because it is gated on
+        // there being no error.
+        //
+        // Staleness comes back with it. A confirmed stop leaves this flag false - that is what
+        // makes the card say "off" rather than "unconfirmed" - and leaving it false through a new
+        // request has the card go on saying "off" while a 0xC3{1} nobody answered is outstanding,
+        // which is the same confident lie in the other direction. A gimbal too old to answer 0xC3
+        // reproduces it every time.
+        const bool cleared = (_aiFollowError != AiFollowError::None)
+                             || (_aiFollowStopState != AiFollowStop::StopIdle)
+                             || !_aiFollowStale;
+        _aiFollowError = AiFollowError::None;
+        _aiFollowStopState = AiFollowStop::StopIdle;
+        _aiFollowStopSendsLeft = 0;
+        _aiFollowStale = true;
+        if (cleared) {
+            emit aiFollowChanged();
+        }
+    } else {
+        // A stop is reflected here and now rather than waited for. What aiFollowEnabled reports is
+        // this side's belief that the gimbal is flying the aircraft, and after this call nothing on
+        // this side is asking it to. Waiting for a reply that may never come - the gimbal can
+        // ignore the stop, or answer code 1, which the guard above drops whole - left the start
+        // slider hidden (its visible is driven by aiFollowEnabled) for the rest of the session,
+        // with no way to re-engage follow. The dashboard's own GUIDED banner then reads "follow is
+        // off and the aircraft is still in GUIDED", which is the sentence the operator needs.
+        _aiFollowEnabled = false;
+        // Off is only claimed for a stop that actually left this process. A stop that could not be
+        // sent told the gimbal nothing, so follow is unknown, not off.
+        _aiFollowStale = !sent;
+        _aiFollowError = AiFollowError::None;
+        _lastAiFollowTimer.invalidate();
+
+        if (sent) {
+            // One send has gone out; the poll owes the rest.
+            _aiFollowStopSendsLeft = kAiFollowStopSends - 1;
+            _aiFollowStopNextTick = _pollTicks + kAiFollowStopIntervalTicks;
+            _aiFollowStopState = AiFollowStop::StopPending;
+        } else {
+            // The socket is gone, which also means the poll that would carry the repeats is
+            // stopped. Promising retries that nothing will send, and calling that "waiting for the
+            // gimbal", leaves the operator watching a reassuring line while the gimbal was never
+            // told anything at all.
+            _aiFollowStopSendsLeft = 0;
+            _aiFollowStopState = AiFollowStop::StopUnsent;
+        }
+        emit aiFollowChanged();
+    }
+}
+
 QString SiyiCameraController::recordingStatusText() const
 {
     switch (_config.recordingStatus) {
@@ -261,14 +396,16 @@ QString SiyiCameraController::recordingStatusText() const
     return tr("Unknown");
 }
 
-void SiyiCameraController::_send(const QByteArray &packet)
+bool SiyiCameraController::_send(const QByteArray &packet)
 {
     if (!_socket) {
-        return;
+        return false;
     }
     if (_socket->writeDatagram(packet, _cameraAddress, _cameraPort) < 0) {
         qCWarning(SiyiCameraControllerLog) << "send failed:" << _socket->errorString();
+        return false;
     }
+    return true;
 }
 
 void SiyiCameraController::_sendCommand(SiyiProtocol::CommandId commandId, const QByteArray &data)
@@ -276,9 +413,9 @@ void SiyiCameraController::_sendCommand(SiyiProtocol::CommandId commandId, const
     _send(SiyiProtocol::encode(commandId, data, _sequence++));
 }
 
-void SiyiCameraController::_sendSingleByte(SiyiProtocol::CommandId commandId, quint8 value)
+bool SiyiCameraController::_sendSingleByte(SiyiProtocol::CommandId commandId, quint8 value)
 {
-    _send(SiyiProtocol::encodeSingleByte(commandId, value, _sequence++));
+    return _send(SiyiProtocol::encodeSingleByte(commandId, value, _sequence++));
 }
 
 void SiyiCameraController::_readPendingDatagrams()
@@ -415,6 +552,57 @@ void SiyiCameraController::_handleFrame(const SiyiProtocol::Frame &frame)
         break;
     }
 
+    case SiyiProtocol::CommandId::AiFollow: {
+        // Reply layout from UniGCS 3.1.6's e.java:732: at least one byte, the first being 1 when
+        // the gimbal is now following and anything above that a refusal reason. Only this reply
+        // moves the state, so a gimbal too old to know 0xC3 - which answers nothing at all -
+        // leaves follow reading off.
+        //
+        // Length is not checked beyond emptiness, because e.java does not check it either
+        // (if (i11 > 0)) and this pod family has form for a wider ack than the app reads: the
+        // documented 0x04 answers two bytes (0x56d520, mov w2,#2). Demanding
+        // exactly one would drop a {0x01, 0x00} whole and leave follow reading off for the flight
+        // while the gimbal is following.
+        if (frame.data.isEmpty()) {
+            break;
+        }
+        const auto code = static_cast<quint8>(frame.data.at(0));
+        const bool following = (code == 1);
+
+        // An acceptance for a follow this side has already countermanded is dropped whole; see
+        // setAiFollow(). Refusals are kept: they say the gimbal is not following, which agrees
+        // with a cancel rather than contradicting it, and the reason is still worth showing.
+        if (following && !_aiFollowRequested) {
+            qCDebug(SiyiCameraControllerLog) << "ignoring follow acceptance for a cancelled request";
+            break;
+        }
+
+        // Refusal codes are the enum values. The command is undocumented and unversioned, so a
+        // firmware that grows a ninth reason must not be shown as one of the eight we can name.
+        AiFollowError error = AiFollowError::None;
+        if (code > 8) {
+            error = AiFollowError::Unknown;
+        } else if (code >= 2) {
+            error = static_cast<AiFollowError>(code);
+        }
+        // The gimbal has said it is not following, which is what the stop was asking for. Any
+        // repeat still owed is dropped here so the "waiting" text on the panel goes away.
+        if (!following && (_aiFollowStopState != AiFollowStop::StopIdle)) {
+            _aiFollowStopSendsLeft = 0;
+            _aiFollowStopState = AiFollowStop::StopIdle;
+            emit aiFollowChanged();
+        }
+
+        _lastAiFollowTimer.restart();
+        if ((following != _aiFollowEnabled) || (error != _aiFollowError) || _aiFollowStale) {
+            _aiFollowEnabled = following;
+            _aiFollowError = error;
+            _aiFollowStale = false;
+            emit aiFollowChanged();
+        }
+        break;
+    }
+
     case SiyiProtocol::CommandId::FunctionFeedbackInfo:
         if (!frame.data.isEmpty()) {
             _handleFunctionFeedback(static_cast<quint8>(frame.data.at(0)));
@@ -471,6 +659,28 @@ void SiyiCameraController::_poll()
         _thermalMaxTempC = std::numeric_limits<double>::quiet_NaN();
         _thermalMinTempC = std::numeric_limits<double>::quiet_NaN();
         emit thermalRangeChanged();
+    }
+    if ((_aiFollowStopSendsLeft > 0) && (_pollTicks >= _aiFollowStopNextTick)) {
+        --_aiFollowStopSendsLeft;
+        _aiFollowStopNextTick = _pollTicks + kAiFollowStopIntervalTicks;
+        _sendSingleByte(SiyiProtocol::CommandId::AiFollow, 0);
+        if (_aiFollowStopSendsLeft == 0) {
+            // Every repeat spent with nothing back. Whether the gimbal took the first one and did
+            // not answer, or the link ate all three, cannot be told apart from here - but dropping
+            // the line entirely put the panel back to its "the gimbal has to confirm it" start
+            // text, which reads as a settled stop. Held until the gimbal answers or the operator
+            // asks for something.
+            _aiFollowStopState = AiFollowStop::StopUnconfirmed;
+            emit aiFollowChanged();
+        }
+    }
+
+    if (_aiFollowEnabled && !_aiFollowStale && _lastAiFollowTimer.isValid() &&
+        _lastAiFollowTimer.hasExpired(kAiFollowStaleMs)) {
+        // Deliberately only a flag: nothing is re-sent. 0xC3 answers when asked, and asking means
+        // sending the command again, which would turn follow back on after the gimbal dropped it.
+        _aiFollowStale = true;
+        emit aiFollowChanged();
     }
 
     if ((_yawRate != 0) || (_pitchRate != 0)) {
@@ -559,6 +769,22 @@ void SiyiCameraController::_resetCameraState()
         _thermalMinTempC = std::numeric_limits<double>::quiet_NaN();
         emit thermalRangeChanged();
     }
+
+    // Follow is deliberately NOT cleared with the rest of the pod state. Losing the link says
+    // nothing about whether the gimbal is still flying the aircraft - nothing recovered ties
+    // follow to this socket, and the SIYI air unit's setpoints do not come through it - so
+    // painting follow "off" here would put a grey "off" on the detection card and a "follow is
+    // off but the aircraft is in GUIDED" banner on the map while the aircraft is in fact still
+    // chasing a person. A two second Wi-Fi hiccup is enough, and 0xC3 has no re-query, so that lie
+    // would stand for the rest of the flight. Staleness is the honest reading: aiFollowStale
+    // already renders as "unconfirmed". _aiFollowRequested is kept for the same reason -
+    // dropping it would make the controller discard the acceptance that arrives when the link
+    // comes back. Only a 0xC3 reply and an operator stop clear follow.
+    if (_aiFollowEnabled && !_aiFollowStale) {
+        _aiFollowStale = true;
+        emit aiFollowChanged();
+    }
+    _lastAiFollowTimer.invalidate();
 
     _lastFrameTimer.invalidate();
     _lastRangefinderTimer.invalidate();

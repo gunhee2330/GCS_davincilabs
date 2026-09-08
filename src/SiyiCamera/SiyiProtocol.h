@@ -48,6 +48,14 @@ enum class CommandId : quint8 {
     SetLaserState           = 0x32,
     SetThermalRawData       = 0x34,
     SetThermalGain          = 0x38,
+
+    /// Aircraft follow. Absent from every SIYI manual: found in UniGCS 3.1.6, whose
+    /// biz/siyi/protocol/bu/camera/siyi/{o,h}.java O0(boolean) sends command 195 to
+    /// manufacturer.siyi.r.GIMBAL with a single 0/1 byte, i.e. this framing to the gimbal
+    /// rather than the AI module. The reply is one byte parsed by e.java:732. Being
+    /// undocumented it carries no version negotiation, so a firmware update can retire it and
+    /// the gimbal would then simply stop answering.
+    AiFollow                = 0xC3,
 };
 
 /// Data byte of CommandId::PhotoAndMode. The one command multiplexes shutter, recording

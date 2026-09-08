@@ -1,6 +1,7 @@
 #include "SiyiProtocolTest.h"
 
 #include "SiyiAiProtocol.h"
+#include "SiyiLongProtocol.h"
 #include "SiyiProtocol.h"
 #include "SpeakerProtocol.h"
 
@@ -242,6 +243,15 @@ void SiyiProtocolTest::_laserStateCodec_test()
     QVERIFY(!parseLaserState(QByteArray()).has_value());
 }
 
+/// 0xC3 is in no SIYI manual. These bytes are built from the documented framing and the command
+/// number UniGCS 3.1.6 sends (biz/siyi/protocol/bu/camera/siyi/{o,h}.java O0(boolean)), computed
+/// away from the encoder so a change to either side shows up here.
+void SiyiProtocolTest::_aiFollowCodec_test()
+{
+    QCOMPARE(encodeSingleByte(CommandId::AiFollow, 1, 0), fromHex("55660101000000" "c301" "7fd8"));
+    QCOMPARE(encodeSingleByte(CommandId::AiFollow, 0, 0), fromHex("55660101000000" "c300" "5ec8"));
+}
+
 void SiyiProtocolTest::_parseRejectsShortPayloads_test()
 {
     QVERIFY(!parseRangefinderTarget(QByteArray(7, '\0')).has_value());
@@ -313,6 +323,104 @@ void SiyiProtocolTest::_aiParseRejectsShortPayloads_test()
     QVERIFY(!SiyiAi::parseEnabledFlag(QByteArray()).has_value());
     QVERIFY(!SiyiAi::parseTrackRequestResult(QByteArray()).has_value());
     QVERIFY(!SiyiAi::parseTargetStreamState(QByteArray()).has_value());
+}
+
+void SiyiProtocolTest::_aiObjectCountRequestBytes_test()
+{
+    // Object counting lives on the module's private link, so its requests are long frames:
+    // 55 66 AA BB, CTRL 1, a four byte DATA_LEN, SEQ, CMD 0xD5, header CRC32, payload, frame
+    // CRC32. Expected bytes computed outside this codebase from the layout and the non-reflected
+    // CRC32, not from the encoder, so a change to either shows up here.
+    const auto request = [](const QByteArray &payload) {
+        return SiyiLongProtocol::encode(static_cast<quint8>(SiyiAi::PrivateCommandId::ObjectCount), payload);
+    };
+    const auto payload = [](SiyiAi::ObjectCountMode mode) {
+        return QByteArray(1, static_cast<char>(mode));
+    };
+
+    QCOMPARE(request(QByteArray()), fromHex("5566aabb01000000000000d54157285b7a363646"));
+    QCOMPARE(request(payload(SiyiAi::ObjectCountMode::Stop)),
+             fromHex("5566aabb01010000000000d5503f7f1400ad7c6485"));
+    QCOMPARE(request(payload(SiyiAi::ObjectCountMode::Start)),
+             fromHex("5566aabb01010000000000d5503f7f14011a61a581"));
+    QCOMPARE(request(fromHex("02020100")),
+             fromHex("5566aabb01040000000000d5b2eab46202020100186883cc"));
+    QCOMPARE(request(payload(SiyiAi::ObjectCountMode::ClassList)),
+             fromHex("5566aabb01010000000000d5503f7f1403745a2788"));
+
+    // The keep-alive that stops the module hanging up on us. No payload, no reply.
+    QCOMPARE(SiyiLongProtocol::encode(static_cast<quint8>(SiyiAi::PrivateCommandId::KeepAlive)),
+             fromHex("5566aabb01000000000000802d977a34b7ad40eb"));
+}
+
+void SiyiProtocolTest::_aiParseObjectCountReport_test()
+{
+    // {mode, model, class_count, tally per class}.
+    const auto report = SiyiAi::parseObjectCountReport(fromHex("010504" "0200ff00"));
+    QVERIFY(report.has_value());
+    QVERIFY(report->counting);
+    QCOMPARE(report->counts, QList<int>({2, 0, 255, 0}));
+
+    // Counting off: two bytes, no class count and no tallies.
+    const auto off = SiyiAi::parseObjectCountReport(fromHex("0005"));
+    QVERIFY(off.has_value());
+    QVERIFY(!off->counting);
+    QVERIFY(off->counts.isEmpty());
+
+    // The reply to a bare state query stops at the class count. Counting is on, but there is
+    // nothing to display, and inventing zeroes for four classes would read as an empty street.
+    const auto state = SiyiAi::parseObjectCountReport(fromHex("010504"));
+    QVERIFY(state.has_value());
+    QVERIFY(state->counting);
+    QVERIFY(state->counts.isEmpty());
+
+    // Class count and payload disagree: same treatment, no partial row.
+    const auto truncated = SiyiAi::parseObjectCountReport(fromHex("010504" "0200"));
+    QVERIFY(truncated.has_value());
+    QVERIFY(truncated->counts.isEmpty());
+
+    QVERIFY(!SiyiAi::parseObjectCountReport(QByteArray()).has_value());
+}
+
+void SiyiProtocolTest::_aiParseObjectClassNames_test()
+{
+    // {0x03, model, class_count, mask per class, comma separated names}.
+    QByteArray reply = fromHex("030504" "01010101");
+    reply.append("person,car,bus,truck");
+    reply.append('\0');
+    QCOMPARE(SiyiAi::parseObjectClassNames(reply),
+             QStringList({QStringLiteral("person"), QStringLiteral("car"), QStringLiteral("bus"),
+                          QStringLiteral("truck")}));
+
+    // A separator ends the blob: the empty part it leaves is punctuation, not a class.
+    QByteArray trailingComma = fromHex("030503" "010101");
+    trailingComma.append("person,car,bus,");
+    trailingComma.append('\0');
+    QCOMPARE(SiyiAi::parseObjectClassNames(trailingComma),
+             QStringList({QStringLiteral("person"), QStringLiteral("car"), QStringLiteral("bus")}));
+
+    // The same blob shape for a module that leaves its last class unnamed. The empty part is a
+    // slot here, and dropping it would leave the whole list unusable for the rest of the flight:
+    // the tallies are positional, so a list short of the class count is thrown away, and the poll
+    // only ever re-reads the same reply.
+    QByteArray emptyLastName = fromHex("030503" "010101");
+    emptyLastName.append("person,car,");
+    emptyLastName.append('\0');
+    QCOMPARE(SiyiAi::parseObjectClassNames(emptyLastName),
+             QStringList({QStringLiteral("person"), QStringLiteral("car"), QString()}));
+
+    // A list naming fewer classes than it counts cannot be indexed, and guessing which name went
+    // missing is how the wrong slot ends up reported as people.
+    QByteArray short_ = fromHex("030504" "01010101");
+    short_.append("person,car");
+    QVERIFY(SiyiAi::parseObjectClassNames(short_).isEmpty());
+
+    // No name blob at all.
+    QVERIFY(SiyiAi::parseObjectClassNames(fromHex("030504" "01010101")).isEmpty());
+
+    // Not the class list reply.
+    QVERIFY(SiyiAi::parseObjectClassNames(fromHex("010504" "0200ff00")).isEmpty());
+    QVERIFY(SiyiAi::parseObjectClassNames(QByteArray()).isEmpty());
 }
 
 void SiyiProtocolTest::_speakerEncodeCommands_test()

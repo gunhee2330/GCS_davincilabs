@@ -6,37 +6,36 @@
 #include <QtCore/QString>
 #include <QtCore/QTimer>
 #include <QtPositioning/QGeoCoordinate>
-#include <QtQmlIntegration/QtQmlIntegration>
 
 Q_DECLARE_LOGGING_CATEGORY(PoliceDroneTargetFollowLog)
 
-class QQmlEngine;
-class QJSEngine;
 class SiyiAiController;
 class SiyiCameraController;
 class Vehicle;
 
 /// \brief Publishes the tracked target's ground position so the aircraft can follow it.
 ///
-/// The AI module's own follow mode is only reachable from SIYI's app and the hand controller —
-/// its SDK carries no command for it — so the aircraft half is done here: the tracked box is
-/// turned into a ground coordinate and handed to the firmware plugin's follow-target sender,
-/// which both supported stacks already consume in their follow flight mode.
+/// Route B for aircraft follow: the tracked box is turned into a ground coordinate and handed to
+/// the firmware plugin's follow-target sender, which both supported stacks consume in their follow
+/// flight mode. Route A, which is what ships, does not go through here at all — the gimbal has an
+/// undocumented follow command after all (0xC3, one payload byte, on the gimbal's own short-frame
+/// link) and the SIYI air unit flies it, leaving the GCS only the flight mode to set. So the claim
+/// this file used to make, that the SDK carries no command for follow, is simply false.
 ///
 /// The safety gate lives in this class rather than in the UI: nothing is published unless the
 /// operator enabled it, the vehicle is armed and flying, and the tracker reported the target
 /// within the last two seconds. Losing the target for longer disables the publisher outright,
 /// so re-following is always a deliberate operator action. The class never changes flight mode;
 /// putting the aircraft into its follow mode stays an operator action too.
-/// NOT SHIPPED. The first delivery is camera tracking and manual flight; the aircraft does not
-/// fly itself at a target. Deliberately not registered with QML, so no screen can reach it and
-/// no binding can turn it on. The geolocation and its tests are kept because they are the part
-/// worth keeping, but they are not flight-ready: the gimbal yaw sign has never been checked
-/// against a real pod, the ray is intersected with a horizontal plane through whatever the
-/// laser last measured at frame centre (wrong on a slope, on a building, or for a target near
-/// the frame edge), and the sender it would call reports nothing back about whether the
-/// aircraft accepted anything. Before this may command an aircraft, verify the pod's own
-/// target coordinate (SIYI 0x17) against a surveyed point and make that the source instead.
+/// NOT SHIPPED. Deliberately unreachable: no QML registration, and no create()/instance() pair
+/// either, so registering it is a deliberate act rather than one forgotten line. The geolocation
+/// and its tests are kept because they are the part worth keeping, but they are not flight-ready:
+/// the gimbal yaw sign has never been checked against a real pod, the ray is intersected with a
+/// horizontal plane through whatever the laser last measured at frame centre (wrong on a slope,
+/// on a building, or for a target near the frame edge), and the sender it would call reports
+/// nothing back about whether the aircraft accepted anything. Before this may command an
+/// aircraft, verify the pod's own target coordinate (SIYI 0x17) against a surveyed point and
+/// make that the source instead.
 class PoliceDroneTargetFollow : public QObject
 {
     Q_OBJECT
@@ -53,9 +52,6 @@ class PoliceDroneTargetFollow : public QObject
 
 public:
     explicit PoliceDroneTargetFollow(QObject *parent = nullptr);
-
-    static PoliceDroneTargetFollow *instance();
-    static PoliceDroneTargetFollow *create(QQmlEngine *qmlEngine, QJSEngine *jsEngine);
 
     /// Everything geolocation needs, gathered so it can be computed without a vehicle.
     ///

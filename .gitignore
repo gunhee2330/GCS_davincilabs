@@ -191,3 +191,12 @@ pytest-of-*/
 .tool-versions
 .python-version
 !tools/.python-version
+
+# Vendor APK / firmware reverse-engineering byproducts. They land in the repo root because that
+# is where the tools are run from, and a `git add -A` would otherwise commit them into a police
+# delivery repository.
+androguard.db
+
+# Planning notes written by the agent tooling, for the same reason: they are working scratch, they
+# quote source snippets that never went into src/, and a `git add -A` would commit them.
+docs/superpowers/

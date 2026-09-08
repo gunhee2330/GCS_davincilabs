@@ -5,23 +5,37 @@ import QGC as App
 import QGroundControl
 import QGroundControl.Controls
 
-/// Detection card: person and vehicle counts from the on-device detector and the pod AI
-/// module's tracking state. Styled like the telemetry bar it sits beside so the two read as
-/// one instrument row. The switch itself lives in the top bar.
+/// Detection card: how many people and vehicles the pod's AI module is seeing, and its tracking
+/// state. Styled like the telemetry bar it sits beside so the two read as one instrument row.
+/// The switch itself lives in the top bar.
+///
+/// The numbers come from the module's undocumented 0xD5 push, not from the on-device detector.
+/// That command reports a tally per class and no coordinates at all, which is why the boxes on
+/// screen are the module's own, drawn into its RTSP feed, and why the detector is down to face
+/// mosaics with no count of its own to disagree with these.
 Item {
     id: root
 
     readonly property real _em: ScreenTools.defaultFontPixelHeight
 
-    /// Results older than the stale timer count as gone, so a stalled stream does not leave the
-    /// numbers frozen at their last value.
-    property bool _fresh: false
-    readonly property bool _live: App.PersonDetector.active && _fresh
+    /// The module's numbers mean something only while it says so. countsValid already covers all
+    /// three ways they go bad - link down, counting switched off, pushes stopped arriving - so
+    /// this card no longer keeps a staleness timer of its own.
+    readonly property bool _live: App.SiyiAiController.countsValid
 
-    /// Numbers rise at once but fall only on the settle tick, so a person the detector misses
-    /// for a frame does not make them flicker.
-    property int _persons:  0
-    property int _vehicles: 0
+    /// Numbers rise at once but fall only on the settle tick, so an object the module misses for
+    /// a frame does not make them flicker. -1 is the controller's "unknown", not a count, and is
+    /// the resting value: a card that starts at 0 claims an empty scene it has never looked at.
+    property int _persons:  -1
+    property int _vehicles: -1
+
+    /// The saturation flag that came with the held number above, not the module's current one.
+    /// A held 255 paired with a live flag prints a bare "255" the moment the next push reports
+    /// 250: the number is still the max-held 255 but the flag has already fallen, so the card
+    /// claims an exact headcount for a tally the module only ever said was "at least 255". A
+    /// crowd oscillating around the byte ceiling sits in that state half the time.
+    property bool _personsSat:  false
+    property bool _vehiclesSat: false
 
     readonly property bool _moduleOn:  QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue
     readonly property bool _tracking:  App.SiyiAiController.hasTarget && !App.SiyiAiController.targetLost
@@ -33,28 +47,52 @@ Item {
     implicitWidth:  row.implicitWidth + _em
     implicitHeight: Math.max(ScreenTools.minTouchPixels, _em * 2.9)
 
+    /// A dash for a count the module cannot give, a number for one it can.
+    ///
+    /// -1 means the loaded model has no class of that kind at all, so there is nothing to sum and
+    /// the empty sum is 0 - which would read as "none in view" from the middle of a crowd.
+    ///
+    /// "255+" marks the tally sitting exactly on the ceiling of the module's unsigned byte. It
+    /// does NOT catch wraparound and cannot: the firmware accumulates into that byte and lets it
+    /// wrap, so a crowd of three hundred arrives on the wire as 44 with nothing to tell it apart
+    /// from 44 people, and this card prints 44. The marker means "at least 255", never "an
+    /// accurate headcount". Same limit as SiyiAiController.h's personCountSaturated.
+    function _display(count, saturated) {
+        if (count < 0)  return "–"
+        return saturated ? qsTr("255+") : count
+    }
+
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
     Connections {
-        target: App.PersonDetector
-        function onDetectionsChanged() {
-            root._fresh = true
-            staleTimer.restart()
-            root._persons  = Math.max(root._persons,  App.PersonDetector.count)
-            root._vehicles = Math.max(root._vehicles, App.PersonDetector.vehicleCount)
-        }
-        // Switching off clears the marks; without this the old maximum would show for a tick
-        // when switched back on.
-        function onActiveChanged() {
-            root._persons  = 0
-            root._vehicles = 0
-        }
-    }
+        target: App.SiyiAiController
 
-    Timer {
-        id: staleTimer
-        interval:    1500
-        onTriggered: root._fresh = false
+        // Still the max-hold the on-device detector needed, with only the source swapped: 0xD5 is
+        // pushed once per inference frame, so an object the module drops for a frame blinks the
+        // raw number exactly as the detector's misses did. Rises land at once, falls wait for the
+        // settle tick below.
+        //
+        // Only a real count is worth holding: feeding -1 into a max against a held 0 would swallow
+        // the unknown and print a confident "0", and holding the last maximum across a link drop
+        // would show it again for a tick when the link returns. The saturation flag is adopted
+        // with the number and only with it - the two are one reading.
+        function onCountsChanged() {
+            const ai = App.SiyiAiController
+            if (!ai.countsValid || (ai.personCount < 0)) {
+                root._persons = -1
+                root._personsSat = false
+            } else if (ai.personCount >= root._persons) {
+                root._persons = ai.personCount
+                root._personsSat = ai.personCountSaturated
+            }
+            if (!ai.countsValid || (ai.vehicleCount < 0)) {
+                root._vehicles = -1
+                root._vehiclesSat = false
+            } else if (ai.vehicleCount >= root._vehicles) {
+                root._vehicles = ai.vehicleCount
+                root._vehiclesSat = ai.vehicleCountSaturated
+            }
+        }
     }
 
     Timer {
@@ -62,8 +100,10 @@ Item {
         repeat:      true
         running:     root._live
         onTriggered: {
-            root._persons  = App.PersonDetector.count
-            root._vehicles = App.PersonDetector.vehicleCount
+            root._persons     = App.SiyiAiController.personCount
+            root._personsSat  = App.SiyiAiController.personCountSaturated
+            root._vehicles    = App.SiyiAiController.vehicleCount
+            root._vehiclesSat = App.SiyiAiController.vehicleCountSaturated
         }
     }
 
@@ -133,15 +173,20 @@ Item {
         anchors.centerIn: parent
         spacing:          root._em * 0.55
 
-        Stat { label: qsTr("인원"); value: root._live ? root._persons  : "–"; dot: "#e0a800" }
+        Stat {
+            label: qsTr("인원")
+            value: root._live ? root._display(root._persons, root._personsSat) : "–"
+            dot:   "#e0a800"
+        }
 
         Divider {}
 
-        // The stat stays whatever the loaded model can see: the slot is the delivery's, not the
-        // model's, and a person-only model reads as a dash here rather than vanishing.
+        // The stat stays whatever the module can see: the slot is the delivery's, not the loaded
+        // model's, and a module carrying a person-only model reads as a dash here rather than
+        // vanishing and moving everything beside it.
         Stat {
             label: qsTr("차량")
-            value: App.PersonDetector.detectsVehicles ? (root._live ? root._vehicles : "–") : "–"
+            value: root._live ? root._display(root._vehicles, root._vehiclesSat) : "–"
             dot:   "#1f9fd0"
         }
 
@@ -154,6 +199,9 @@ Item {
             value: {
                 if (!root._moduleOn)                            return qsTr("꺼짐")
                 if (!App.SiyiAiController.connected)            return qsTr("미연결")
+                // The module refuses to start on video above 1920x1080 and says nothing else
+                // about it, so the refusal has to be named here or it reads as a dead link.
+                if (App.SiyiAiController.streamTooLarge)        return qsTr("해상도초과")
                 if (!App.SiyiAiController.recognitionEnabled)   return qsTr("대기")
                 if (App.SiyiAiController.hasTarget)
                     return App.SiyiAiController.targetLost ? qsTr("유실") : qsTr("추적중")
@@ -161,9 +209,43 @@ Item {
             }
             dot: !root._moduleOn ? "#9aa3ab"
                  : !App.SiyiAiController.connected ? "#ff9c46"
+                 : App.SiyiAiController.streamTooLarge ? "#ff9c46"
                  : root._tracking ? "#42d66b"
                  : (App.SiyiAiController.hasTarget ? "#ff5b5b" : "#1f9fd0")
         }
 
+        Divider {}
+
+        // Aircraft follow, from the gimbal rather than the AI module - a separate command on a
+        // separate link. Its own slot instead of being folded into 추적 above, because the two are
+        // independent and this is the one that moves the airframe: the operator has to be able to
+        // see that the aircraft is chasing something without opening a panel. The refusal reason
+        // itself only fits in the follow panel; there is room here to say only that there is one.
+        Stat {
+            label: qsTr("추종")
+            word:  true
+            value: {
+                if (!App.SiyiCameraController.connected)      return qsTr("미연결")
+                // 0xC3 answers only when asked and there is no way to ask again without
+                // re-asserting follow, so a green "추종중" from a minutes-old reply is a claim
+                // nothing backs.
+                if (App.SiyiCameraController.aiFollowStale)   return qsTr("미확인")
+                if (App.SiyiCameraController.aiFollowEnabled) return qsTr("추종중")
+                // A stop nothing answered, or one that never left the socket, is not a stop the
+                // gimbal has acted on. Grey "꺼짐" here would be the same confident lie the follow
+                // panel now refuses to tell.
+                if (App.SiyiCameraController.aiFollowStopState !==
+                    App.SiyiCameraController.StopIdle)        return qsTr("미확인")
+                if (App.SiyiCameraController.aiFollowError !== App.SiyiCameraController.None)
+                    return qsTr("거절됨")
+                return qsTr("꺼짐")
+            }
+            dot: !App.SiyiCameraController.connected ? "#9aa3ab"
+                 : App.SiyiCameraController.aiFollowStale ? "#9aa3ab"
+                 : App.SiyiCameraController.aiFollowEnabled ? "#42d66b"
+                 : App.SiyiCameraController.aiFollowStopState !== App.SiyiCameraController.StopIdle ? "#9aa3ab"
+                 : (App.SiyiCameraController.aiFollowError !== App.SiyiCameraController.None
+                    ? "#ff5b5b" : "#9aa3ab")
+        }
     }
 }

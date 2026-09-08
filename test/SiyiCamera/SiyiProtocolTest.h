@@ -23,11 +23,15 @@ private slots:
     void _parseRangefinderTarget_test();
     void _parseRangefinderDistance_test();
     void _laserStateCodec_test();
+    void _aiFollowCodec_test();
     void _parseRejectsShortPayloads_test();
     void _aiEncodeMatchesFraming_test();
     void _aiEncodeTrackCommands_test();
     void _aiParseTargetStream_test();
     void _aiParseRejectsShortPayloads_test();
+    void _aiObjectCountRequestBytes_test();
+    void _aiParseObjectCountReport_test();
+    void _aiParseObjectClassNames_test();
     void _speakerEncodeCommands_test();
     void _speakerParseState_test();
 };

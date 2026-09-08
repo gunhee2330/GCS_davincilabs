@@ -2,9 +2,7 @@
 
 #include <cmath>
 
-#include <QtCore/QApplicationStatic>
 #include <QtCore/QtMath>
-#include <QtQml/QJSEngine>
 
 #include "Fact.h"
 #include "FirmwarePlugin.h"
@@ -38,28 +36,11 @@ constexpr double kFrameAspect = 16.0 / 9.0;
 
 } // namespace
 
-Q_APPLICATION_STATIC(PoliceDroneTargetFollow, _policeDroneTargetFollowInstance);
-
 PoliceDroneTargetFollow::PoliceDroneTargetFollow(QObject *parent)
     : QObject(parent)
 {
     _publishTimer.setInterval(kPublishIntervalMs);
     (void) connect(&_publishTimer, &QTimer::timeout, this, &PoliceDroneTargetFollow::_publish);
-}
-
-PoliceDroneTargetFollow *PoliceDroneTargetFollow::instance()
-{
-    return _policeDroneTargetFollowInstance();
-}
-
-PoliceDroneTargetFollow *PoliceDroneTargetFollow::create(QQmlEngine *qmlEngine, QJSEngine *jsEngine)
-{
-    Q_UNUSED(qmlEngine);
-    Q_UNUSED(jsEngine);
-
-    PoliceDroneTargetFollow *const follow = instance();
-    QJSEngine::setObjectOwnership(follow, QJSEngine::CppOwnership);
-    return follow;
 }
 
 void PoliceDroneTargetFollow::setEnabled(bool enabled)

@@ -185,6 +185,12 @@ void VideoManager::init(QQuickWindow *mainWindow)
                    this, &VideoManager::_videoSourceChanged);
     (void) connect(SettingsManager::instance()->siyiCameraSettings()->fpvRtspUrl(), &Fact::rawValueChanged,
                    this, &VideoManager::_videoSourceChanged);
+    // aiEnabled is a source setting like the URLs above, not just a UI flag: _updateSettings()
+    // branches on it to put the module's annotated feed in the main window. Without this the
+    // operator switches AI on and the main window stays on the stock stream until something else
+    // happens to restart the pipeline - and stays on the AI feed after switching it off.
+    (void) connect(SettingsManager::instance()->siyiCameraSettings()->aiEnabled(), &Fact::rawValueChanged,
+                   this, &VideoManager::_videoSourceChanged);
     (void) connect(_videoSettings->aspectRatio(), &Fact::rawValueChanged, this, &VideoManager::aspectRatioChanged);
     (void) connect(_videoSettings->lowLatencyMode(), &Fact::rawValueChanged, this, [this](const QVariant &value) { Q_UNUSED(value); _restartAllVideos(); });
     // rtpJitterLatencyMs needs a pipeline restart; route through _videoSourceChanged so _updateSettings
@@ -936,7 +942,6 @@ void VideoManager::_initVideoReceiver(VideoReceiver *receiver, QQuickWindow *win
         // Direct: fires on the GStreamer streaming thread; PersonDetector re-queues to its worker.
         (void) connect(receiver, &VideoReceiver::videoFrameTapped, this, &VideoManager::videoFrameTapped,
                        Qt::DirectConnection);
-        (void) connect(receiver, &VideoReceiver::recordingFinished, this, &VideoManager::eoRecordingFinished);
     }
 
     VideoBackend::attachSink(receiver, sink, widget);

@@ -3,7 +3,9 @@
 #include <optional>
 
 #include <QtCore/QByteArray>
+#include <QtCore/QList>
 #include <QtCore/QString>
+#include <QtCore/QStringList>
 #include <QtCore/QtTypes>
 
 /// \brief Codec for the SIYI AI Tracking Module SDK.
@@ -13,13 +15,21 @@
 /// answers on its own address, so it is driven as a second endpoint rather than as more
 /// camera commands.
 ///
-/// The module reports one selected target at a time. It does not enumerate everything it can
-/// see, so a headcount cannot be derived from this interface.
+/// On this interface the module reports one selected target at a time and never enumerates the
+/// rest of what it sees, so no headcount can be derived from it. Counts do exist, but only on the
+/// module's second, undocumented link - see PrivateCommandId::ObjectCount below - and even there
+/// they are per-class tallies with no boxes attached.
 namespace SiyiAi {
 
 /// Factory defaults. The camera itself lives on .25.
 inline constexpr char kDefaultAddress[] = "192.168.144.60";
 inline constexpr quint16 kDefaultPort = 37260;
+
+/// Second port on the same module, TCP only, framed by SiyiLongProtocol instead of SiyiProtocol.
+/// Not a replacement for kDefaultPort: the two links carry different command sets and the module
+/// serves both at once. Read out of the firmware (tcp_server_init@0x55c31c) and confirmed by the
+/// app's own device list (assets/siyi_camera.json, "controlUrl":"192.168.144.60:37256").
+inline constexpr quint16 kPrivatePort = 37256;
 
 /// Target coordinates are expressed against this fixed frame whatever the stream resolution.
 inline constexpr int kReferenceWidth = 1280;
@@ -79,6 +89,64 @@ struct TrackedTarget {
     TargetType type = TargetType::Person;
     TrackingStatus status = TrackingStatus::Lost;
 };
+
+/// Commands on the module's private link (kPrivatePort, SiyiLongProtocol framing).
+///
+/// Numbered independently of CommandId above and of SiyiProtocol's camera commands: 0x80 is a
+/// camera command in the manual and the keep-alive here. Taken from the module's own dispatch
+/// table (get_ai_tcp_server_ai_action_func@0x56e820, table 0xf898f0); no SIYI manual documents
+/// this link or any command on it.
+enum class PrivateCommandId : quint8 {
+    /// Empty payload, no reply. Used as a keep-alive on an assumption, not a reading:
+    /// tcp_server_init@0x55c31c carries what looks like a -10 second idle field, so a client that
+    /// says nothing may well be hung up on. Neither that timeout nor which commands push it back
+    /// was disassembled - the spec lists the idle disconnect among the things still to be measured
+    /// on a bench - and the confirmed part is only that 0x80 is entry [4] of table 0xf898f0.
+    KeepAlive   = 0x80,
+
+    /// Per-class object tallies: the switch, the class list, and the unsolicited count pushes.
+    ObjectCount = 0xD5,
+};
+
+/// First payload byte of a PrivateCommandId::ObjectCount request. An empty payload instead of a
+/// mode byte asks for the current state.
+enum class ObjectCountMode : quint8 {
+    Stop      = 0,
+    Start     = 1,
+    SetMask   = 2,   ///< Followed by a class count and that many booleans.
+    ClassList = 3,
+};
+
+/// A class tally is one unsigned byte and the firmware accumulates into it without clamping
+/// (apt_push_datect_obj_statistics@0x577358/60, ldrb then strb), so the counter wraps rather than
+/// sticking: a crowd of 300 arrives as 44, indistinguishable on the wire from a crowd of 44.
+///
+/// A tally that reaches this value therefore has to be shown as a floor rather than a number - but
+/// be honest about what that catches. It catches only the one moment the wire value is exactly 255.
+/// It cannot detect a wrap that has already happened, and no receiver can: the protocol carries
+/// nothing to detect it with. Until the module's own per-frame object limit has been measured on a
+/// bench, none of these numbers may be presented as an exact headcount.
+inline constexpr int kObjectCountSaturation = 255;
+
+/// A PrivateCommandId::ObjectCount reply or unsolicited push.
+struct ObjectCountReport {
+    bool counting = false;      ///< The module's counting switch, as it reports it.
+
+    /// One tally per class, in the module's own class order - which only parseObjectClassNames
+    /// can turn into meaning. Empty for the bare state reply, which carries the switch alone.
+    QList<int> counts;
+};
+
+/// Reply to PrivateCommandId::ObjectCount.
+[[nodiscard]] std::optional<ObjectCountReport> parseObjectCountReport(const QByteArray &data);
+
+/// Class names from an ObjectCountMode::ClassList reply, in the module's class order.
+///
+/// Empty when the reply is malformed or names fewer classes than it counts. Class
+/// numbering belongs to whichever model the module has loaded, so it is read rather than assumed:
+/// a firmware or model change reorders it silently and this link carries no version to notice
+/// that by.
+[[nodiscard]] QStringList parseObjectClassNames(const QByteArray &data);
 
 /// Commands whose payload is empty.
 [[nodiscard]] QByteArray encodeRequest(CommandId commandId, quint16 sequence = 0);

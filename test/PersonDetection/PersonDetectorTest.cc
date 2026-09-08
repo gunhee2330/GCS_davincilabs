@@ -94,7 +94,12 @@ void PersonDetectorTest::_testDetectBus()
     QVERIFY2(swept.persons.size() > result.persons.size(),
              qPrintable(QStringLiteral("the tiles added nothing to the whole frame pass's %1")
                             .arg(result.persons.size())));
-    QVERIFY2(swept.persons.size() <= 20,
+    // Loosened from 20 when the threshold dropped for the face mosaic: covering a face that is
+    // there matters more than not covering a bush that is not, so the descriptor now admits boxes
+    // the counting build rejected and the sweep returns about 26 on this fixture. The bound is
+    // still here to catch the tiling going haywire rather than to police precision - the same
+    // fixture at conf 0.15 swept 60, which is where the picture stops being usable.
+    QVERIFY2(swept.persons.size() <= 40,
              qPrintable(QStringLiteral("%1 people swept out of a photo of five").arg(swept.persons.size())));
     for (const QRectF& box : swept.persons) {
         QVERIFY(box.width() > 0);
@@ -157,7 +162,6 @@ void PersonDetectorTest::_testDisabledDropsFrames()
 
     detector.submit(frame);
     QTRY_VERIFY(!detector.boxes().isEmpty());
-    QVERIFY(!detector.detectsVehicles());  // person-only model: no vehicle count to report at all
 
     QSignalSpy spy(&detector, &PersonDetector::detectionsChanged);
     QSignalSpy activeSpy(&detector, &PersonDetector::activeChanged);

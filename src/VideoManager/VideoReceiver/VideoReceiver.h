@@ -97,9 +97,6 @@ signals:
     void recordingStarted(const QString &filename);
     void videoSizeChanged(QSize size);
     void videoFrameTapped(const TappedVideoFrame &frame);
-    /// A recording file is closed and complete on disk.
-    void recordingFinished(const QString &filePath);
-
     void sinkChanged(VideoSinkHandle sink);
     void nameChanged(const QString &name);
     void uriChanged(const QString &uri);

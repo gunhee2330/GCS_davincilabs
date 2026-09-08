@@ -11,6 +11,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         SiyiAiProtocol.h
         SiyiCameraController.cc
         SiyiCameraController.h
+        SiyiLongProtocol.cc
+        SiyiLongProtocol.h
         SiyiProtocol.cc
         SiyiProtocol.h
 )
