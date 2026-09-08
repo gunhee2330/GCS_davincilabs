@@ -2,13 +2,34 @@
 
 include_guard(GLOBAL)
 
+# pkg-config is locked to the SDK below (gstreamer_apply_pkgconfig_env MODE SDK), so an
+# auto-detected root has to carry its own headers and its own glib .pc, and each candidate
+# misses one of those for its own reason: the framework installed without gstreamer-devel.pkg
+# has no include directory, and a stock Homebrew gstreamer keg has headers but keeps glib's .pc
+# in a sibling prefix, so MODE SDK can never satisfy it. Picking either fails much later - on a
+# missing include directory, or on "Package 'glib-2.0', required by 'gstreamer-1.0', not found".
+# Rejecting one costs a several-hundred-megabyte download, so say which file was missing.
+function(_qgc_macos_sdk_is_complete ROOT OUT_VAR)
+    if(NOT EXISTS "${ROOT}/include")
+        message(STATUS "GStreamer: ignoring ${ROOT} - no include directory (runtime-only install)")
+        set(${OUT_VAR} FALSE PARENT_SCOPE)
+    elseif(NOT EXISTS "${ROOT}/lib/pkgconfig/glib-2.0.pc")
+        message(STATUS "GStreamer: ignoring ${ROOT} - no lib/pkgconfig/glib-2.0.pc")
+        set(${OUT_VAR} FALSE PARENT_SCOPE)
+    else()
+        set(${OUT_VAR} TRUE PARENT_SCOPE)
+    endif()
+endfunction()
+
 macro(_qgc_discover_macos_sdk)
     if(NOT DEFINED GStreamer_ROOT_DIR)
-        if(EXISTS "/Library/Frameworks/GStreamer.framework")
+        _qgc_macos_sdk_is_complete("/Library/Frameworks/GStreamer.framework/Versions/1.0" _gst_mac_fw_complete)
+        if(_gst_mac_fw_complete)
             set(GStreamer_ROOT_DIR "/Library/Frameworks/GStreamer.framework/Versions/1.0")
         else()
             foreach(_brew_prefix IN ITEMS "/opt/homebrew/opt/gstreamer" "/usr/local/opt/gstreamer")
-                if(EXISTS "${_brew_prefix}")
+                _qgc_macos_sdk_is_complete("${_brew_prefix}" _gst_mac_brew_complete)
+                if(_gst_mac_brew_complete)
                     set(GStreamer_ROOT_DIR "${_brew_prefix}")
                     set(GStreamer_USE_FRAMEWORK OFF)
                     message(STATUS "GStreamer: Using Homebrew at ${GStreamer_ROOT_DIR}")

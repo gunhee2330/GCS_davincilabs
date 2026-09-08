@@ -319,8 +319,6 @@ set(QGC_APP_RESOURCES
     "${CMAKE_SOURCE_DIR}/resources/police_menu_power.svg"
     "${CMAKE_SOURCE_DIR}/resources/police_menu_settings.svg"
     "${CMAKE_SOURCE_DIR}/resources/police_menu_vehicle.svg"
-    "${CMAKE_SOURCE_DIR}/resources/police_plug_off.svg"
-    "${CMAKE_SOURCE_DIR}/resources/police_plug_on.svg"
     "${CMAKE_SOURCE_DIR}/resources/rtl.svg"
     "${CMAKE_SOURCE_DIR}/resources/SplashScreen.png"
     "${CMAKE_SOURCE_DIR}/resources/takeoff.svg"

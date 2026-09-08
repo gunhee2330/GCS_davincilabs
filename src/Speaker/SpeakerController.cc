@@ -21,7 +21,7 @@ constexpr qint64 kConnectionTimeoutMs = 3000;
 
 } // namespace
 
-Q_APPLICATION_STATIC(SpeakerController, _speakerControllerInstance);
+Q_APPLICATION_STATIC(SpeakerController, _speakerControllerInstance, nullptr);
 
 SpeakerController::SpeakerController(QObject *parent)
     : QObject(parent)

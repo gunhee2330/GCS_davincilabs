@@ -92,7 +92,6 @@ void PersonDetector::setEnabled(bool enabled)
             _pending = QImage();
         }
         _boxes.clear();
-        _vehicleBoxes.clear();
         emit detectionsChanged();
     }
 
@@ -129,7 +128,6 @@ bool PersonDetector::_loadWorker()
     bool loaded = false;
     (void) QMetaObject::invokeMethod(&_worker, [this, &loaded]() {
         loaded = _worker.load();
-        _detectsVehicles = loaded && _worker.detectsVehicles();
     }, Qt::BlockingQueuedConnection);
     return loaded;
 }
@@ -148,18 +146,17 @@ void PersonDetector::_runNextFrame()
     }
 
     int inferenceMs = 0;
+    // detections.vehicles is dropped on the floor: the shipped descriptor names no vehicle class,
+    // and vehicle counts come from the module now. The worker's vehicle path is left alone so
+    // swapping in a model that has those classes stays a file change rather than a code change.
     const PersonDetectorWorker::Detections detections = _worker.detect(frame, &inferenceMs);
 
-    (void) QMetaObject::invokeMethod(this, [this, detections, inferenceMs]() {
+    (void) QMetaObject::invokeMethod(this, [this, boxes = detections.persons, inferenceMs]() {
         if (!_enabled) {
             return;  // Switched off while this frame was in flight
         }
-        _boxes = detections.persons;
-        _vehicleBoxes = detections.vehicles;
-        _inferenceMs = inferenceMs;
+        _boxes = boxes;
         emit detectionsChanged();
-        qCDebug(PersonDetectorLog) << "persons" << _boxes.size()
-                                   << "vehicles" << _vehicleBoxes.size()
-                                   << "ms" << _inferenceMs;
+        qCDebug(PersonDetectorLog) << "persons" << _boxes.size() << "ms" << inferenceMs;
     }, Qt::QueuedConnection);
 }

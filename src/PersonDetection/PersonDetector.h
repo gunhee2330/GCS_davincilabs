@@ -19,7 +19,14 @@ class QQmlEngine;
 class QJSEngine;
 struct TappedVideoFrame;
 
-/// \brief Live person and vehicle counts and boxes for the EO video stream.
+/// \brief Person boxes for the face mosaic drawn over the EO video stream.
+///
+/// Counting is the AI module's job now. Its undocumented 0xD5 command pushes per-class tallies
+/// and nothing else, and the marks the operator sees are burned into the module's own RTSP feed,
+/// so no object coordinate ever reaches this process from there. What is left for a detector on
+/// this side is the one thing the module cannot supply: somewhere to put a mosaic in our own
+/// windows. Hence boxes and no numbers - a count taken here would be a second, disagreeing
+/// answer to a question the module has already answered.
 ///
 /// Frames arrive from VideoManager's tap on the streaming thread and are handed to a single
 /// worker thread. Inference is slower than the stream, so submissions land in a one-slot
@@ -34,13 +41,13 @@ class PersonDetector : public QObject
 
     Q_PROPERTY(bool             active       READ active         NOTIFY activeChanged)
     Q_PROPERTY(bool             enabled      READ enabled        WRITE setEnabled NOTIFY enabledChanged)
-    Q_PROPERTY(int              count        READ count          NOTIFY detectionsChanged)
+
+    /// Whole person boxes, not head boxes. Two consumers share them and they disagree about what
+    /// a good box is: the mosaic wants the top slice of one, while PoliceDroneCameraPanel's long
+    /// press hands a whole box to the module's tracker, which follows whatever it is given and
+    /// would follow a head. Cropping here would serve the first and break the second, so the crop
+    /// stays in the overlay that draws it.
     Q_PROPERTY(QList<QRectF>    boxes        READ boxes          NOTIFY detectionsChanged)
-    Q_PROPERTY(int              vehicleCount READ vehicleCount   NOTIFY detectionsChanged)
-    Q_PROPERTY(QList<QRectF>    vehicleBoxes READ vehicleBoxes   NOTIFY detectionsChanged)
-    Q_PROPERTY(int              inferenceMs  READ inferenceMs    NOTIFY detectionsChanged)
-    // Fixed by whichever model loaded, so it is settled by the time active() is
-    Q_PROPERTY(bool detectsVehicles READ detectsVehicles NOTIFY activeChanged)
 
     friend class PersonDetectorTest;
 
@@ -62,17 +69,13 @@ public:
 
     [[nodiscard]] bool active() const { return _active; }
     [[nodiscard]] bool enabled() const { return _enabled; }
-    [[nodiscard]] int count() const { return static_cast<int>(_boxes.size()); }
     [[nodiscard]] QList<QRectF> boxes() const { return _boxes; }
-    [[nodiscard]] int vehicleCount() const { return static_cast<int>(_vehicleBoxes.size()); }
-    /// False when the loaded model has no vehicle class: the vehicle count is then nothing to
-    /// report, not a zero, and the UI has no honest number to show.
-    [[nodiscard]] bool detectsVehicles() const { return _detectsVehicles; }
-    [[nodiscard]] QList<QRectF> vehicleBoxes() const { return _vehicleBoxes; }
-    [[nodiscard]] int inferenceMs() const { return _inferenceMs; }
 
-    /// Operator switch, persisted across runs. Switching off drops tapped frames before inference
-    /// and clears the marks; switching on resumes only if the model loaded.
+    /// Operator switch, persisted across runs. Its own switch on the tool strip rather than the
+    /// AI one: to the operator "AI" is the module, and the mosaic is both a personal-data measure
+    /// that outlives any recognition setting and the only thing here costing ~100 ms of tablet
+    /// CPU a frame. Switching off drops tapped frames before inference and clears the boxes;
+    /// switching on resumes only if the model loaded.
     void setEnabled(bool enabled);
 
 signals:
@@ -93,10 +96,7 @@ private:
     bool _shuttingDown = false;  ///< Stops submit() from reaching a worker being torn down
 
     QList<QRectF> _boxes;
-    QList<QRectF> _vehicleBoxes;
-    int _inferenceMs = 0;
     bool _loaded = false;        ///< Model loaded by init(); the switch cannot activate the detector without it
-    bool _detectsVehicles = false;  ///< From the loaded model's descriptor
     std::atomic<bool> _enabled;  ///< Operator switch, restored from QSettings; read by submit() on the stream thread
     bool _active = false;
 };

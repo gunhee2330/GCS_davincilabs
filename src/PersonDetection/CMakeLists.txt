@@ -1,7 +1,8 @@
 # ============================================================================
 # Person Detection Module
-# On-station person detection for the EO stream: live head-count and head
-# mosaic on screen, and blurring of finished recordings.
+# On-station person detection for the EO stream: head mosaic drawn over the
+# live picture. Recordings are NOT touched - the mosaic is an overlay on the
+# VideoOutput, so a file on the SD card or on disk carries unmasked faces.
 # ============================================================================
 
 target_sources(${CMAKE_PROJECT_NAME}

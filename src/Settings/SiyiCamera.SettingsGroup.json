@@ -44,7 +44,7 @@
         {
             "name": "aiEnabled",
             "shortDesc": "Enable SIYI AI tracking module",
-            "longDesc": "Talk to a SIYI AI tracking module on its own Ethernet address. The module is separate hardware between the optical pod and the SIYI link; it recognises and tracks one selected target (person, car, bus, truck).",
+            "longDesc": "Talk to a SIYI AI tracking module on its own Ethernet address. The module is separate hardware between the optical pod and the SIYI link; it recognises and tracks one selected target (person, car, bus, truck). Enabling it also moves the main video window onto the module's own RTSP feed, which is where tap-to-track has to happen: the target the operator picks is only meaningful in the frame the module itself sees, and a tap on the pod's own stream lands somewhere else in the module's picture. Off by default all the same, because on this airframe the module answers RTSP DESCRIBE but sends no media - turning it on before that is fixed replaces the working pod stream with a black window.",
             "type": "bool",
             "default": false,
             "label": "Enable SIYI AI tracking module",
@@ -74,7 +74,7 @@
         {
             "name": "aiRtspUrl",
             "shortDesc": "AI module RTSP URL",
-            "longDesc": "RTSP stream carrying the AI recognition boxes. Verified on the actual Module II hardware: the module publishes this on its OWN address, port 554 - not on the pod's address the manual mirrors suggest. The pod's plain main/sub streams stay at the pod address. Which gimbal the module reads is set in setip.txt on its SD card (VideoAddress).",
+            "longDesc": "RTSP stream carrying the AI recognition boxes. Verified on the actual Module II hardware: the module publishes this on its OWN address, port 554 - not on the pod's address the manual mirrors suggest. The pod's plain main/sub streams stay at the pod address. Which gimbal the module reads is set in setip.txt on its SD card (VideoAddress). Not yet playing on this airframe: the module answers DESCRIBE with 200 OK and takes SDK commands on UDP 37260, but no media follows and GStreamer retries every 11 s, while the pod's own streams and the FPV camera play in the same app.",
             "type": "string",
             "default": "rtsp://192.168.144.60:554/video0",
             "label": "AI module RTSP URL",
@@ -83,9 +83,9 @@
         {
             "name": "fpvRtspUrl",
             "shortDesc": "RTSP address of the FPV camera on the air unit LAN2 port.",
-            "longDesc": "RTSP address of the forward-looking FPV camera on the air unit's LAN2 port. Left empty the FPV window stays closed. On this airframe the FPV camera keeps the SIYI default 192.168.144.25 and the pod moved to .26; a third-party camera uses its own address.",
+            "longDesc": "RTSP address of the forward-looking FPV camera on the air unit's LAN2 port. Left empty the FPV window stays closed. On this airframe the FPV camera keeps the SIYI default 192.168.144.25 and the pod moved to .26; a third-party camera uses its own address. Probed on the airframe: this camera answers /main.264, and every video0/video1/video2 path 404s - those belong to the pod and the AI module.",
             "type": "string",
-            "default": "rtsp://192.168.144.25:8554/video1",
+            "default": "rtsp://192.168.144.25:8554/main.264",
             "label": "FPV camera RTSP URL",
             "keywords": "fpv,rtsp,camera,lan2,forward"
         }

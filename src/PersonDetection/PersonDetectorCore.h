@@ -46,10 +46,17 @@ struct ModelDescriptor
     Preprocess preprocess = Preprocess::Rgb01;
     QList<int> personClasses;
     QList<int> vehicleClasses;
-    /// Deliberately below the usual 0.4: a person seen from the air is a head and shoulders with no
-    /// legs to help the model, and scores accordingly. The figure is the model's own, so it belongs
-    /// in the descriptor beside the weights that were measured with it.
-    float confThreshold = 0.3f;
+    /// Deliberately far below the usual 0.4. A person seen from the air is a head and shoulders
+    /// with no legs to help the model, and scores accordingly; and these boxes now place a face
+    /// mosaic rather than a count, which inverts what a good threshold is. A miss leaves a face on
+    /// screen. A false positive puts a mosaic on a bush. Recall is worth far more than precision
+    /// here, so this sits below the value the counting build shipped. The figure is the model's
+    /// own, so it belongs in the descriptor beside the weights it was measured against.
+    ///
+    /// Not lowered as far as it will go, though: the sweep tiles the frame, and on the bus fixture
+    /// 0.15 turns five people into sixty boxes, which mosaics enough of the picture that the
+    /// operator can no longer see out of it. 0.20 is the shipped compromise.
+    float confThreshold = 0.2f;
 };
 
 /// Returns nullopt on any malformed field, with @a error naming it. Class ids are only checked for
@@ -83,7 +90,7 @@ void fillInput(const Letterbox& lb, Preprocess preprocess, std::span<float> inpu
 /// cx/cy/w/h in input pixels (stock Ultralytics export). An anchor scores as the best of @a classIds, so one
 /// class group decodes as one target. Returns boxes normalised 0..1 in source image space, best score first.
 QList<QRectF> decodeBoxes(const float* output, int numAnchors, const Letterbox& lb, const QSize& sourceSize,
-                          std::span<const int> classIds, float confThreshold = 0.3f, float iouThreshold = 0.45f);
+                          std::span<const int> classIds, float confThreshold = 0.2f, float iouThreshold = 0.45f);
 
 /// @a dets is the 'dets' tensor, kDetFields floats per detection (x1, y1, x2, y2 in letterboxed
 /// input pixels, then the score), and @a labels the model's own class id for each of them. The model
@@ -91,7 +98,7 @@ QList<QRectF> decodeBoxes(const float* output, int numAnchors, const Letterbox& 
 /// labels outside @a classIds. Order is kept: the export sorts by score. Returns boxes normalised
 /// 0..1 in source image space, as decodeBoxes does.
 QList<QRectF> decodeDetsLabels(std::span<const float> dets, std::span<const int64_t> labels, const Letterbox& lb,
-                               const QSize& sourceSize, std::span<const int> classIds, float confThreshold = 0.3f);
+                               const QSize& sourceSize, std::span<const int> classIds, float confThreshold = 0.2f);
 
 /// Maps @a boxes, normalised 0..1 inside @a tile, into 0..1 in a frame of @a frameSize. A tile pass
 /// letterboxes its own crop, so what comes back is in the crop's coordinates. Lives here for the

@@ -7,6 +7,10 @@
 #include <QtCore/QRegularExpression>
 #include <QtQuick/QQuickWindow>
 
+#include "Fact.h"
+#include "SettingsManager.h"
+#include "SiyiCameraSettings.h"
+
 void VideoManagerInitTest::init()
 {
     UnitTest::init();
@@ -101,12 +105,41 @@ void VideoManagerInitTest::_testBackendInitFailure()
     QCOMPARE(createReceiversCount, 0);
 }
 
+/// aiEnabled decides which stream the main window gets: _updateSettings() branches on it to swap
+/// the stock feed for the AI module's annotated one. That makes it a video source setting, and a
+/// source setting nothing listens to is a switch that does nothing - the operator turns AI on and
+/// the main window stays where it was, then stays on the AI feed after turning it off.
+///
+/// This asserts the wiring rather than a restart because the wiring is what was missing: the
+/// branch downstream of it was always correct, and no signal reached it.
+void VideoManagerInitTest::_testAiEnabledIsWiredToTheSourceChange()
+{
+    SiyiCameraSettings *const siyiSettings = SettingsManager::instance()->siyiCameraSettings();
+    QVERIFY(siyiSettings);
+
+    VideoManager videoManager;
+    QQuickWindow mainWindow;
+    videoManager.init(&mainWindow);
+
+    // disconnect() reports whether there was anything to disconnect, which is the question.
+    QVERIFY(QObject::disconnect(siyiSettings->aiEnabled(), &Fact::rawValueChanged,
+                                &videoManager, &VideoManager::_videoSourceChanged));
+
+    // Same probe against a URL that was already wired, so a disconnect() that answers true for
+    // everything would fail this test rather than pass it silently.
+    QVERIFY(QObject::disconnect(siyiSettings->aiRtspUrl(), &Fact::rawValueChanged,
+                                &videoManager, &VideoManager::_videoSourceChanged));
+    QVERIFY(!QObject::disconnect(siyiSettings->aiRtspUrl(), &Fact::rawValueChanged,
+                                 &videoManager, &VideoManager::_videoSourceChanged));
+}
+
 #else
 
 void VideoManagerInitTest::init() { UnitTest::init(); QSKIP("GStreamer not enabled"); }
 void VideoManagerInitTest::_testQmlReadyBeforeBackendReady() { QSKIP("GStreamer not enabled"); }
 void VideoManagerInitTest::_testBackendReadyBeforeQmlReady() { QSKIP("GStreamer not enabled"); }
 void VideoManagerInitTest::_testBackendInitFailure() { QSKIP("GStreamer not enabled"); }
+void VideoManagerInitTest::_testAiEnabledIsWiredToTheSourceChange() { QSKIP("GStreamer not enabled"); }
 
 #endif
 

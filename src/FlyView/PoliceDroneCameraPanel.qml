@@ -17,8 +17,8 @@ Item {
 
     property bool gimbalControlEnabled: true
 
-    /// Draws the on-device person detector's count and head mosaics. Only the stream the
-    /// detector taps (videoContent) has results to draw.
+    /// Draws the on-device detector's face mosaics, and lets a long press snap to a person box.
+    /// Only the stream the detector taps (videoContent) has results to draw.
     property bool personDetectionEnabled: false
 
     /// Enables long-press AI target selection on this panel.
@@ -29,9 +29,6 @@ Item {
     property real aiTargetWidth:        0
     property real aiTargetHeight:       0
     property string aiTargetLabel:      qsTr("TARGET")
-    /// Reference frame the aiTarget* values are expressed in, matching the module's own.
-    readonly property real _aiSourceWidth:  1280
-    readonly property real _aiSourceHeight: 720
     /// Readout drawn along the bottom edge while a target is tracked: class, position, size,
     /// laser range. Empty hides it.
     property string aiTargetInfo:       ""
@@ -87,17 +84,14 @@ Item {
         visible:      root._hasDirectStream
     }
 
+    // No trackedRect any more: it used to suppress our green box under the pod's tracked target
+    // so one person did not read as two. With only mosaics left, suppressing there would have
+    // meant the one face the operator is actively following was the one left uncovered.
     PoliceDronePersonOverlay {
         id:           personOverlay
         anchors.fill: parent
         videoOutput:  videoOutput
         enabled:      root.personDetectionEnabled && root._hasDirectStream
-        trackedRect:  root.aiTargetVisible
-                          ? Qt.rect(root.aiTargetX / root._aiSourceWidth,
-                                    root.aiTargetY / root._aiSourceHeight,
-                                    root.aiTargetWidth / root._aiSourceWidth,
-                                    root.aiTargetHeight / root._aiSourceHeight)
-                          : Qt.rect(0, 0, 0, 0)
     }
 
     PoliceDroneTargetOverlay {

@@ -149,6 +149,187 @@ Item {
     readonly property var _activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
     readonly property var _battery:       _activeVehicle && _activeVehicle.batteries.count > 0 ? _activeVehicle.batteries.get(0) : null
 
+    // ------------------------------------------------------------------ aircraft follow: the mode
+    //
+    // The gimbal never looks at the flight mode. None of the seven refusal reasons it can answer
+    // 0xC3 with is "not GUIDED", so follow armed in LOITER answers 1 (accepted) and the aircraft
+    // then sits there: a silent lie. The vendor app fills the mode in from the outside for exactly
+    // this reason (UniGCS 3.1.6 viewmodels/d7.java:122-127 -> command/x.java:962-964, a plain
+    // DO_SET_MODE(176) with param1=1 CUSTOM_MODE_ENABLED, param2=4 ArduCopter GUIDED; 3.0.2's
+    // d6.java:118-120 is identical). It sends no setpoints of its own - the only
+    // SET_POSITION_TARGET_GLOBAL_INT in that app is its "fly here" - so the SIYI air unit flies
+    // the follow and the mode is the whole of our share.
+    //
+    // Order is 0xC3 first, mode second - the reverse of the AI module manual. ArduCopter GUIDED
+    // ignores stick input, so setting the mode up front would strip the operator of manual control
+    // even in the common case where the gimbal then refuses with "no target selected": slider
+    // pushed, nothing moves, sticks quietly dead. Reacting to the acceptance instead means a
+    // refusal leaves the mode alone.
+    //
+    // flightMode = gotoFlightMode rather than guidedMode = true: the latter runs
+    // FirmwarePlugin::_setFlightModeAndValidate (FirmwarePlugin.cc:286-311), which spins
+    // QThread::msleep(100) x 13 x 3 retries inside processEvents - up to 3.9 s of frozen screen.
+    // The write here is one non-blocking sendMavCommand(MAV_CMD_DO_SET_MODE) that reports its own
+    // failure (Vehicle.cc:1490-1495), and gotoFlightMode routes through the firmware plugin
+    // (ArduCopterFirmwarePlugin.h:58) rather than naming a mode string here.
+    //
+    // Nothing switches follow off or restores the mode from this side. UniGCS drops follow on every
+    // heartbeat that is not GUIDED (j3.java:20-21); copying that would let the GCS countermand a
+    // pilot who took LOITER on the sticks deliberately. The panel says what disagrees; the operator
+    // decides.
+
+    // ------------------------------------------------------ aircraft follow: which stacks get it
+    //
+    // Only a stack whose goto mode is the one the SIYI air unit's setpoints can fly. What is
+    // confirmed is ArduCopter: its gotoFlightMode() is guidedFlightMode()
+    // (ArduCopterFirmwarePlugin.h:58) and the vendor app commands exactly that mode
+    // (DO_SET_MODE param2=4). PX4's answers AUTO_LOITER (PX4FirmwarePlugin.cc:628), which is the
+    // same mode it answers for pause (:603) - a hold, not a mode that takes position commands from
+    // a third party - so pressing follow there would set a mode, move nothing, and look like it
+    // worked. The test is the plugin's own two answers rather than the stack's name, and the base
+    // plugin returns an empty string for both (FirmwarePlugin.h:179), so an unknown firmware falls
+    // on the disabled side by itself.
+    //
+    // What SIYI expects on PX4 is simply not known - only the ArduCopter mode was recovered from
+    // the vendor dex - so follow stays disabled there rather than guessing offboard.
+    //
+    // The mode pair alone was not enough. APMFirmwarePlugin::gotoFlightMode() answers "Guided" for
+    // every APM stack, and ArduPlane's pauseFlightMode() is "Loiter", so a fixed wing passed this
+    // test and could be put into GUIDED on a mapping confirmed only for a multirotor - while the
+    // sentence explaining why follow is unavailable there could never appear. multiRotor is the
+    // airframe question the paragraph above is actually asking; it is not a stack branch, and the
+    // mode pair keeps doing the stack half of the job.
+    readonly property bool _followModeKnown: _activeVehicle
+                                             && _activeVehicle.multiRotor
+                                             && (_activeVehicle.gotoFlightMode !== "")
+                                             && (_activeVehicle.gotoFlightMode !== _activeVehicle.pauseFlightMode)
+
+    // Armed and flying, the same gate every guided action in this repository puts in front of a
+    // command that moves the aircraft (GuidedActionsController.qml:135 showChangeAlt, :141
+    // showGotoLocation). Without it a target picked on a person standing in front of a bench-armed
+    // aircraft puts that aircraft into GUIDED on the ground, and the SIYI air unit starts sending
+    // position setpoints to a machine with its rotors turning.
+    readonly property bool _followFlightReady: _activeVehicle && _activeVehicle.armed && _activeVehicle.flying
+
+    // Latched when the operator slides follow on, never cleared for the rest of the session.
+    //
+    // What hangs off it is panel reachability: the follow panel stays reachable once follow has
+    // been asked for, even after the pod link drops - the stop button in it is the only caller of
+    // setAiFollow(false), and a stop that a link failure can hide is not a stop. A latch that never
+    // clears is right for that and wrong for the warning below, which uses _followEngaged instead.
+    //
+    // Set on the slide rather than on the gimbal's acceptance: the acceptance is the message most
+    // likely to be lost, and it is precisely the case where the operator needs the panel back.
+    property bool _followArmed: false
+
+    // True while the aircraft is in the GUIDED it entered for follow. Set when GUIDED and follow
+    // are both true, cleared the moment the aircraft leaves GUIDED, so it never outlives the
+    // condition it describes.
+    //
+    // _followArmed cannot do this job even though it looks like it could: it latches on the slide
+    // and is never cleared for the session, so every later GUIDED the operator enters for their
+    // own reasons - QGC's own goto is a GUIDED goto - wore the "sticks are dead because
+    // of follow" banner for as long as the goto lasted. A banner that stands during ordinary
+    // operation is a banner that gets read past.
+    property bool _followEngaged: false
+
+    // Latched the first time this session sees the aircraft outside GUIDED, and never cleared.
+    // Once that has happened, every GUIDED after it started while this session was watching -
+    // this GCS commanded it, or the pilot did. False means the aircraft was already in GUIDED
+    // when this session found it, which is the only GUIDED nobody here can account for.
+    property bool _sawNonGuided: false
+
+    function _noteFlightMode() {
+        if (!_activeVehicle) return
+        _followEngaged = _activeVehicle.guidedMode && App.SiyiCameraController.aiFollowEnabled
+        if (!_activeVehicle.guidedMode) _sawNonGuided = true
+    }
+
+    Connections {
+        target: root._activeVehicle
+        function onGuidedModeChanged() { root._noteFlightMode() }
+    }
+
+    // onGuidedModeChanged only fires on a change, and the mode a vehicle is already in when this
+    // session attaches to it never changes into itself - which is precisely the state _sawNonGuided
+    // is about. Read it on arrival too, here and in Component.onCompleted for a vehicle that was
+    // already there when this panel was built.
+    Connections {
+        target: QGroundControl.multiVehicleManager
+        function onActiveVehicleChanged() { root._noteFlightMode() }
+    }
+
+    // The one sentence that says the sticks are dead, kept outside the follow panel.
+    //
+    // It cannot live in the panel. DropPanel is a modal Popup that destroy()s itself on close
+    // (followDropPanelComponent below), and a tap anywhere outside it is enough to close it - so
+    // at the moment there is something to say, the Text saying it no longer exists. The panel
+    // shows this same string while it is open.
+    readonly property string _followModeWarning: {
+        if (!root._activeVehicle) return ""
+        const following = App.SiyiCameraController.aiFollowEnabled
+
+        // GUIDED that was already running when this session arrived, with follow never once
+        // observed. The gimbal keeps following across a QGC restart - the tablet can be OOM-killed
+        // mid-sortie - and across a follow the hand controller started, and 0xC3 is never
+        // re-queried, so aiFollowStale is still at its starting true in exactly the case where the
+        // aircraft may be flying itself and nothing here can tell.
+        //
+        // _sawNonGuided is what keeps this off an ordinary sortie, and it is not decoration.
+        // Without it the test reads "in GUIDED, and follow unobserved" - and follow is unobserved
+        // for the whole of any sortie where the operator never opens the follow panel, so the
+        // dashboard's own takeoff, a map Go To, orbit and ROI each wore this banner for as long as
+        // they lasted. A banner that stands during ordinary operation is a banner that gets read
+        // past, and the one below it means something.
+        if (!root._followArmed && !root._sawNonGuided && root._activeVehicle.guidedMode
+                && App.SiyiCameraController.connected && App.SiyiCameraController.aiFollowStale) {
+            return qsTr("기체가 GUIDED 입니다 — 짐벌 추종 여부를 확인할 수 없습니다. 조종간이 듣지 않으면 비행모드를 바꾸십시오")
+        }
+
+        if (!root._followArmed) return ""
+        if (root._activeVehicle.guidedMode) {
+            // Deliberately not branched on aiFollowStale. Nothing refreshes that flag - 0xC3 is
+            // answered only when asked and re-asking would switch follow back on - so it latches
+            // ten seconds after the acceptance and never falls again. A banner hung off it would
+            // be lit for 4:50 of a 5:00 sortie with the gimbal following perfectly, and its words
+            // tell the operator to abandon follow. Staleness is reported where it costs nothing to
+            // be permanent: the detection card's grey "unconfirmed".
+            //
+            // What is left is the case the operator can act on and cannot see anywhere else: the
+            // aircraft is in follow's GUIDED and follow is not on - the usual way in is pressing
+            // stop, which does not restore the flight mode (the vendor app does not either, and
+            // the manual's escape is "switching flight mode can regain control").
+            if (!following && root._followEngaged) {
+                return qsTr("추종이 꺼졌는데 기체가 GUIDED 입니다 — 조종간이 듣지 않습니다. 비행모드를 바꾸십시오")
+            }
+            return ""
+        }
+        if (following) {
+            return qsTr("짐벌은 추종 중이나 기체가 %1 입니다 — 기체는 움직이지 않습니다")
+                       .arg(root._activeVehicle.flightMode)
+        }
+        return ""
+    }
+
+    Connections {
+        target: App.SiyiCameraController
+        function onAiFollowChanged() {
+            // Fresh acceptance only. This signal also carries the staleness flag flipping, and
+            // acting on that would re-impose GUIDED ten seconds after a pilot took the mode back.
+            if (App.SiyiCameraController.aiFollowEnabled && !App.SiyiCameraController.aiFollowStale
+                    && root._followModeKnown && root._followFlightReady
+                    && root._activeVehicle && !root._activeVehicle.guidedMode) {
+                root._activeVehicle.flightMode = root._activeVehicle.gotoFlightMode
+            }
+            // Follow switched on while the aircraft was already in GUIDED: guidedModeChanged will
+            // not fire, so the latch has to be taken here as well.
+            if (App.SiyiCameraController.aiFollowEnabled && root._activeVehicle
+                    && root._activeVehicle.guidedMode) {
+                root._followEngaged = true
+            }
+        }
+    }
+
     QGCPalette { id: qgcPal }
 
     // Up means a vehicle is connected and its link is alive: the plug indicator on the
@@ -350,15 +531,9 @@ Item {
 
     // Camera window sizing and one-time docking along the bottom edge. Windows keep user
     // positions afterwards; a resize only re-clamps them through the drag axis limits.
-    /// Which pod sensor the EO window shows, read back from the controller so the tool strip,
-    /// the window label and the handheld's own button cannot disagree. The pod's sub stream
-    /// stays thermal either way, so the IR window is unaffected by this choice.
-    readonly property bool eoShowsWideAngle:
-        App.SiyiCameraController.cameraImageType === root._imageTypeWideMain
-
-    /// SiyiProtocol::CameraImageType values. Both leave thermal on the sub stream.
-    readonly property int _imageTypeZoomMain: 3
-    readonly property int _imageTypeWideMain: 5
+    /// Which pod sensor the EO window shows. The pod's sub stream stays thermal either way,
+    /// so the IR window is unaffected by this choice.
+    property bool eoShowsWideAngle: false
 
     /// The AI module's own RTSP feed replaces the main window when it is enabled - the same
     /// picture with the module's boxes drawn in. The thermal window always keeps the sub stream.
@@ -369,11 +544,18 @@ Item {
     /// Put the pod into the three-sensor layout as soon as it answers, so the operator does
     /// not have to press a button to get all three windows populated. Re-applied on every
     /// reconnect because the pod keeps its own last mode across power cycles.
+    ///
+    /// Keyed on the model, not on the connection: the pod reports connected a beat before it
+    /// says what it is, and sensor routing is refused until it is known to be a ZT30, so a
+    /// connectedChanged handler is one message too early and the pod keeps whatever split-screen
+    /// mode it powered up in - which is how the thermal window came to show an optical sensor.
+    /// A link that times out drops the cached model, so a pod that came back announces itself
+    /// again and this still fires.
     Connections {
         target: App.SiyiCameraController
-        function onConnectedChanged() {
-            if (App.SiyiCameraController.connected) {
-                root._applyPodStreams(root.eoShowsWideAngle)
+        function onModelChanged() {
+            if (App.SiyiCameraController.isZT30) {
+                root._applyPodStreams()
             }
         }
     }
@@ -382,11 +564,11 @@ Item {
     // Image mode 3 is zoom on main, 5 is wide angle on main, and both leave thermal on sub.
     // The AI module infers on the main stream and its manual requires the zoom camera, so
     // enabling AI forces the zoom choice.
-    function _applyPodStreams(wantWideAngle) {
-        const wide = wantWideAngle &&
+    function _applyPodStreams() {
+        const wide = eoShowsWideAngle &&
                      !QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue
-        App.SiyiCameraController.setCameraImageType(wide ? root._imageTypeWideMain
-                                                         : root._imageTypeZoomMain)
+        App.SiyiCameraController.setCameraImageType(wide ? 5 : 3)
+        eoShowsWideAngle = wide
     }
 
     // Re-apply when AI is switched on or off, since AI pins the main stream to the zoom
@@ -394,8 +576,8 @@ Item {
     Connections {
         target: QGroundControl.settingsManager.siyiCameraSettings.aiEnabled
         function onRawValueChanged() {
-            if (App.SiyiCameraController.connected) {
-                root._applyPodStreams(root.eoShowsWideAngle)
+            if (App.SiyiCameraController.isZT30) {
+                root._applyPodStreams()
             }
         }
     }
@@ -422,52 +604,6 @@ Item {
 
     property bool _userMovedWindows: false
 
-    /// Set once the operator drags a strip; from then on the strips keep their positions.
-    property bool _userMovedStrips: false
-
-    function _dockStrips() {
-        toolStripGroup.x = 8
-        toolStripGroup.y = topBar.height + 8
-        cameraStripGroup.x = root.width - root._windowWidth - 8 - cameraStripGroup.width
-        cameraStripGroup.y = topBar.height + 8
-    }
-
-    /// A strip's handle. Nothing else on a strip can take a drag - the button column scrolls.
-    component StripGrip : Rectangle {
-        id: grip
-
-        required property Item moves
-
-        width:  parent.width
-        height: Math.max(ScreenTools.minTouchPixels * 0.55, ScreenTools.defaultFontPixelHeight)
-        radius: ScreenTools.defaultFontPixelWidth / 2
-        color:  gripDrag.active ? "#e033c7ff" : "#c8121b24"
-
-        Row {
-            anchors.centerIn: parent
-            spacing:          3
-            Repeater {
-                model: 3
-                Rectangle {
-                    width:  3
-                    height: 3
-                    radius: 1.5
-                    color:  "#9fb2c4"
-                }
-            }
-        }
-
-        DragHandler {
-            id:            gripDrag
-            target:        grip.moves
-            xAxis.minimum: 0
-            xAxis.maximum: Math.max(0, root.width - grip.moves.width)
-            yAxis.minimum: topBar.height
-            yAxis.maximum: Math.max(topBar.height, root.height - grip.moves.height)
-            onActiveChanged: if (active) { root._userMovedStrips = true }
-        }
-    }
-
     function _dockWindows() {
         const windows = [primaryWindow, secondaryWindow, sharedWindow]
         const xDock = width - _windowWidth
@@ -483,14 +619,8 @@ Item {
     // triggers matter: the bar settles vertically after load, and the window width used for
     // the x spacing follows the root width.
     function _redockIfPristine() {
-        if (height <= 200) {
-            return
-        }
-        if (!_userMovedWindows) {
+        if (!_userMovedWindows && height > 200) {
             _dockWindows()
-        }
-        if (!_userMovedStrips) {
-            _dockStrips()
         }
     }
 
@@ -498,8 +628,10 @@ Item {
     onHeightChanged: _redockIfPristine()
     Component.onCompleted: {
         _redockIfPristine()
-        if (App.SiyiCameraController.connected) {
-            _applyPodStreams(eoShowsWideAngle)
+        _noteFlightMode()
+        // isZT30, not connected: sensor routing is refused until the pod has said what it is.
+        if (App.SiyiCameraController.isZT30) {
+            _applyPodStreams()
         }
     }
 
@@ -551,14 +683,22 @@ Item {
     readonly property string _takeoffText:
         _takeoffTime ? Qt.formatDateTime(_takeoffTime, "MM-dd HH:mm:ss") : qsTr("이륙 전")
 
-    /// One AI switch: the on-device detector and the pod module's own recognition follow it,
-    /// so the operator arms one thing before a long press can pick a target.
+    /// To the operator, "AI" is the module: it is what recognises, counts and draws boxes into the
+    /// picture. The on-device detector used to ride on this switch back when it was the thing
+    /// producing counts and boxes; it is down to face mosaics now, which have nothing to do with
+    /// whether the module is recognising, so it has its own switch on the strip.
     function _setAiEnabled(on) {
-        App.PersonDetector.enabled = on
+        root._aiRequested = on
         if (App.SiyiAiController.connected) {
             App.SiyiAiController.setRecognition(on)
         }
     }
+
+    /// What the operator last asked of the module, which is not what the module is doing: the pod
+    /// boots slower than the GCS, so a switch flipped before the link is up has to be held until
+    /// it comes up. Null until the switch is touched - before that the module keeps whatever it
+    /// powered up with rather than being told to match a default it never heard.
+    property var _aiRequested: null
 
     // A module that was absent when the switch was flipped never heard the command.
     Connections {
@@ -567,9 +707,9 @@ Item {
         function onConnectedChanged() {
             // Only when the module disagrees: the pod's own panel can switch recognition too,
             // and a reconnect should not quietly undo what was set there.
-            if (App.SiyiAiController.connected &&
-                    App.SiyiAiController.recognitionEnabled !== App.PersonDetector.enabled) {
-                App.SiyiAiController.setRecognition(App.PersonDetector.enabled)
+            if (App.SiyiAiController.connected && (root._aiRequested !== null) &&
+                    (App.SiyiAiController.recognitionEnabled !== root._aiRequested)) {
+                App.SiyiAiController.setRecognition(root._aiRequested)
             }
         }
     }
@@ -1036,7 +1176,7 @@ Item {
     // ------------------------------------------------------------------ Floating camera windows
     //
     // The flight map underneath stays full screen. Each camera lives in a small movable
-    // window: the name chip drags the window around, the video area keeps the
+    // window: the grip bar drags the window around, the video area keeps the
     // drag-to-gimbal gesture, and a short tap on the video toggles fullscreen.
 
     component CameraWindow : Item {
@@ -1074,29 +1214,14 @@ Item {
         }
 
         Rectangle {
-            id:                 nameChipBg
             anchors.left:       parent.left
             anchors.top:        parent.top
             anchors.margins:    6
             width:              nameChip.implicitWidth + 14
             height:             nameChip.implicitHeight + 7
             radius:             3
-            color:              windowDrag.active ? "#e033c7ff" : "#c8121b24"
+            color:              "#c8121b24"
             z:                  5
-
-            // The chip is the window's handle. It cannot be the picture: a tap there swaps the
-            // window with the map and a drag there slews the gimbal, so a third gesture on the
-            // same surface would have to steal from one of them. Clamped to the screen so a
-            // window cannot be flung somewhere the operator cannot reach it again.
-            DragHandler {
-                id:            windowDrag
-                target:        win
-                xAxis.minimum: 0
-                xAxis.maximum: Math.max(0, root.width - win.width)
-                yAxis.minimum: topBar.height
-                yAxis.maximum: Math.max(topBar.height, root.height - win.height)
-                onActiveChanged: if (active) { root._userMovedWindows = true }
-            }
 
             Row {
                 id:                     nameChip
@@ -1142,12 +1267,11 @@ Item {
         id:       sharedWindow
         panelKey: "shared"
         title:    qsTr("열상")
-        // At night thermal and the laser rangefinder work as a pair, so the distance lives on
-        // this window's bar. It stays put with no reading rather than collapsing the bar: the
-        // spec asks for the range to be on screen at all times.
+        // At night thermal and the laser rangefinder work as a pair, so the distance lives
+        // on this window's bar once readings arrive. No reading, no text.
         detail:   App.SiyiCameraController.rangefinderAvailable
                       ? qsTr("LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
-                      : qsTr("LRF --")
+                      : ""
     }
 
     // ------------------------------------------------------------------- fly tools
@@ -1186,26 +1310,18 @@ Item {
         ]
     }
 
-    Item {
-        id:     toolStripGroup
-        z:      4
-        width:  toolStrip.width
-        height: flightGrip.height + toolStrip.height
-
-        StripGrip {
-            id:    flightGrip
-            moves: toolStripGroup
-        }
-
-        ToolStrip {
-            id:              toolStrip
-            anchors.top:     flightGrip.bottom
-            // ToolStrip's own default, which still clears four Korean characters at the
-            // strip's small font. The buttons size themselves to their labels inside it.
-            width:           ScreenTools.defaultFontPixelWidth * 7
-            maxHeight:       root.height - root._bottomInset - toolStripGroup.y - flightGrip.height - 8
-            model:           policeToolActions.model
-        }
+    ToolStrip {
+        id:                 toolStrip
+        anchors.left:       parent.left
+        anchors.leftMargin: 8
+        anchors.top:        topBar.bottom
+        anchors.topMargin:  8
+        z:                  4
+        // ToolStrip's own default, which still clears four Korean characters at the strip's
+        // small font. The buttons size themselves to their labels inside it.
+        width:              ScreenTools.defaultFontPixelWidth * 7
+        maxHeight:          root.height - root._bottomInset - y - 8
+        model:              policeToolActions.model
     }
 
     // The pod's controls: camera panel, EO sensor, zoom, shutter, AI tracking and the
@@ -1224,33 +1340,24 @@ Item {
                 onTriggered: (source) => root._dropLeft(cameraDropPanelComponent, source)
             },
             ToolStripAction {
-                // Both sensors always own a window, so "카메라전환(EO/IR)" means choosing which
-                // one fills the screen. Labelled with the sensor it switches to, like the
-                // 광각/줌 button below.
-                text:        root.expandedPanel === "shared" ? qsTr("EO") : qsTr("IR")
-                iconSource:  root.expandedPanel === "shared" ? "qrc:/InstrumentValueIcons/view-show.svg"
-                                                             : "qrc:/InstrumentValueIcons/thermometer.svg"
-                enabled:     App.SiyiCameraController.connected
-                onTriggered: root._toggleExpanded(root.expandedPanel === "shared" ? "secondary" : "shared")
-            },
-            ToolStripAction {
                 // Labelled with the sensor it switches to, like the AI button.
                 text:        root.eoShowsWideAngle ? qsTr("줌") : qsTr("광각")
                 iconSource:  root.eoShowsWideAngle ? "qrc:/InstrumentValueIcons/zoom-in.svg"
                                                    : "qrc:/InstrumentValueIcons/zoom-out.svg"
-                enabled:     App.SiyiCameraController.connected
-                onTriggered: root._applyPodStreams(!root.eoShowsWideAngle)
+                // AI pins the main stream to the zoom camera, so with the module on this
+                // button would snap straight back to 광각 with nothing said to the operator.
+                enabled:     App.SiyiCameraController.connected &&
+                             !QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue
+                onTriggered: {
+                    root.eoShowsWideAngle = !root.eoShowsWideAngle
+                    root._applyPodStreams()
+                }
             },
             ToolStripAction {
-                // The pod zooms while a button is held and stops on release, which a strip
-                // action cannot express - it only fires on click. So zoom opens a panel, and
-                // the fixed magnifications that used to sit here moved inside it.
-                // "배율" not "줌": the button above already says 줌 when it means the pod's
-                // zoom lens, and two 줌 buttons side by side read as the same control.
-                text:        qsTr("배율")
+                text:        qsTr("20x")
                 iconSource:  "qrc:/InstrumentValueIcons/search.svg"
                 enabled:     App.SiyiCameraController.connected
-                onTriggered: (source) => root._dropLeft(zoomDropPanelComponent, source)
+                onTriggered: App.SiyiCameraController.setZoom(20)
             },
             ToolStripAction {
                 text:        qsTr("중앙")
@@ -1265,24 +1372,55 @@ Item {
                 onTriggered: App.SiyiCameraController.takePhoto()
             },
             ToolStripAction {
-                text:        App.SiyiCameraController.recording ? qsTr("녹화중지") : qsTr("녹화")
-                iconSource:  "qrc:/InstrumentValueIcons/film.svg"
-                enabled:     App.SiyiCameraController.connected
-                onTriggered: App.SiyiCameraController.toggleRecording()
-            },
-            ToolStripAction {
-                // The AI switch: the on-device detector and the pod's recognition together.
-                // Checked draws the strip's highlight, so the button reads as on or off.
+                // The pod's AI module, and only it. Checked follows the module's own answer rather
+                // than the press, so a module that is absent or that refused the stream resolution
+                // does not sit here reading as armed.
                 text:        qsTr("AI")
                 iconSource:  "/res/police_ai.svg"
                 checkable:   true
-                checked:     App.PersonDetector.enabled
+                checked:     App.SiyiAiController.recognitionEnabled
                 onTriggered: {
-                    root._setAiEnabled(!App.PersonDetector.enabled)
+                    root._setAiEnabled(!App.SiyiAiController.recognitionEnabled)
                     // The strip button owns its own checked state once pressed, which drops
                     // the binding above; put it back so the highlight keeps following.
-                    checked = Qt.binding(() => App.PersonDetector.enabled)
+                    checked = Qt.binding(() => App.SiyiAiController.recognitionEnabled)
                 }
+            },
+            ToolStripAction {
+                // The face mosaic, which is all the on-device detector does now. Its own switch
+                // rather than a rider on AI above: it is a personal-data measure that outlives any
+                // recognition setting, and it is the one control here that costs about 100 ms of
+                // tablet CPU per frame, so the operator needs to be able to drop it on its own.
+                //
+                // Labelled with what pressing it does, like 경고방송, rather than made checkable:
+                // ToolStrip clears every other checked button when one is checked, so a second
+                // checkable action in this strip would knock the AI highlight out and take its
+                // binding with it.
+                //
+                // Three labels, not two. The switch being on does not mean anything is being
+                // mosaicked: a model that failed to load leaves active false with enabled true, the
+                // overlay draws nothing, and a label reading only the switch would say the faces
+                // are covered while they are on screen. active is the detector's own answer.
+                text:        !App.PersonDetector.enabled ? qsTr("모자이크")
+                             : App.PersonDetector.active ? qsTr("모자이크끔")
+                                                         : qsTr("모자이크 불가")
+                iconSource:  App.PersonDetector.active ? "qrc:/InstrumentValueIcons/view-show.svg"
+                                                       : "qrc:/InstrumentValueIcons/view-hide.svg"
+                onTriggered: App.PersonDetector.enabled = !App.PersonDetector.enabled
+            },
+            ToolStripAction {
+                // Aircraft follow. This one flies the aircraft, so it opens a panel to slide for
+                // confirmation instead of acting on the press; the panel carries the stop button
+                // and the gimbal's refusal reason, and the follow state itself is on the detection
+                // card, where the operator is already reading the pod's state.
+                text:        qsTr("추종")
+                iconSource:  "qrc:/InstrumentValueIcons/drone.svg"
+                // Link state gates starting follow, never reaching it. Once follow has been asked
+                // for, this button is the only route to the stop button and to the GUIDED warning,
+                // and the pod link dropping for two seconds is exactly when both are needed - a
+                // stop that a blipped link can lock away is not a stop.
+                enabled:     App.SiyiCameraController.connected || root._followArmed
+                onTriggered: (source) => root._dropLeft(followDropPanelComponent, source)
             },
             ToolStripAction {
                 // Greyed out rather than hidden: the module drops hasTarget on a 1.5 s gap in
@@ -1311,27 +1449,25 @@ Item {
         ]
     }
 
-    Item {
-        id:     cameraStripGroup
+    ToolStrip {
+        id:                 cameraToolStrip
+        // Against the camera column's dock, not a window: the windows can be dragged.
+        x:                  root.width - root._windowWidth - 8 - width
+        anchors.top:        topBar.bottom
+        anchors.topMargin:  8
         // Under the left strip's click-away layer (its z - 1), so a tap here while the
         // 복귀고도 panel is open closes that panel instead of firing a camera command.
-        z:      toolStripGroup.z - 2
-        width:  cameraToolStrip.width
-        height: cameraGrip.height + cameraToolStrip.height
-
-        StripGrip {
-            id:    cameraGrip
-            moves: cameraStripGroup
+        z:                  toolStrip.z - 2
+        width:              ScreenTools.defaultFontPixelWidth * 7
+        // Stops above the detection card, but only where the card is actually underneath: on a
+        // screen wide enough for the card to sit clear of this column, deferring to it anyway
+        // clipped the top of the strip off.
+        maxHeight: {
+            const clearsCard = (aiPanel.x >= x + width) || (aiPanel.x + aiPanel.width <= x)
+            const floor = clearsCard ? (root.height - root._bottomInset) : (aiPanel.y - 8)
+            return floor - y
         }
-
-        ToolStrip {
-            id:          cameraToolStrip
-            anchors.top: cameraGrip.bottom
-            width:       ScreenTools.defaultFontPixelWidth * 7
-            // Stops above the detection card, which sits in this column's bottom corner.
-            maxHeight:   aiPanel.y - 8 - cameraStripGroup.y - cameraGrip.height
-            model:       cameraToolActions.model
-        }
+        model:              cameraToolActions.model
     }
 
     // A fresh DropPanel per open, as the plan and map views do: the panel positions itself
@@ -1340,7 +1476,7 @@ Item {
         const p = button.mapToItem(root, 0, 0)
         component.createObject(root, {
             clickRect:    Qt.rect(p.x, p.y, button.width, button.height),
-            dropViewPort: Qt.rect(0, topBar.height, cameraStripGroup.x, root.height - topBar.height)
+            dropViewPort: Qt.rect(0, topBar.height, cameraToolStrip.x, root.height - topBar.height)
         }).open()
     }
 
@@ -1360,71 +1496,6 @@ Item {
                     clip:           true
 
                     SiyiCameraControlPanel { id: siyiPanel; width: parent.width }
-                }
-            }
-        }
-    }
-
-    Component {
-        id: zoomDropPanelComponent
-
-        DropPanel {
-            id: zoomDropPanel
-
-            // A panel torn down mid-press would leave the lens running, so stop it either way.
-            onClosed: {
-                App.SiyiCameraController.zoom(0)
-                destroy()
-            }
-
-            sourceComponent: Component {
-                ColumnLayout {
-                    spacing: 6
-
-                    Text {
-                        Layout.alignment: Qt.AlignHCenter
-                        color:            "white"
-                        font.bold:        true
-                        font.pixelSize:   Math.max(12, ScreenTools.defaultFontPixelHeight * 0.7)
-                        text:             qsTr("줌 %1배").arg(App.SiyiCameraController.zoomMultiple.toFixed(1))
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing:          6
-
-                        Repeater {
-                            model: [ { label: qsTr("줌 −"), dir: -1 },
-                                     { label: qsTr("줌 +"), dir:  1 } ]
-
-                            delegate: Button {
-                                required property var modelData
-                                Layout.fillWidth:       true
-                                Layout.preferredWidth:  Math.max(ScreenTools.minTouchPixels * 2,
-                                                                 ScreenTools.defaultFontPixelWidth * 7)
-                                Layout.preferredHeight: root._touchHeight
-                                text:                   modelData.label
-                                onPressed:              App.SiyiCameraController.zoom(modelData.dir)
-                                onReleased:             App.SiyiCameraController.zoom(0)
-                                onCanceled:             App.SiyiCameraController.zoom(0)
-                            }
-                        }
-                    }
-
-                    Repeater {
-                        model: [1, 10, 20]
-
-                        delegate: Button {
-                            required property int modelData
-                            Layout.fillWidth:       true
-                            Layout.preferredHeight: root._touchHeight
-                            text:                   qsTr("%1배").arg(modelData)
-                            onClicked: {
-                                zoomDropPanel.close()
-                                App.SiyiCameraController.setZoom(modelData)
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -1481,6 +1552,237 @@ Item {
                         text:                qsTr("페이로드 파일 %1개 · 이름 %2개 — 설정에서 맞춰주세요")
                                                  .arg(App.SpeakerController.trackCount)
                                                  .arg(App.SpeakerController.messageNames.length)
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: followDropPanelComponent
+
+        DropPanel {
+            id: followDropPanel
+
+            onClosed: destroy()
+
+            // Deliberately not closed on accept, unlike the broadcast panel: the gimbal checks the
+            // preconditions itself and answers with a numbered refusal, and that answer lands after
+            // the gesture is over. A panel that closed on the slide would take the only place the
+            // reason is shown away with it.
+            sourceComponent: Component {
+                ColumnLayout {
+                    id:      followColumn
+                    spacing: 6
+
+                    readonly property real _panelWidth: ScreenTools.defaultFontPixelWidth * 24
+
+                    Text {
+                        Layout.alignment: Qt.AlignHCenter
+                        color:            "white"
+                        font.bold:        true
+                        font.pixelSize:   Math.max(12, ScreenTools.defaultFontPixelHeight * 0.7)
+                        text:             qsTr("기체 추종")
+                    }
+
+                    Text {
+                        Layout.preferredWidth: followColumn._panelWidth
+                        horizontalAlignment:   Text.AlignHCenter
+                        wrapMode:              Text.WordWrap
+                        color:                 "#9fb0bd"
+                        font.pixelSize:        Math.max(10, ScreenTools.defaultFontPixelHeight * 0.6)
+                        text:                  qsTr("짐벌이 추적 중인 표적을 기체가 따라갑니다. 기체가 실제로 움직입니다. 짐벌이 수락하면 비행모드가 GUIDED 로 바뀌며, GUIDED 동안 조종간 입력은 듣지 않습니다. 조종을 되찾으려면 비행모드를 직접 바꾸십시오.")
+                    }
+
+                    // Same slide gesture as takeoff and as the target confirmation on the video
+                    // window, for the same reason: this one moves the aircraft. Kept a gesture even
+                    // though it now also changes the flight mode - that raises the stakes, it does
+                    // not lower them.
+                    SliderSwitch {
+                        Layout.alignment:      Qt.AlignHCenter
+                        Layout.preferredWidth: followColumn._panelWidth
+                        // Unconfirmed counts as off here. aiFollowEnabled alone hid the slider for
+                        // the rest of the session whenever the gimbal stopped answering, since the
+                        // only things that clear it are a 0xC3 reply and a stop - and re-sending
+                        // 0xC3{1} to a gimbal that is already following costs nothing.
+                        visible:               !App.SiyiCameraController.aiFollowEnabled
+                                               || App.SiyiCameraController.aiFollowStale
+                        // An airframe with no guided support would take the 0xC3 and then never get
+                        // the mode that makes it move, which is the silent failure this panel exists
+                        // to avoid. Armed and flying on top of it, the same gate the rest of the
+                        // repository puts in front of a guided action; the aircraft is not the
+                        // gimbal's to fly while it is on the ground. See root._followFlightReady
+                        // and root._followModeKnown.
+                        enabled:               root._activeVehicle
+                                               && root._activeVehicle.supports.guidedMode
+                                               && root._followModeKnown
+                                               && root._followFlightReady
+                        opacity:               enabled ? 1 : 0.4
+                        confirmText:           qsTr("밀어서 추종 시작 (GUIDED 전환)")
+                        onAccept: {
+                            // Latched before the send: what makes the panel reachable again is the
+                            // asking, not the answering. See root._followArmed.
+                            root._followArmed = true
+                            App.SiyiCameraController.setAiFollow(true)
+                        }
+                    }
+
+                    // Stopping needs no confirmation: it only ever puts the aircraft back where it
+                    // was before the slide, and a stop gesture that can be fumbled is worse.
+                    //
+                    // Always visible, never gated on aiFollowEnabled. That flag is one UDP datagram
+                    // deep - a dropped 0xC3 reply leaves it false while the gimbal is still flying
+                    // the aircraft, and this button is the only caller of setAiFollow(false) in the
+                    // repository, with no polling to recover the state. Gating it would strand the
+                    // operator with a following aircraft and no stop for the rest of the session.
+                    // A redundant stop costs nothing; a missing one costs the airframe.
+                    Button {
+                        Layout.alignment:       Qt.AlignHCenter
+                        Layout.preferredWidth:  followColumn._panelWidth
+                        Layout.preferredHeight: root._touchHeight
+                        text:                   qsTr("추종 중지")
+                        // The panel stays open, for the same reason the slide leaves it open. The
+                        // stop is one datagram on a link with no retransmission; closing on the
+                        // press destroy()s the panel (onClosed: destroy()) and with it the only
+                        // place that says the stop has not been confirmed and the only button that
+                        // can send it again. The controller repeats the datagram a few times by
+                        // itself; the operator has to be able to see that and to press again.
+                        onClicked: App.SiyiCameraController.setAiFollow(false)
+                    }
+
+                    Text {
+                        Layout.preferredWidth: followColumn._panelWidth
+                        horizontalAlignment:   Text.AlignHCenter
+                        wrapMode:              Text.WordWrap
+                        font.pixelSize:        Math.max(10, ScreenTools.defaultFontPixelHeight * 0.6)
+                        // Three outcomes, not one "waiting". The repeats are spent inside 1.5 s,
+                        // and dropping the line at that point left a stop whose every datagram
+                        // died on a blipped link looking exactly like a confirmed one - the start
+                        // text below even reappeared under it - while the gimbal went on flying the
+                        // aircraft. A stop that could not be sent at all is a third sentence again:
+                        // there is nothing in flight to wait for.
+                        visible:               App.SiyiCameraController.aiFollowStopState !==
+                                               App.SiyiCameraController.StopIdle
+                        color:                 App.SiyiCameraController.aiFollowStopState ===
+                                               App.SiyiCameraController.StopPending ? "#9fb0bd" : "#ff9c46"
+                        text: {
+                            switch (App.SiyiCameraController.aiFollowStopState) {
+                            case App.SiyiCameraController.StopPending:
+                                return qsTr("중지 확인 대기 — 짐벌 응답을 기다리는 중입니다")
+                            case App.SiyiCameraController.StopUnsent:
+                                return qsTr("중지 명령을 보내지 못했습니다 — 카메라 링크가 없습니다. 비행모드를 바꾸어 조종을 회복하십시오")
+                            default:
+                                return qsTr("중지 응답을 받지 못했습니다 — 다시 누르거나 비행모드를 바꾸십시오")
+                            }
+                        }
+                    }
+
+                    // The gimbal does its own precondition checks - GPS fix, a selected target,
+                    // mounting orientation, model support - and refuses with a reason code. Copying
+                    // those checks up here would only be a second, staler opinion; showing the
+                    // reason it gave is the whole job.
+                    Text {
+                        Layout.preferredWidth: followColumn._panelWidth
+                        horizontalAlignment:   Text.AlignHCenter
+                        wrapMode:              Text.WordWrap
+                        color:                 "#ff9c46"
+                        font.pixelSize:        Math.max(10, ScreenTools.defaultFontPixelHeight * 0.62)
+                        visible:               text.length > 0
+                        text: {
+                            const code = App.SiyiCameraController.aiFollowError
+                            switch (code) {
+                            case App.SiyiCameraController.TargetTooFarOrLow:
+                                return qsTr("표적이 너무 멀거나 낮습니다")
+                            case App.SiyiCameraController.AiTrackingDisabled:
+                                return qsTr("짐벌의 AI 추적이 꺼져 있습니다")
+                            case App.SiyiCameraController.GpsDataMissing:
+                                return qsTr("GPS 데이터가 없습니다")
+                            case App.SiyiCameraController.TargetTooCloseOrHigh:
+                                return qsTr("표적이 너무 가깝거나 높습니다")
+                            case App.SiyiCameraController.InvertedModeUnsupported:
+                                return qsTr("역방향 장착에서는 추종을 지원하지 않습니다")
+                            case App.SiyiCameraController.TargetNotSelected:
+                                return qsTr("추적할 표적이 선택되지 않았습니다")
+                            case App.SiyiCameraController.ModelUnsupported:
+                                return qsTr("이 짐벌 모델은 추종을 지원하지 않습니다")
+                            // Anything else with a code, including a reason a later firmware adds,
+                            // is still named: silence here leaves a refusal the operator cannot act on.
+                            default:
+                                return (code === 0) ? ""
+                                                    : qsTr("짐벌이 알 수 없는 사유로 거절했습니다 (코드 %1)").arg(code)
+                            }
+                        }
+                    }
+
+                    // The gimbal's follow and the aircraft's flight mode are set by two separate
+                    // commands on two separate links, so they can disagree in both directions, and
+                    // both readings are ones the operator cannot get anywhere else on this screen.
+                    //
+                    // The wording is root._followModeWarning, shared with the banner on the map:
+                    // this panel is destroyed on close, so the panel copy is the convenience and
+                    // the banner is the one that has to be there. Follow stopping does not restore
+                    // the flight mode - the vendor app does not restore it either (d7.java:122
+                    // guards its mode set with the enabling branch alone), and the AI module manual
+                    // is explicit that "switching flight mode can regain control", i.e. escape is
+                    // the operator's job. No automatic restore here: only the pilot knows which
+                    // mode they want.
+                    Text {
+                        Layout.preferredWidth: followColumn._panelWidth
+                        horizontalAlignment:   Text.AlignHCenter
+                        wrapMode:              Text.WordWrap
+                        color:                 "#ffb020"
+                        font.bold:             true
+                        font.pixelSize:        Math.max(10, ScreenTools.defaultFontPixelHeight * 0.62)
+                        visible:               text.length > 0
+                        text:                  root._followModeWarning
+                    }
+
+                    // Why the slide is greyed out, when it is. A disabled control with no reason
+                    // beside it is the same silent nothing this panel exists to prevent.
+                    Text {
+                        Layout.preferredWidth: followColumn._panelWidth
+                        horizontalAlignment:   Text.AlignHCenter
+                        wrapMode:              Text.WordWrap
+                        color:                 "#9fb0bd"
+                        font.pixelSize:        Math.max(10, ScreenTools.defaultFontPixelHeight * 0.6)
+                        visible:               text.length > 0
+                        text: {
+                            if (App.SiyiCameraController.aiFollowEnabled) return ""
+                            if (!root._activeVehicle) return qsTr("기체가 연결되지 않았습니다")
+                            if (!root._activeVehicle.supports.guidedMode) {
+                                return qsTr("이 기체는 GUIDED 를 지원하지 않습니다")
+                            }
+                            if (!root._followModeKnown) {
+                                return qsTr("이 비행 스택에서 추종이 쓸 비행모드를 확인할 수 없어 사용할 수 없습니다 (ArduCopter 만 확인됨)")
+                            }
+                            if (!root._followFlightReady) {
+                                return qsTr("비행 중에만 사용할 수 있습니다")
+                            }
+                            return ""
+                        }
+                    }
+
+                    // Nothing confirmed the send. Old gimbal firmware does not answer this command
+                    // at all, so an unchecked button after a slide means "no reply", not "refused".
+                    // Once confirmed, the same slot carries the staleness case: the confirmation
+                    // aged out, and since the gimbal drops follow on its own without saying so, an
+                    // aged confirmation is no longer evidence the aircraft is being flown.
+                    Text {
+                        Layout.preferredWidth: followColumn._panelWidth
+                        horizontalAlignment:   Text.AlignHCenter
+                        wrapMode:              Text.WordWrap
+                        color:                 "#9fb0bd"
+                        font.pixelSize:        Math.max(10, ScreenTools.defaultFontPixelHeight * 0.6)
+                        // Silent while a stop is unresolved: the line above owns that case, and
+                        // this one talks about starting.
+                        visible:               (!App.SiyiCameraController.aiFollowEnabled ||
+                                                App.SiyiCameraController.aiFollowStale) &&
+                                               App.SiyiCameraController.aiFollowError === 0 &&
+                                               App.SiyiCameraController.aiFollowStopState ===
+                                               App.SiyiCameraController.StopIdle
+                        text:                  App.SiyiCameraController.aiFollowStale
+                                               ? qsTr("짐벌이 최근 응답하지 않아 추종 여부를 확인할 수 없습니다. 확실히 멈추려면 추종 중지를 누르십시오.")
+                                               : qsTr("짐벌이 확인해야 켜집니다. 몇 초 안에 켜지지 않으면 짐벌이 응답하지 않는 것입니다.")
                     }
                 }
             }
@@ -1575,6 +1877,48 @@ Item {
                                               ? qsTr("조종기 신호가 수신되지 않습니다 — 페일세이프 동작을 확인하십시오")
                                               : qsTr("기체와의 통신이 끊겼습니다")
             }
+        }
+    }
+
+    // ------------------------------------------------------------ follow / GUIDED mismatch
+    //
+    // GUIDED ignores the sticks and nothing on this side ever puts the aircraft back - the manual's
+    // own escape is "switching flight mode can regain control", i.e. the operator's job. So the
+    // sentence that says so has to be on screen whether or not the follow panel is open, and the
+    // panel is a Popup that destroys itself the moment the stop button closes it. Same treatment as
+    // the link banner, one step down in weight: amber rather than red, and no blink, because the
+    // aircraft is still flying and the operator has a mode switch to reach for.
+    Rectangle {
+        id:      followModeBanner
+        // No guidedMode term. _followModeWarning already encodes "nothing to say" as an empty
+        // string and it null-checks the vehicle itself, so the extra term was not a filter but a
+        // contradiction: the third branch of that string is built only when guidedMode is false,
+        // so the one sentence that reports "the gimbal is chasing a target and the aircraft is
+        // sitting in Loiter" could never reach the banner, and the only other place it appears is
+        // the follow panel, a Popup that destroy()s itself on close.
+        visible: root._followModeWarning.length > 0
+        z:       25
+
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top:              linkLostBanner.visible ? linkLostBanner.bottom : topBar.bottom
+        anchors.topMargin:        ScreenTools.defaultFontPixelHeight
+        width:                    followModeText.implicitWidth + ScreenTools.defaultFontPixelWidth * 4
+        height:                   followModeText.implicitHeight + ScreenTools.defaultFontPixelHeight
+        radius:                   6
+        color:                    "#b35c00"
+        border.color:             "#ffffff"
+        border.width:             2
+
+        Text {
+            id:                  followModeText
+            anchors.centerIn:    parent
+            width:               Math.min(implicitWidth, root.width * 0.6)
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode:            Text.WordWrap
+            color:               "white"
+            font.bold:           true
+            font.pixelSize:      Math.max(13, ScreenTools.defaultFontPixelHeight * 0.85)
+            text:                root._followModeWarning
         }
     }
 
@@ -1812,7 +2156,9 @@ Item {
         id:                   secondaryPanel
         parent:               root.expandedPanel === "secondary" ? fullscreenLayer : secondaryWindow.slot
         anchors.fill:         parent
-        panelTitle:           root._aiStreamActive ? qsTr("AI 인식")
+        // Named for the sensor on screen, not the pipe it came through: AI pins the main
+        // stream to the zoom camera, so its feed is the zoom picture with boxes drawn in.
+        panelTitle:           root._aiStreamActive ? qsTr("줌 · AI")
                                                     : (root.eoShowsWideAngle ? qsTr("광각") : qsTr("줌"))
         showChrome:           root.expandedPanel === "secondary"
         streamObjectName:     "videoContent"

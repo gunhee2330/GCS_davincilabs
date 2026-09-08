@@ -21,7 +21,7 @@ constexpr double kAirborneAltitudeM = 2.0;
 
 }  // namespace
 
-Q_APPLICATION_STATIC(TakeoffCounter, _takeoffCounterInstance);
+Q_APPLICATION_STATIC(TakeoffCounter, _takeoffCounterInstance, nullptr);
 
 TakeoffCounter::TakeoffCounter(QObject* parent) : QObject(parent) {}
 

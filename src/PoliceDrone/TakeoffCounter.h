@@ -29,7 +29,10 @@ class TakeoffCounter : public QObject
     Q_PROPERTY(int takeoffCount READ takeoffCount NOTIFY takeoffCountChanged)
 
 public:
-    explicit TakeoffCounter(QObject* parent = nullptr);
+    /// No default argument: a default-constructible QML_SINGLETON is default-constructed by the
+    /// engine instead of going through create(), which hands QML a second counter that init()
+    /// never followed a vehicle with — it reads zero for ever while the real one counts.
+    explicit TakeoffCounter(QObject* parent);
     ~TakeoffCounter() override;
 
     static TakeoffCounter* instance();

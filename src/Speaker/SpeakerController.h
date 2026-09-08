@@ -40,7 +40,10 @@ class SpeakerController : public QObject
     Q_PROPERTY(QStringList messageNames READ messageNames NOTIFY messageNamesChanged)
 
 public:
-    explicit SpeakerController(QObject *parent = nullptr);
+    /// No default argument: a default-constructible QML_SINGLETON is default-constructed by the
+    /// engine instead of going through create(), which hands QML a second, inert instance while
+    /// the real one talks to the hardware.
+    explicit SpeakerController(QObject *parent);
     ~SpeakerController();
 
     static SpeakerController *instance();
