@@ -5,9 +5,10 @@ import QGC as App
 import QGroundControl
 import QGroundControl.Controls
 
-/// Detection card: how many people and vehicles the pod's AI module is seeing, and its tracking
-/// state. Styled like the telemetry bar it sits beside so the two read as one instrument row.
-/// The switch itself lives in the top bar.
+/// Detection card: how many of each class the pod's AI module is seeing. Counts only - tracking
+/// and follow state live where the operator acts on them, on the video and in the follow panel.
+/// Styled like the telemetry bar it sits beside so the two read as one instrument row. The
+/// switch itself lives in the top bar.
 ///
 /// The numbers come from the module's undocumented 0xD5 push, not from the on-device detector.
 /// That command reports a tally per class and no coordinates at all, which is why the boxes on
@@ -43,11 +44,7 @@ Item {
     property bool _smokesSat:   false
     property bool _boatsSat:    false
 
-    readonly property bool _moduleOn:  QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue
-    readonly property bool _tracking:  App.SiyiAiController.hasTarget && !App.SiyiAiController.targetLost
-
-    /// One band for every value, so a Korean status word and a digit sit on the same line
-    /// however their fonts measure.
+    /// One band for every value, so the row keeps its height whatever a value measures.
     readonly property real _valueHeight: Math.max(18, _em * 1.25)
 
     implicitWidth:  row.implicitWidth + _em
@@ -155,8 +152,6 @@ Item {
         property string label
         property string value
         property color  dot
-        /// A status word rather than a count: set smaller so it still fits the value band.
-        property bool   word: false
 
         spacing: root._em * 0.15
 
@@ -185,10 +180,10 @@ Item {
             height:                   root._valueHeight
             verticalAlignment:        Text.AlignVCenter
             color:                    qgcPal.text
-            font.family:              stat.word ? ScreenTools.normalFontFamily : "Open Sans"
+            // Every value on this strip is a count now, so the digit face is the only one left.
+            font.family:              "Open Sans"
             font.weight:              Font.DemiBold
-            font.pixelSize:           stat.word ? Math.max(13, root._em * 0.82)
-                                                : Math.max(16, root._em * 1.15)
+            font.pixelSize:           Math.max(16, root._em * 1.15)
             text:                     stat.value
         }
     }
@@ -247,62 +242,14 @@ Item {
             dot:   "#2ec4b6"
         }
 
-        Divider {}
-
-        // The pod's own AI module, driven from the long press on the zoom window.
-        Stat {
-            label: qsTr("추적")
-            word:  true
-            value: {
-                if (!root._moduleOn)                            return qsTr("꺼짐")
-                if (!App.SiyiAiController.connected)            return qsTr("미연결")
-                // The module refuses to start on video above 1920x1080 and says nothing else
-                // about it, so the refusal has to be named here or it reads as a dead link.
-                if (App.SiyiAiController.streamTooLarge)        return qsTr("해상도초과")
-                if (!App.SiyiAiController.recognitionEnabled)   return qsTr("대기")
-                if (App.SiyiAiController.hasTarget)
-                    return App.SiyiAiController.targetLost ? qsTr("유실") : qsTr("추적중")
-                return qsTr("준비")
-            }
-            dot: !root._moduleOn ? "#9aa3ab"
-                 : !App.SiyiAiController.connected ? "#ff9c46"
-                 : App.SiyiAiController.streamTooLarge ? "#ff9c46"
-                 : root._tracking ? "#42d66b"
-                 : (App.SiyiAiController.hasTarget ? "#ff5b5b" : "#1f9fd0")
-        }
-
-        Divider {}
-
-        // Aircraft follow, from the gimbal rather than the AI module - a separate command on a
-        // separate link. Its own slot instead of being folded into 추적 above, because the two are
-        // independent and this is the one that moves the airframe: the operator has to be able to
-        // see that the aircraft is chasing something without opening a panel. The refusal reason
-        // itself only fits in the follow panel; there is room here to say only that there is one.
-        Stat {
-            label: qsTr("추종")
-            word:  true
-            value: {
-                if (!App.SiyiCameraController.connected)      return qsTr("미연결")
-                // 0xC3 answers only when asked and there is no way to ask again without
-                // re-asserting follow, so a green "추종중" from a minutes-old reply is a claim
-                // nothing backs.
-                if (App.SiyiCameraController.aiFollowStale)   return qsTr("미확인")
-                if (App.SiyiCameraController.aiFollowEnabled) return qsTr("추종중")
-                // A stop nothing answered, or one that never left the socket, is not a stop the
-                // gimbal has acted on. Grey "꺼짐" here would be the same confident lie the follow
-                // panel now refuses to tell.
-                if (App.SiyiCameraController.aiFollowStopState !==
-                    App.SiyiCameraController.StopIdle)        return qsTr("미확인")
-                if (App.SiyiCameraController.aiFollowError !== App.SiyiCameraController.None)
-                    return qsTr("거절됨")
-                return qsTr("꺼짐")
-            }
-            dot: !App.SiyiCameraController.connected ? "#9aa3ab"
-                 : App.SiyiCameraController.aiFollowStale ? "#9aa3ab"
-                 : App.SiyiCameraController.aiFollowEnabled ? "#42d66b"
-                 : App.SiyiCameraController.aiFollowStopState !== App.SiyiCameraController.StopIdle ? "#9aa3ab"
-                 : (App.SiyiCameraController.aiFollowError !== App.SiyiCameraController.None
-                    ? "#ff5b5b" : "#9aa3ab")
-        }
+        // Tracking and follow state used to hold two more slots here. They are gone, and this
+        // strip is counts only. Neither was a count, and both are already where the operator acts
+        // on them: the tracked target wears its own box on the video with a release button beside
+        // it, and follow has the drop panel plus the map banner that names the case worth
+        // interrupting for - the aircraft sitting in GUIDED with the sticks dead. Seven slots ran
+        // this strip across half a seven-inch screen and put the numbers under the fullscreen
+        // hint, and follow in particular read the same word all flight on a gimbal whose firmware
+        // has no follow command at all. A slot that never changes is what teaches an operator to
+        // stop reading the strip that carries the numbers they are here for.
     }
 }
