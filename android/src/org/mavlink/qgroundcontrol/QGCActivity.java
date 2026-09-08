@@ -40,6 +40,9 @@ public class QGCActivity extends QtActivity {
 
         QGCUsbSerialManager.initialize(this);
         QGCSDLManager.initialize(this);
+        // Open the SIYI datalink's UDP<->serial bridge so the police loudspeaker reaches the
+        // air unit on a delivered unit, without depending on UniGCS. No-op off this hardware.
+        SiyiBridgeController.initialize(this);
         m_storagePermissionController = new QGCStoragePermissionController(this);
     }
 

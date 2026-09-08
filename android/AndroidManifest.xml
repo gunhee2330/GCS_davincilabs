@@ -13,6 +13,9 @@
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
+        <!-- Bind the SIYI controller's UDP<->serial bridge so the police loudspeaker's
+             commands reach the air unit without UniGCS running. See SiyiBridgeController. -->
+        <package android:name="com.siyi.udpservice" />
     </queries>
 
     <uses-feature android:name="android.hardware.audio.output" android:required="false" />
