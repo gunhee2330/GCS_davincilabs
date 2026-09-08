@@ -91,6 +91,21 @@ bool isVehicleClass(const QString &name)
     return false;
 }
 
+bool isFireClass(const QString &name)
+{
+    return name.compare(QLatin1StringView("fire"), Qt::CaseInsensitive) == 0;
+}
+
+bool isSmokeClass(const QString &name)
+{
+    return name.compare(QLatin1StringView("smoke"), Qt::CaseInsensitive) == 0;
+}
+
+bool isBoatClass(const QString &name)
+{
+    return name.compare(QLatin1StringView("boat"), Qt::CaseInsensitive) == 0;
+}
+
 QByteArray objectCountPayload(SiyiAi::ObjectCountMode mode)
 {
     return QByteArray(1, static_cast<char>(mode));
@@ -615,6 +630,9 @@ void SiyiAiController::_countLinkOpened()
     _classNames.clear();
     _personClasses.clear();
     _vehicleClasses.clear();
+    _fireClasses.clear();
+    _smokeClasses.clear();
+    _boatClasses.clear();
     _classModelId = -1;
 
     // Class list first: the tallies that follow are positional and mean nothing without it. Then
@@ -644,16 +662,27 @@ void SiyiAiController::_handleCountFrame(const SiyiLongProtocol::Frame &frame)
         _classNames = names;
         _personClasses.clear();
         _vehicleClasses.clear();
+        _fireClasses.clear();
+        _smokeClasses.clear();
+        _boatClasses.clear();
         for (int index = 0; index < names.size(); ++index) {
             if (isPersonClass(names.at(index))) {
                 _personClasses.append(index);
             } else if (isVehicleClass(names.at(index))) {
                 _vehicleClasses.append(index);
+            } else if (isFireClass(names.at(index))) {
+                _fireClasses.append(index);
+            } else if (isSmokeClass(names.at(index))) {
+                _smokeClasses.append(index);
+            } else if (isBoatClass(names.at(index))) {
+                _boatClasses.append(index);
             }
         }
         _classModelId = static_cast<quint8>(frame.data.at(1));
         qCDebug(SiyiAiControllerLog) << "module classes" << names << "model" << _classModelId
-                                     << "person" << _personClasses << "vehicle" << _vehicleClasses;
+                                     << "person" << _personClasses << "vehicle" << _vehicleClasses
+                                     << "fire" << _fireClasses << "smoke" << _smokeClasses
+                                     << "boat" << _boatClasses;
         if (_personClasses.isEmpty()) {
             // Nobody has read a real module's class list yet, so the names matched here are the
             // COCO ones and a guess. A model that says "pedestrian", "human" or a Chinese name
@@ -769,17 +798,32 @@ void SiyiAiController::_applyCounts(const QList<int> &counts)
 
     bool personSaturated = false;
     bool vehicleSaturated = false;
+    bool fireSaturated = false;
+    bool smokeSaturated = false;
+    bool boatSaturated = false;
     const int persons = tally(_personClasses, personSaturated);
     const int vehicles = tally(_vehicleClasses, vehicleSaturated);
+    const int fires = tally(_fireClasses, fireSaturated);
+    const int smokes = tally(_smokeClasses, smokeSaturated);
+    const int boats = tally(_boatClasses, boatSaturated);
 
     _lastCountTimer.restart();
 
     const bool changed = !_countsValid || (persons != _personCount) || (vehicles != _vehicleCount) ||
-                         (personSaturated != _personSaturated) || (vehicleSaturated != _vehicleSaturated);
+                         (fires != _fireCount) || (smokes != _smokeCount) || (boats != _boatCount) ||
+                         (personSaturated != _personSaturated) || (vehicleSaturated != _vehicleSaturated) ||
+                         (fireSaturated != _fireSaturated) || (smokeSaturated != _smokeSaturated) ||
+                         (boatSaturated != _boatSaturated);
     _personCount = persons;
     _vehicleCount = vehicles;
+    _fireCount = fires;
+    _smokeCount = smokes;
+    _boatCount = boats;
     _personSaturated = personSaturated;
     _vehicleSaturated = vehicleSaturated;
+    _fireSaturated = fireSaturated;
+    _smokeSaturated = smokeSaturated;
+    _boatSaturated = boatSaturated;
     _countsValid = true;
 
     if (changed) {
@@ -792,6 +836,9 @@ void SiyiAiController::_dropClassMapping()
     _classNames.clear();
     _personClasses.clear();
     _vehicleClasses.clear();
+    _fireClasses.clear();
+    _smokeClasses.clear();
+    _boatClasses.clear();
     _classModelId = -1;
     _setCountsValid(false);
 }

@@ -77,6 +77,12 @@ class SiyiAiController : public QObject
     Q_PROPERTY(int      personCount             READ personCount            NOTIFY countsChanged)
     Q_PROPERTY(int      vehicleCount            READ vehicleCount           NOTIFY countsChanged)
 
+    /// Same class-tally source as person and vehicle, for the classes the procurement model also
+    /// carries. -1 when the loaded model names no class of that kind, drawn as a dash.
+    Q_PROPERTY(int      fireCount               READ fireCount              NOTIFY countsChanged)
+    Q_PROPERTY(int      smokeCount              READ smokeCount             NOTIFY countsChanged)
+    Q_PROPERTY(int      boatCount               READ boatCount              NOTIFY countsChanged)
+
     /// The count above is a floor, not a total: a class tally reached 255, the largest number the
     /// module's own unsigned byte holds. Show it as "255+".
     ///
@@ -87,6 +93,9 @@ class SiyiAiController : public QObject
     /// module's per-frame object limit has been measured on a bench.
     Q_PROPERTY(bool     personCountSaturated    READ personCountSaturated   NOTIFY countsChanged)
     Q_PROPERTY(bool     vehicleCountSaturated   READ vehicleCountSaturated  NOTIFY countsChanged)
+    Q_PROPERTY(bool     fireCountSaturated      READ fireCountSaturated     NOTIFY countsChanged)
+    Q_PROPERTY(bool     smokeCountSaturated     READ smokeCountSaturated    NOTIFY countsChanged)
+    Q_PROPERTY(bool     boatCountSaturated      READ boatCountSaturated     NOTIFY countsChanged)
 
 public:
     /// No default argument: a default-constructible QML_SINGLETON is default-constructed by the
@@ -132,8 +141,14 @@ public:
     /// -1 when the module's class list names nothing of this kind; see the properties above.
     [[nodiscard]] int personCount() const { return _personCount; }
     [[nodiscard]] int vehicleCount() const { return _vehicleCount; }
+    [[nodiscard]] int fireCount() const { return _fireCount; }
+    [[nodiscard]] int smokeCount() const { return _smokeCount; }
+    [[nodiscard]] int boatCount() const { return _boatCount; }
     [[nodiscard]] bool personCountSaturated() const { return _personSaturated; }
     [[nodiscard]] bool vehicleCountSaturated() const { return _vehicleSaturated; }
+    [[nodiscard]] bool fireCountSaturated() const { return _fireSaturated; }
+    [[nodiscard]] bool smokeCountSaturated() const { return _smokeSaturated; }
+    [[nodiscard]] bool boatCountSaturated() const { return _boatSaturated; }
 
     [[nodiscard]] int streamWidth() const { return _streamWidth; }
     [[nodiscard]] int streamHeight() const { return _streamHeight; }
@@ -198,6 +213,9 @@ private:
     QStringList _classNames;
     QList<int> _personClasses;
     QList<int> _vehicleClasses;
+    QList<int> _fireClasses;
+    QList<int> _smokeClasses;
+    QList<int> _boatClasses;
 
     /// Which model the list above was read from, as the module numbered it, or -1 before any
     /// list has been read. Every 0xD5 reply and push carries the same byte (spec section 4), so
@@ -215,8 +233,14 @@ private:
 
     int _personCount = -1;
     int _vehicleCount = -1;
+    int _fireCount = -1;
+    int _smokeCount = -1;
+    int _boatCount = -1;
     bool _personSaturated = false;
     bool _vehicleSaturated = false;
+    bool _fireSaturated = false;
+    bool _smokeSaturated = false;
+    bool _boatSaturated = false;
     bool _countsValid = false;
 
     bool _streamTooLarge = false;

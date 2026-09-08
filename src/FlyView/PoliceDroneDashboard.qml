@@ -1372,6 +1372,14 @@ Item {
                 onTriggered: App.SiyiCameraController.takePhoto()
             },
             ToolStripAction {
+                // Label follows the pod's own recording state, so a start that never took does not
+                // sit here reading as recording.
+                text:        App.SiyiCameraController.recording ? qsTr("녹화중지") : qsTr("녹화")
+                iconSource:  "qrc:/InstrumentValueIcons/film.svg"
+                enabled:     App.SiyiCameraController.connected
+                onTriggered: App.SiyiCameraController.toggleRecording()
+            },
+            ToolStripAction {
                 // The pod's AI module, and only it. Checked follows the module's own answer rather
                 // than the press, so a module that is absent or that refused the stream resolution
                 // does not sit here reading as armed.

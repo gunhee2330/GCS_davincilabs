@@ -28,6 +28,9 @@ Item {
     /// the resting value: a card that starts at 0 claims an empty scene it has never looked at.
     property int _persons:  -1
     property int _vehicles: -1
+    property int _fires:    -1
+    property int _smokes:   -1
+    property int _boats:    -1
 
     /// The saturation flag that came with the held number above, not the module's current one.
     /// A held 255 paired with a live flag prints a bare "255" the moment the next push reports
@@ -36,6 +39,9 @@ Item {
     /// crowd oscillating around the byte ceiling sits in that state half the time.
     property bool _personsSat:  false
     property bool _vehiclesSat: false
+    property bool _firesSat:    false
+    property bool _smokesSat:   false
+    property bool _boatsSat:    false
 
     readonly property bool _moduleOn:  QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue
     readonly property bool _tracking:  App.SiyiAiController.hasTarget && !App.SiyiAiController.targetLost
@@ -92,6 +98,27 @@ Item {
                 root._vehicles = ai.vehicleCount
                 root._vehiclesSat = ai.vehicleCountSaturated
             }
+            if (!ai.countsValid || (ai.fireCount < 0)) {
+                root._fires = -1
+                root._firesSat = false
+            } else if (ai.fireCount >= root._fires) {
+                root._fires = ai.fireCount
+                root._firesSat = ai.fireCountSaturated
+            }
+            if (!ai.countsValid || (ai.smokeCount < 0)) {
+                root._smokes = -1
+                root._smokesSat = false
+            } else if (ai.smokeCount >= root._smokes) {
+                root._smokes = ai.smokeCount
+                root._smokesSat = ai.smokeCountSaturated
+            }
+            if (!ai.countsValid || (ai.boatCount < 0)) {
+                root._boats = -1
+                root._boatsSat = false
+            } else if (ai.boatCount >= root._boats) {
+                root._boats = ai.boatCount
+                root._boatsSat = ai.boatCountSaturated
+            }
         }
     }
 
@@ -104,6 +131,12 @@ Item {
             root._personsSat  = App.SiyiAiController.personCountSaturated
             root._vehicles    = App.SiyiAiController.vehicleCount
             root._vehiclesSat = App.SiyiAiController.vehicleCountSaturated
+            root._fires       = App.SiyiAiController.fireCount
+            root._firesSat    = App.SiyiAiController.fireCountSaturated
+            root._smokes      = App.SiyiAiController.smokeCount
+            root._smokesSat   = App.SiyiAiController.smokeCountSaturated
+            root._boats       = App.SiyiAiController.boatCount
+            root._boatsSat    = App.SiyiAiController.boatCountSaturated
         }
     }
 
@@ -188,6 +221,30 @@ Item {
             label: qsTr("차량")
             value: root._live ? root._display(root._vehicles, root._vehiclesSat) : "–"
             dot:   "#1f9fd0"
+        }
+
+        Divider {}
+
+        Stat {
+            label: qsTr("화재")
+            value: root._live ? root._display(root._fires, root._firesSat) : "–"
+            dot:   "#ff5b3a"
+        }
+
+        Divider {}
+
+        Stat {
+            label: qsTr("연기")
+            value: root._live ? root._display(root._smokes, root._smokesSat) : "–"
+            dot:   "#c8b04a"
+        }
+
+        Divider {}
+
+        Stat {
+            label: qsTr("보트")
+            value: root._live ? root._display(root._boats, root._boatsSat) : "–"
+            dot:   "#2ec4b6"
         }
 
         Divider {}
