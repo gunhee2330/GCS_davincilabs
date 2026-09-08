@@ -99,6 +99,38 @@ python speaker_test_send.py --host 192.168.144.70 mic test.wav
 `mic` 스트리밍 중에 `play`가 재생 중이었다면 끊기고 라이브가 나와야 합니다(라이브 우선).
 스트림이 끝나면 0.4초 뒤 자동으로 닫힙니다.
 
+## 7. 에어유닛 UART1 연결 (실전 경로)
+
+실전에서 명령은 이더넷이 아니라 **SIYI 데이터링크**로 옵니다: GCS → 조종기 UDP `192.168.144.20:19856`
+→ RF → 에어유닛 **UART1** → Pi GPIO 시리얼. 데몬이 `/dev/serial0`을 열어 같은 명령을 받고 같은 길로 응답합니다.
+
+**배선 (3가닥, 양쪽 3.3V TTL — 레벨시프터 없음)**
+
+```
+에어유닛 UART1 (GH1.25 3핀)      Pi 4B 40핀 헤더
+  TX  ───────────────────────>  GPIO15 (RXD, 핀 10)
+  RX  <───────────────────────  GPIO14 (TXD, 핀 8)
+  GND ───────────────────────   GND (핀 6)
+```
+
+**보율은 57600** — 에어유닛 UART1 실측값(SDK `0x16` → Com1_Baud=3). `speaker.service`의 `SPEAKER_SERIAL_BAUD=57600`.
+
+**Pi 쪽 준비 (한 번만)**
+
+```sh
+sudo apt install -y python3-serial
+# /boot/firmware/config.txt 에 추가 후 재부팅
+enable_uart=1
+# 시리얼 콘솔(로그인 셸)을 꺼야 데몬이 바이트를 뺏기지 않음:
+sudo raspi-config  →  Interface Options → Serial Port → 로그인 셸 "아니오", 하드웨어 "예"
+```
+
+**확인**: `journalctl -u speaker -f`에 `serial on /dev/serial0 @ 57600`이 보이면 열린 것.
+배선 후 GCS(또는 조종기의 `speaker_test_send.py --host 127.0.0.1 --port 19856 state`)에서 응답이 오면 RF 통과까지 확정.
+
+**배선 없이 시리얼 코드만 검증**: `python3 speaker_serial_test.py` — pty 한 쌍으로 루프백을 만들어
+데몬을 띄우고 STATE/PLAY 프레임을 시리얼로 넣어 응답을 확인합니다 (Pi에서 실행, 소리 안 남).
+
 ## 프로토콜 (GCS `SpeakerController`와 동일)
 
 | 포트 | 내용 |

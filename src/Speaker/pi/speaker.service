@@ -11,6 +11,10 @@ Environment=SPEAKER_PORT=37270
 # Live microphone PCM from the ground station. Defaults to SPEAKER_PORT + 1.
 Environment=SPEAKER_AUDIO_PORT=37271
 Environment=SPEAKER_AUDIO_RATE=16000
+# Commands from the SIYI air unit's UART1 on GPIO14/15. Measured air unit rate: 57600.
+# Set SPEAKER_SERIAL= (empty) to run UDP-only on a bench without the aircraft.
+Environment=SPEAKER_SERIAL=/dev/serial0
+Environment=SPEAKER_SERIAL_BAUD=57600
 # A broadcast keeps playing through a brief link drop, but stops if contact is lost for
 # this long. Set to 0 in a bench setup where an unattended speaker is not a hazard.
 Environment=SPEAKER_DEADMAN_SECONDS=120

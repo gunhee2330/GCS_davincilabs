@@ -1,27 +1,34 @@
 #!/usr/bin/env python3
 """Loudspeaker payload daemon for the police drone.
 
-Runs on the aircraft's small Linux computer (Raspberry Pi Zero 2 W or a Radxa Zero 3E -
-the code is identical, only the OS setup differs) and drives the loudspeaker two ways:
+Runs on the aircraft's small Linux computer (Raspberry Pi 4B here; the same file runs on a
+Pi Zero 2 W or a Radxa) and drives the loudspeaker two ways:
 
-  * Stored warnings. The ground station sends a track number on the control port; the
-    audio itself lives here, so a broadcast already under way is unaffected by a link
-    drop. This is the reliable path for fixed warnings.
+  * Stored warnings. The ground station sends a track number; the audio itself lives
+    here, so a broadcast already under way is unaffected by a link drop. This is the
+    reliable path for fixed warnings.
 
   * Live microphone. The ground station streams raw PCM to the audio port and the daemon
-    plays it as it arrives. A live stream takes priority over a stored track: pressing
-    push-to-talk cuts in over whatever file was playing.
+    plays it as it arrives. A live stream takes priority over a stored track. (Not used
+    in the current build - the receive side is kept so it can be enabled later.)
 
-Both come out of the same USB speaker, which the daemon finds by name so the same code
-works on either board no matter which ALSA card number the speaker lands on.
+Commands arrive on either of two transports, handled identically:
 
-Wire format on the control port is the SIYI packet framing the aircraft already uses for
-the camera, so the airframe carries one control format rather than two:
+  * UART from the SIYI air unit (production). The ground station sends to the SIYI
+    datalink (UDP 192.168.144.20:19856 on the controller), which carries the bytes over
+    RF and out of the air unit's UART1 into the Pi's GPIO serial port. Replies go back
+    the same way. Measured air unit UART rate: 57600.
+
+  * UDP on the control port (bench). Lets a laptop on the same LAN drive the daemon
+    without any aircraft hardware.
+
+Wire format is the SIYI packet framing the aircraft already uses for the camera:
 
     0x55 0x66 | CTRL(1) | DATA_LEN(2, LE) | SEQ(2, LE) | CMD_ID(1) | DATA | CRC16(2, LE)
 
-CRC is CRC-16/XMODEM (poly 0x1021, init 0). Live audio packets on the audio port carry a
-tiny header of their own (0x55 0x67 + sequence) followed by 16 kHz / 16-bit / mono PCM.
+CRC is CRC-16/XMODEM (poly 0x1021, init 0). The SIYI remote controller speaks the same
+framing for its own SDK on the same datalink, so the daemon ignores command ids it does
+not own rather than answering them.
 
 Install as a systemd service so it survives a reboot:
 
@@ -45,10 +52,21 @@ import threading
 import time
 from pathlib import Path
 
+try:
+    import serial  # pyserial: apt install python3-serial
+except ImportError:  # bench machines without it still get the UDP transport
+    serial = None
+
 AUDIO_DIR = Path(os.environ.get("SPEAKER_AUDIO_DIR", "/opt/speaker/audio"))
 CONTROL_PORT = int(os.environ.get("SPEAKER_PORT", "37270"))
 # Live microphone PCM arrives one port above the control channel.
 AUDIO_PORT = int(os.environ.get("SPEAKER_AUDIO_PORT", str(CONTROL_PORT + 1)))
+
+# Serial transport from the air unit. Empty disables it. /dev/serial0 is whichever UART
+# the Pi has routed to GPIO14/15, so it works whether or not Bluetooth was moved off the
+# PL011. 57600 is what the SIYI air unit's UART1 was measured at (SDK 0x16, Com1_Baud=3).
+SERIAL_PORT = os.environ.get("SPEAKER_SERIAL", "/dev/serial0")
+SERIAL_BAUD = int(os.environ.get("SPEAKER_SERIAL_BAUD", "57600"))
 
 # The ground station streams 16 kHz / 16-bit / mono. Speech is clear at this rate and it
 # is only 256 kbps, which the SIYI link carries without touching the video budget.
@@ -68,11 +86,14 @@ AUDIO_MAGIC = b"\x55\x67"  # one greater than the control STX, so the two never 
 AUDIO_HEADER_LEN = 4  # magic(2) + sequence(2)
 HEADER_LEN = 8  # STX(2) + CTRL(1) + LEN(2) + SEQ(2) + CMD(1)
 CRC_LEN = 2
+# The datalink can carry the controller's own SDK chatter; never let junk pile up.
+MAX_BUFFER = 8192
 
 CMD_PLAY = 0x01
 CMD_STOP = 0x02
 CMD_SET_VOLUME = 0x03
 CMD_REQUEST_STATE = 0x04
+OWN_COMMANDS = {CMD_PLAY, CMD_STOP, CMD_SET_VOLUME, CMD_REQUEST_STATE}
 
 log = logging.getLogger("speaker")
 
@@ -123,6 +144,8 @@ def decode(buffer: bytearray) -> list[tuple[int, int, bytes]]:
         consumed += total
 
     del buffer[:consumed]
+    if len(buffer) > MAX_BUFFER:
+        del buffer[:-MAX_BUFFER]
     return frames
 
 
@@ -336,6 +359,39 @@ class LiveAudio:
         self._process = None
 
 
+class Commands:
+    """Turns decoded frames into player actions and state replies, from any transport.
+
+    Both the UART and the UDP receiver call handle(); the reply goes back on whichever
+    transport the command came from. Everything the deadman needs is kept here so the
+    two transports refresh the same timer.
+    """
+
+    def __init__(self, player: Player, live: LiveAudio) -> None:
+        self._player = player
+        self._live = live
+        self._lock = threading.Lock()
+        self._sequence = 0
+        self.last_command = time.monotonic()
+
+    def handle(self, command_id: int, payload: bytes) -> bytes | None:
+        """Reply frame for a command, or None for a frame that is not ours (e.g. RC SDK)."""
+        if command_id not in OWN_COMMANDS:
+            return None
+        with self._lock:
+            self.last_command = time.monotonic()
+            if command_id == CMD_PLAY and payload:
+                self._live.stop()  # an explicit file request wins over a live stream
+                self._player.play(payload[0])
+            elif command_id == CMD_STOP:
+                self._live.stop()
+                self._player.stop()
+            elif command_id == CMD_SET_VOLUME and payload:
+                self._player.set_volume(payload[0])
+            self._sequence = (self._sequence + 1) & 0xFFFF
+            return encode(command_id, self._player.state(), self._sequence)
+
+
 def _audio_loop(sock: socket.socket, live: LiveAudio, player: Player, running: threading.Event) -> None:
     """Receive live PCM and play it, cutting in over any stored track."""
     sock.settimeout(0.2)
@@ -357,6 +413,37 @@ def _audio_loop(sock: socket.socket, live: LiveAudio, player: Player, running: t
         live.feed(datagram[AUDIO_HEADER_LEN:])
 
 
+def _serial_loop(port: str, baud: int, commands: Commands, running: threading.Event) -> None:
+    """Commands from the air unit's UART; replies back up the same wire."""
+    try:
+        link = serial.Serial(port, baud, timeout=0.2, write_timeout=1.0)
+    except (OSError, serial.SerialException) as exc:
+        log.error("serial %s unavailable, UART transport off: %s", port, exc)
+        return
+    log.info("serial on %s @ %d", port, baud)
+
+    buffer = bytearray()
+    while running.is_set():
+        try:
+            chunk = link.read(512)
+        except (OSError, serial.SerialException) as exc:
+            log.error("serial read failed: %s", exc)
+            time.sleep(1.0)
+            continue
+        if not chunk:
+            continue
+        buffer.extend(chunk)
+        for command_id, _seq, payload in decode(buffer):
+            reply = commands.handle(command_id, payload)
+            if reply is None:
+                continue
+            try:
+                link.write(reply)
+            except (OSError, serial.SerialException) as exc:
+                log.warning("serial write failed: %s", exc)
+    link.close()
+
+
 def main() -> int:
     logging.basicConfig(
         level=logging.INFO,
@@ -369,6 +456,7 @@ def main() -> int:
 
     player = Player(AUDIO_DIR, device)
     live = LiveAudio(device, AUDIO_RATE)
+    commands = Commands(player, live)
     log.info("audio dir %s (%d files), player=%s", AUDIO_DIR, len(player.tracks()), player._player_cmd)
 
     control_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -385,10 +473,15 @@ def main() -> int:
     running = threading.Event()
     running.set()
 
-    audio_thread = threading.Thread(
-        target=_audio_loop, args=(audio_sock, live, player, running), daemon=True
-    )
-    audio_thread.start()
+    threads = [threading.Thread(target=_audio_loop, args=(audio_sock, live, player, running), daemon=True)]
+    if SERIAL_PORT and serial is not None:
+        threads.append(threading.Thread(target=_serial_loop, args=(SERIAL_PORT, SERIAL_BAUD, commands, running), daemon=True))
+    elif SERIAL_PORT:
+        log.error("pyserial not installed (apt install python3-serial); UART transport off")
+    else:
+        log.info("serial transport disabled")
+    for thread in threads:
+        thread.start()
 
     def shutdown(*_args: object) -> None:
         running.clear()
@@ -397,8 +490,6 @@ def main() -> int:
     signal.signal(signal.SIGINT, shutdown)
 
     buffer = bytearray()
-    last_command = time.monotonic()
-    sequence = 0
 
     while running.is_set():
         try:
@@ -408,7 +499,7 @@ def main() -> int:
             # Stop a broadcast that outlives contact with the ground station. Live audio
             # stops on its own the moment push-to-talk is released, so this only guards
             # stored tracks.
-            if time.monotonic() - last_command > DEADMAN_SECONDS and player.playing():
+            if time.monotonic() - commands.last_command > DEADMAN_SECONDS and player.playing():
                 log.warning("deadman expired after %.0fs, stopping playback", DEADMAN_SECONDS)
                 player.stop()
             continue
@@ -417,25 +508,13 @@ def main() -> int:
             continue
 
         for command_id, _seq, payload in decode(buffer):
-            last_command = time.monotonic()
-
-            if command_id == CMD_PLAY and payload:
-                live.stop()  # an explicit file request wins over a live stream
-                player.play(payload[0])
-            elif command_id == CMD_STOP:
-                live.stop()
-                player.stop()
-            elif command_id == CMD_SET_VOLUME and payload:
-                player.set_volume(payload[0])
-            elif command_id != CMD_REQUEST_STATE:
-                log.debug("unhandled command 0x%02x", command_id)
-                continue
-
-            sequence = (sequence + 1) & 0xFFFF
-            control_sock.sendto(encode(command_id, player.state(), sequence), sender)
+            reply = commands.handle(command_id, payload)
+            if reply is not None:
+                control_sock.sendto(reply, sender)
 
     running.clear()
-    audio_thread.join(timeout=2)
+    for thread in threads:
+        thread.join(timeout=2)
     live.stop()
     player.stop()
     control_sock.close()
