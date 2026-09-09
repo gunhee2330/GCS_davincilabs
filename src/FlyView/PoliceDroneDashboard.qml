@@ -1953,17 +1953,31 @@ Item {
     readonly property bool _showSingleVehicleUI: true
     readonly property real _toolsMargin: ScreenTools.defaultFontPixelWidth * 0.75
 
-    // Stacked, the detection card and the telemetry bar share one width (see aiPanel below). Left
-    // at the card's own implicit width that block runs under the camera column's tool strip, which
-    // then caps its height against the card and clips its lower buttons off - AI among them. The
-    // pair is narrowed to clear the strip instead; the card's stats share the width out between
-    // themselves. Measured off the instrument panel rather than telemetryBar.x, which is what this
-    // width decides.
+    // Stacked, the detection card and the telemetry bar share one width (see aiPanel below), and
+    // the bar is the one that sets it: at its own implicit width it has no empty strip down its
+    // right-hand side, and the card's stats spread out to meet it. The clamp is what keeps the
+    // block from running under the camera column's tool strip, whose height defers to the card
+    // wherever the card is underneath it - that is what clipped the strip's lower buttons off.
+    // Measured off the instrument panel rather than telemetryBar.x, which is what this decides.
     readonly property real _cornerLeft:     flightInstruments.x +
                                             (instrumentPanel.visible
                                                  ? instrumentPanel.width + flightInstruments.spacing
                                                  : 0)
     readonly property real _cornerMaxWidth: cameraToolStrip.x - 8 - _cornerLeft
+
+    // The compass pill is the third thing in that corner and it sizes itself off the window,
+    // which left it a good deal shorter than the two storeys beside it. HorizontalCompassAttitude
+    // takes width as its only input and derives the rest from it - its _topBottomMargin,
+    // _innerRadius and _outerRadius chain comes out at height = 0.5125 * width - so the height
+    // the corner wants is asked for as the width that produces it. Implicit heights only: the
+    // resolved ones run back through the bar's width and into this.
+    readonly property real _compassHeightPerWidth: 0.5125
+    readonly property real _cornerStackHeight:     aiPanel.implicitHeight + 6 + telemetryBar.implicitHeight
+    // Never at the bar's expense: a pill wide enough to squeeze the values it sits next to has
+    // matched the wrong thing.
+    readonly property real _instrumentWidth:
+        Math.min(_cornerStackHeight / _compassHeightPerWidth,
+                 (cameraToolStrip.x - 16 - flightInstruments.spacing) - telemetryBar.implicitWidth)
 
     // Bottom left: the camera windows own the right edge, and stacking the instruments under
     // them would leave the compass hidden behind a window. Attitude and compass sit at the
@@ -1986,6 +2000,19 @@ Item {
             Layout.alignment: Qt.AlignBottom
             visible:          QGroundControl.corePlugin.options.flyView.showInstrumentPanel
                               && root._showSingleVehicleUI
+
+            // Only the horizontal style is driven this way. The other two the operator can pick
+            // lay their compass and horizon out differently, and a width chosen for this one's
+            // arithmetic would be a guess against theirs.
+            Binding {
+                target:      instrumentPanel.innerControl
+                property:    "width"
+                value:       root._instrumentWidth
+                when:        (instrumentPanel.innerControl !== null) &&
+                             QGroundControl.settingsManager.flyViewSettings.instrumentQmlFile2
+                                 .rawValue.endsWith("HorizontalCompassAttitude.qml")
+                restoreMode: Binding.RestoreBindingOrValue
+            }
         }
 
         TelemetryValuesBar {
@@ -1994,10 +2021,10 @@ Item {
             // When the detection card stacks on top of this bar the two share a width, so the
             // bottom-left corner reads as one block rather than two ragged strips. -1 leaves the
             // bar at its own implicit width whenever the card sits beside it instead.
-            Layout.preferredWidth:  aiPanel._beside
-                                        ? -1
-                                        : Math.max(implicitWidth,
-                                                   Math.min(aiPanel.implicitWidth, root._cornerMaxWidth))
+            // Its own content width, short of the camera strip. Not conditioned on which side
+            // the card takes: the card reads this width to decide that, and reading it back
+            // here was a binding loop Qt broke whichever way it happened to evaluate first.
+            Layout.preferredWidth:  Math.min(implicitWidth, root._cornerMaxWidth)
             settingsGroup:          factValueGrid.telemetryBarSettingsGroup
             specificVehicleForCard: null // Tracks the active vehicle
         }
@@ -2162,7 +2189,9 @@ Item {
         // instead of running under the windows.
         readonly property real _besideX:  flightInstruments.x + telemetryBar.x + telemetryBar.width + 6
         readonly property real _rightEdge: root.width - root._windowWidth - 6
-        readonly property bool _beside:   _besideX + width <= _rightEdge
+        // Against implicitWidth, not width: beside the bar the card is at its implicit width
+        // anyway, and testing the width this decides made the question depend on its own answer.
+        readonly property bool _beside:   _besideX + implicitWidth <= _rightEdge
 
         // Stacked, the card starts exactly where the telemetry bar does: pulling it left to fit a
         // wider card would slide it over the attitude and compass beside them.
@@ -2215,6 +2244,14 @@ Item {
         aiTargetHeight:       root.aiTargetHeight
         aiTargetLabel:        root.aiTargetLabel
         aiTargetInfo:         root.aiTargetInfo
+        // A target the module has lost is not one it is following: it keeps hasTarget up while
+        // it hunts for the object again, and a green chip through that is a claim nothing backs.
+        trackingActive:       App.SiyiAiController.hasTarget && !App.SiyiAiController.targetLost
+        // Same rule for follow. 0xC3 answers only when asked and there is no way to ask again
+        // without re-asserting follow, so a lit chip from a minutes-old reply would be a claim
+        // nothing backs either - a stale one goes grey with the rest.
+        followActive:         App.SiyiCameraController.aiFollowEnabled &&
+                              !App.SiyiCameraController.aiFollowStale
         targetPickEnabled:    root._aiPickEnabled
         onActivated:          root._toggleExpanded("secondary")
         onTargetPicked:       (nx, ny) => App.SiyiAiController.trackPoint(nx, ny)

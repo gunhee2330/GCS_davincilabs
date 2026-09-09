@@ -33,6 +33,15 @@ Item {
     /// laser range. Empty hides it.
     property string aiTargetInfo:       ""
 
+    /// Whether the module is following a target, drawn as a chip in the corner opposite the
+    /// window's name. Null on the panels that have nothing to say about tracking, which is
+    /// every one but the module's own picture.
+    property var trackingActive: null
+
+    /// Whether the aircraft is flying after that target - the gimbal's own follow, a separate
+    /// command on a separate link. Null hides it, as above.
+    property var followActive: null
+
     /// Decoded frame size of this panel's stream, empty until frames arrive. The AI module
     /// scales target selections by the stream resolution, which only this panel can know.
     readonly property rect streamRect: videoOutput.sourceRect
@@ -125,9 +134,72 @@ Item {
         }
     }
 
-    Rectangle {
+    /// A dot and a word for one piece of state. Grey when it is not happening - idle is not a
+    /// fault, and a red resting state reads as one across a whole flight.
+    component StateChip: Rectangle {
+        property bool   lit
+        property color  litColor
+        property string label
+
+        width:  chipRow.implicitWidth + 16
+        height: chipRow.implicitHeight + 8
+        radius: 3
+        color:  "#c0121b24"
+
+        Row {
+            id:               chipRow
+            anchors.centerIn: parent
+            spacing:          6
+
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width:                  Math.max(9, ScreenTools.defaultFontPixelHeight * 0.42)
+                height:                 width
+                radius:                 width / 2
+                color:                  lit ? litColor : "#9aa3ab"
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                color:                  lit ? litColor : "#9aa3ab"
+                font.bold:              true
+                font.pixelSize:         Math.max(11, ScreenTools.defaultFontPixelHeight * 0.62)
+                text:                   label
+            }
+        }
+    }
+
+    // Tracking and follow sit on the picture they are happening on rather than in the detection
+    // card across the screen: the operator watching a target run is looking here. Drawn windowed
+    // as well as full screen - this is state, not chrome naming the window.
+    Row {
+        id:              stateChips
         anchors.right:   parent.right
         anchors.top:     parent.top
+        anchors.margins: 8
+        spacing:         6
+        visible:         (root.followActive !== null) || (root.trackingActive !== null)
+
+        // Follow leads: it is the one that moves the airframe.
+        StateChip {
+            visible:  root.followActive !== null
+            lit:      root.followActive === true
+            litColor: "#1f9fd0"
+            label:    lit ? qsTr("추종 중") : qsTr("추종 대기")
+        }
+
+        StateChip {
+            visible:  root.trackingActive !== null
+            lit:      root.trackingActive === true
+            litColor: "#42d66b"
+            label:    lit ? qsTr("추적 중") : qsTr("추적 대기")
+        }
+    }
+
+    Rectangle {
+        anchors.right:   parent.right
+        // Under the state chips when both are up, so neither has to be read through the other.
+        anchors.top:     stateChips.visible ? stateChips.bottom : parent.top
         anchors.margins: 8
         width:           detailText.implicitWidth + 16
         height:          detailText.implicitHeight + 8

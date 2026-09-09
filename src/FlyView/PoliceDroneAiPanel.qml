@@ -5,9 +5,10 @@ import QGC as App
 import QGroundControl
 import QGroundControl.Controls
 
-/// Detection card: how many people and vehicles the pod's AI module is seeing, and its tracking
-/// state. Styled like the telemetry bar it sits beside so the two read as one instrument row.
-/// The switch itself lives in the top bar.
+/// Detection card: how many people, vehicles, fires, plumes of smoke and boats the pod's AI
+/// module is seeing. Styled like the telemetry bar it sits beside so the two read as one
+/// instrument row. The switch itself lives in the camera strip, and whether the module is
+/// following anything is drawn on the picture it is following, in PoliceDroneCameraPanel.
 ///
 /// The numbers come from the module's undocumented 0xD5 push, not from the on-device detector.
 /// That command reports a tally per class and no coordinates at all, which is why the boxes on
@@ -42,9 +43,6 @@ Item {
     property bool _firesSat:    false
     property bool _smokesSat:   false
     property bool _boatsSat:    false
-
-    readonly property bool _moduleOn:  QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue
-    readonly property bool _tracking:  App.SiyiAiController.hasTarget && !App.SiyiAiController.targetLost
 
     /// One band for every value, so a Korean status word and a digit sit on the same line
     /// however their fonts measure.
@@ -252,64 +250,6 @@ Item {
             label: qsTr("보트")
             value: root._live ? root._display(root._boats, root._boatsSat) : "–"
             dot:   "#2ec4b6"
-        }
-
-        Divider {}
-
-        // The pod's own AI module, driven from the long press on the zoom window.
-        Stat {
-            label: qsTr("추적")
-            word:  true
-            value: {
-                if (!root._moduleOn)                            return qsTr("꺼짐")
-                if (!App.SiyiAiController.connected)            return qsTr("미연결")
-                // The module refuses to start on video above 1920x1080 and says nothing else
-                // about it, so the refusal has to be named here or it reads as a dead link.
-                if (App.SiyiAiController.streamTooLarge)        return qsTr("해상도초과")
-                if (!App.SiyiAiController.recognitionEnabled)   return qsTr("대기")
-                if (App.SiyiAiController.hasTarget)
-                    return App.SiyiAiController.targetLost ? qsTr("유실") : qsTr("추적중")
-                return qsTr("준비")
-            }
-            dot: !root._moduleOn ? "#9aa3ab"
-                 : !App.SiyiAiController.connected ? "#ff9c46"
-                 : App.SiyiAiController.streamTooLarge ? "#ff9c46"
-                 : root._tracking ? "#42d66b"
-                 : (App.SiyiAiController.hasTarget ? "#ff5b5b" : "#1f9fd0")
-        }
-
-        Divider {}
-
-        // Aircraft follow, from the gimbal rather than the AI module - a separate command on a
-        // separate link. Its own slot instead of being folded into 추적 above, because the two are
-        // independent and this is the one that moves the airframe: the operator has to be able to
-        // see that the aircraft is chasing something without opening a panel. The refusal reason
-        // itself only fits in the follow panel; there is room here to say only that there is one.
-        Stat {
-            label: qsTr("추종")
-            word:  true
-            value: {
-                if (!App.SiyiCameraController.connected)      return qsTr("미연결")
-                // 0xC3 answers only when asked and there is no way to ask again without
-                // re-asserting follow, so a green "추종중" from a minutes-old reply is a claim
-                // nothing backs.
-                if (App.SiyiCameraController.aiFollowStale)   return qsTr("미확인")
-                if (App.SiyiCameraController.aiFollowEnabled) return qsTr("추종중")
-                // A stop nothing answered, or one that never left the socket, is not a stop the
-                // gimbal has acted on. Grey "꺼짐" here would be the same confident lie the follow
-                // panel now refuses to tell.
-                if (App.SiyiCameraController.aiFollowStopState !==
-                    App.SiyiCameraController.StopIdle)        return qsTr("미확인")
-                if (App.SiyiCameraController.aiFollowError !== App.SiyiCameraController.None)
-                    return qsTr("거절됨")
-                return qsTr("꺼짐")
-            }
-            dot: !App.SiyiCameraController.connected ? "#9aa3ab"
-                 : App.SiyiCameraController.aiFollowStale ? "#9aa3ab"
-                 : App.SiyiCameraController.aiFollowEnabled ? "#42d66b"
-                 : App.SiyiCameraController.aiFollowStopState !== App.SiyiCameraController.StopIdle ? "#9aa3ab"
-                 : (App.SiyiCameraController.aiFollowError !== App.SiyiCameraController.None
-                    ? "#ff5b5b" : "#9aa3ab")
         }
     }
 }
