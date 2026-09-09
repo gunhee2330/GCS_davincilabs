@@ -6,9 +6,11 @@ import java.io.InputStream;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.Context;
+import android.content.IntentFilter;
 import android.database.Cursor;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
+import android.os.BatteryManager;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
 import android.util.Log;
@@ -274,6 +276,45 @@ public class QGCActivity extends QtActivity {
             activity.m_storagePermissionController = new QGCStoragePermissionController(activity);
         }
         return activity.m_storagePermissionController.checkStoragePermissions();
+    }
+
+    /**
+     * Converts a raw ACTION_BATTERY_CHANGED level/scale pair to a percentage.
+     *
+     * @return 0..100, or -1 when the pair carries no usable reading.
+     */
+    static int batteryPercent(final int level, final int scale) {
+        if (level < 0 || scale <= 0) {
+            return -1;
+        }
+        return (level * 100) / scale;
+    }
+
+    /**
+     * Charge level of the device this application is running on, as a percentage.
+     *
+     * This is a query of the last sticky ACTION_BATTERY_CHANGED broadcast, not a registration:
+     * a null receiver asks the system for the broadcast it is already holding and returns it
+     * straight away. That is why there is no receiver object to keep, nothing to unregister,
+     * no permission to request, no manifest entry, and no RECEIVER_EXPORTED flag to satisfy on
+     * targetSdk 34 and up.
+     *
+     * @return 0..100, or -1 when the level is not known.
+     */
+    public static int getBatteryPercent() {
+        final QGCActivity activity = m_instance;
+        if (activity == null) {
+            QGCLogger.e(TAG, "Activity instance is null");
+            return -1;
+        }
+
+        final Intent status = activity.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        if (status == null) {
+            return -1;
+        }
+
+        return batteryPercent(status.getIntExtra(BatteryManager.EXTRA_LEVEL, -1),
+                              status.getIntExtra(BatteryManager.EXTRA_SCALE, -1));
     }
 
     /**

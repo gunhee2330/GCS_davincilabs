@@ -425,22 +425,31 @@ void SiyiProtocolTest::_aiParseObjectClassNames_test()
 
 void SiyiProtocolTest::_speakerEncodeCommands_test()
 {
-    // The loudspeaker payload reuses the SIYI framing, so a play command is the shared
-    // header with our own command byte and the 1-based track number as payload.
+    // The loudspeaker borrows the SIYI byte layout but not its STX: 0xA5 0x5A, because the
+    // controller's RC MCU swallows 0x55 0x66 as its own SDK instead of passing it to the air unit.
+    // Pinned here rather than read back from the encoder, so a header that drifts to 0x55 0x66 -
+    // which builds, encodes and round-trips perfectly on this side while the payload never hears a
+    // word - fails here instead of in the field.
     const QByteArray play = SpeakerProtocol::encodePlay(3);
     QCOMPARE(play.size(), 11);
-    QCOMPARE(static_cast<quint8>(play.at(0)), static_cast<quint8>(0x55));
-    QCOMPARE(static_cast<quint8>(play.at(1)), static_cast<quint8>(0x66));
+    QCOMPARE(static_cast<quint8>(play.at(0)), static_cast<quint8>(0xA5));
+    QCOMPARE(static_cast<quint8>(play.at(1)), static_cast<quint8>(0x5A));
     QCOMPARE(static_cast<quint8>(play.at(7)), static_cast<quint8>(SpeakerProtocol::CommandId::Play));
     QCOMPARE(static_cast<quint8>(play.at(8)), static_cast<quint8>(3));
 
-    // A frame built here must survive the shared decoder unchanged.
+    // A frame built here must survive the loudspeaker's own decoder unchanged. It cannot go
+    // through SiyiProtocol::decode: that one syncs on 0x55 0x66 and drops this frame as garbage,
+    // which is exactly what the different header is for.
     QByteArray buffer = play;
-    const QList<Frame> frames = decode(buffer);
+    const QList<SpeakerProtocol::Frame> frames = SpeakerProtocol::decode(buffer);
     QCOMPARE(frames.size(), 1);
     QCOMPARE(static_cast<quint8>(frames.at(0).commandId),
              static_cast<quint8>(SpeakerProtocol::CommandId::Play));
     QVERIFY(buffer.isEmpty());
+
+    // And the camera decoder must not claim it: the two codecs share one link on the controller.
+    QByteArray crossFeed = play;
+    QVERIFY(SiyiProtocol::decode(crossFeed).isEmpty());
 
     QCOMPARE(SpeakerProtocol::encodeStop().size(), 10);
 

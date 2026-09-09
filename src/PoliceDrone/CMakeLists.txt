@@ -7,6 +7,8 @@
 
 target_sources(${CMAKE_PROJECT_NAME}
     PRIVATE
+        ControllerBattery.cc
+        ControllerBattery.h
         PoliceGimbalJoystick.cc
         PoliceGimbalJoystick.h
         PoliceLinkDefaults.cc

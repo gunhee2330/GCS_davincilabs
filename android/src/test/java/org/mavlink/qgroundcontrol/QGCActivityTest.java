@@ -149,6 +149,28 @@ public class QGCActivityTest {
     }
 
     // -----------------------------------------------------------------------
+    // batteryPercent — the arithmetic behind getBatteryPercent(), which itself
+    // needs an Activity and so cannot be exercised here
+    // -----------------------------------------------------------------------
+
+    @Test
+    public void batteryPercent_scalesLevelAgainstScale() {
+        assertEquals(38, QGCActivity.batteryPercent(38, 100));
+    }
+
+    @Test
+    public void batteryPercent_returnsMinusOneForZeroScale() {
+        // A zero scale would divide by zero; the caller must show nothing, not 0%.
+        assertEquals(-1, QGCActivity.batteryPercent(50, 0));
+    }
+
+    @Test
+    public void batteryPercent_returnsMinusOneForMissingLevel() {
+        // -1 is what getIntExtra returns when the broadcast carries no level.
+        assertEquals(-1, QGCActivity.batteryPercent(-1, 100));
+    }
+
+    // -----------------------------------------------------------------------
     // jniOnImportResult — verifies the onImportResult JNI bridge declaration
     // -----------------------------------------------------------------------
 

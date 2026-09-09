@@ -5,10 +5,10 @@ import QGC as App
 import QGroundControl
 import QGroundControl.Controls
 
-/// Detection card: how many people, vehicles, fires, plumes of smoke and boats the pod's AI
-/// module is seeing. Styled like the telemetry bar it sits beside so the two read as one
-/// instrument row. The switch itself lives in the camera strip, and whether the module is
-/// following anything is drawn on the picture it is following, in PoliceDroneCameraPanel.
+/// Detection card: how many of each class the pod's AI module is seeing. Counts only - tracking
+/// and follow state live where the operator acts on them, drawn as chips on the AI window's own
+/// picture. Styled like the telemetry bar it sits beside so the two read as one instrument row.
+/// The switch itself lives in the camera strip.
 ///
 /// The numbers come from the module's undocumented 0xD5 push, not from the on-device detector.
 /// That command reports a tally per class and no coordinates at all, which is why the boxes on
@@ -44,8 +44,7 @@ Item {
     property bool _smokesSat:   false
     property bool _boatsSat:    false
 
-    /// One band for every value, so a Korean status word and a digit sit on the same line
-    /// however their fonts measure.
+    /// One band for every value, so the row keeps its height whatever a value measures.
     readonly property real _valueHeight: Math.max(18, _em * 1.25)
 
     implicitWidth:  row.implicitWidth + _em
@@ -153,8 +152,6 @@ Item {
         property string label
         property string value
         property color  dot
-        /// A status word rather than a count: set smaller so it still fits the value band.
-        property bool   word: false
 
         // The card is given a width by the dashboard so it lines up with the telemetry bar under
         // it; sharing that width out evenly is what lets the card be narrowed without the stats
@@ -188,10 +185,10 @@ Item {
             height:                   root._valueHeight
             verticalAlignment:        Text.AlignVCenter
             color:                    qgcPal.text
-            font.family:              stat.word ? ScreenTools.normalFontFamily : "Open Sans"
+            // Every value on this strip is a count now, so the digit face is the only one left.
+            font.family:              "Open Sans"
             font.weight:              Font.DemiBold
-            font.pixelSize:           stat.word ? Math.max(13, root._em * 0.82)
-                                                : Math.max(16, root._em * 1.15)
+            font.pixelSize:           Math.max(16, root._em * 1.15)
             text:                     stat.value
         }
     }
@@ -251,5 +248,14 @@ Item {
             value: root._live ? root._display(root._boats, root._boatsSat) : "–"
             dot:   "#2ec4b6"
         }
+
+        // Tracking and follow state used to hold two more slots here. They are gone, and this
+        // strip is counts only. Neither was a count, and both now sit on the picture they are
+        // happening on: a pair of chips in the AI window's far corner, beside the tracked
+        // target's own box and its release button. Seven slots ran this strip across half a
+        // seven-inch screen and put the numbers under the fullscreen hint, and follow in
+        // particular read the same word all flight on a gimbal whose firmware has no follow
+        // command at all. A slot that never changes is what teaches an operator to stop reading
+        // the strip that carries the numbers they are here for.
     }
 }
