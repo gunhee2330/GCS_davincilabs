@@ -352,9 +352,13 @@ Item {
                                         && (_activeVehicle.sensorsPresentBits & _rcSensorBit)
                                         && (_activeVehicle.sensorsUnhealthyBits & _rcSensorBit)
     readonly property real _touchHeight:  Math.max(ScreenTools.minTouchPixels * 1.4, ScreenTools.defaultFontPixelHeight * 2.1)
-    // QGCToolBarButton's icon height: the ☰ in the Plan and Configuration toolbars is drawn
-    // at this size, and the menu button should be one size everywhere.
-    readonly property real _menuIconSize: ScreenTools.defaultFontPixelHeight * 1.2
+    // The menu button's touch width. Its glyph is _barIconSize like every other pictogram on
+    // the bar - it was the last one still sized off the font, which on a 68 px bar drew it a
+    // fifth smaller than the icons beside it. The floor is here and not on the others because
+    // the others are wider than 5 mm on their contents alone: the message pictogram takes it
+    // explicitly, and the GPS and link groups carry a label each.
+    readonly property real _menuButtonWidth: Math.max(root._barIconSize + ScreenTools.defaultFontPixelWidth * 2,
+                                                      ScreenTools.minTouchPixels)
     // Sized to its own pictograms now that QGC's toolbar indicators are not in it: the row
     // needs a touch target's height and nothing more, and every pixel saved here goes to the
     // map and the camera windows.
@@ -363,52 +367,136 @@ Item {
     /// Gap kept clear along the bottom edge now that the control panel floats rather than
     /// occupying two full-width bars.
     readonly property real _bottomInset:  8
-    readonly property color _accentColor: "#33c7ff"
-    // Status palette. Grey rests, white is fine, red is the only alarm. Painting every
-    // state a different bright colour is what makes a bar unreadable at a glance.
-    // One rhythm for the top bar: pictograms at one size, one label size, one value size.
-    readonly property real  _barIconSize: Math.max(20, ScreenTools.defaultFontPixelHeight * 1.15)
-    readonly property real  _labelSize:   Math.max(11, ScreenTools.defaultFontPixelHeight * 0.62)
-    readonly property real  _valueSize:   Math.max(12, ScreenTools.defaultFontPixelHeight * 0.78)
+    // The bar's proportions, pinned to the bar's own height rather than to the font. The
+    // layout was drawn against a 68 px bar with 32 px pictograms and 21 px values, and a
+    // ratio to the bar keeps those proportions whatever height the bar is finally given -
+    // which also means enlarging the bar enlarges what the operator actually reads. The
+    // floors are the desktop's, where the bar is barely half as tall.
+    readonly property real  _barIconSize:     Math.max(20, root._statusHeight * 0.47)
+    readonly property real  _labelSize:       Math.max(11, root._statusHeight * 0.22)
+    readonly property real  _valueSize:       Math.max(12, root._statusHeight * 0.31)
+    readonly property real  _statusBlockSize: Math.max(14, root._statusHeight * 0.35)
+    readonly property real  _badgeSize:       Math.max(10, root._statusHeight * 0.19)
     readonly property color _labelColor:  "#9fb2c4"
     readonly property color _barColor:    PoliceBar.color
-    readonly property color _readyColor:  "#22c46a"
-    readonly property color _warnColor:   "#ffb020"
+    // The whole bar is white. Colour appears in exactly two places - the status block, and a
+    // value that has crossed a limit - so when something on the bar looks wrong there is one
+    // block of code to read. The four bright blocks carry black text because black on a
+    // saturated ground is the highest contrast available, and blue rather than a second green
+    // for a flight in progress: green already means "ready to go", which flying is not.
+    readonly property color _statusOkColor:   "#22c46a"
+    readonly property color _statusFlyColor:  "#3aa0f5"
+    readonly property color _statusIdleColor: "#33ffffff"
+    readonly property color _statusInkColor:  "black"
+    readonly property color _warnColor:   "#ffb02e"
 
-    // Bars, not numbers, for the radios: four steps is all an operator acts on, and the step
-    // is readable at arm's length in a way that a dBm figure is not.
-    readonly property int _gpsLevel: {
+    // Fixed percentages, unlike the aircraft's pack: this is the Android device's own battery,
+    // there is no failsafe behind it to agree with, and the numbers do not vary by airframe.
+    // 30 is roughly a shift's worth left, 10 is time to find a cable.
+    readonly property int _controllerBatteryLowPercent:      30
+    readonly property int _controllerBatteryCriticalPercent: 10
+
+    // GPS_FIX_TYPE spelled out. Not Fact.enumStringValue, which returns the metadata's own
+    // "3D RTK GPS Lock (fixed)" - true, and far too long for a bar. Anything past the table
+    // (8 PPP) is still a fix of some kind, so it falls back to the raw number rather than to
+    // a blank. A satellite count without the fix type is the number that misleads: eighteen
+    // satellites and no fix is a common sight on a cold start.
+    // 5 is RTK_FLOAT and 6 is RTK_FIXED, and they are not the same place: float is metre-class and
+    // drifting, fixed is centimetre-class. Printing "RTK" for both means an operator flying a
+    // survey on a base station watches the solution fall out of fix - multipath, a lost correction
+    // stream - with nothing on the bar changing at all.
+    readonly property var _gpsFixNames: ["No Fix", "No Fix", "2D", "3D", "DGPS", "RTK float", "RTK", "Static"]
+    // 2 is GPS_FIX_TYPE_2D_FIX, the first value that is a position at all. One property
+    // rather than the same comparison at three places, and it null-checks once: bindings in
+    // the group keep evaluating after the vehicle goes away.
+    readonly property bool _gpsFixed: _activeVehicle && (_activeVehicle.gps.lock.rawValue >= 2)
+    readonly property string _gpsFixText: {
         if (!_activeVehicle) {
-            return 0
+            return ""
         }
         const lock = _activeVehicle.gps.lock.rawValue
-        if (lock < 2) {
-            return 0
-        }
-        if (lock < 3) {
-            return 1
-        }
-        const sats = _activeVehicle.gps.count.rawValue
-        return sats >= 16 ? 4 : sats >= 12 ? 3 : sats >= 8 ? 2 : 1
+        return (lock >= 0 && lock < _gpsFixNames.length) ? _gpsFixNames[lock] : lock.toString()
     }
 
+    // Bars, not numbers, for the pilot's radio: four steps is all an operator acts on, and the
+    // step is readable at arm's length in a way that a dBm figure is not.
     readonly property bool _rcAvailable: _activeVehicle && _activeVehicle.rcRSSI.rawValue > 0 &&
                                          _activeVehicle.rcRSSI.rawValue <= 100
     readonly property int  _rcLevel:     _rcAvailable
                                              ? Math.max(1, Math.ceil(_activeVehicle.rcRSSI.rawValue / 25)) : 0
 
-    // Only a SiK radio's RADIO_STATUS is converted to dBm; everything else forwards the raw
-    // 0..254 field, where a weak 20 would read as a strong -20 and paint four bars on a link
-    // about to drop. Out of that range the group simply does not appear.
-    readonly property bool _telemAvailable: _activeVehicle &&
-                                            (_activeVehicle.radioStatus.lrssi.rawValue < 0) &&
-                                            (_activeVehicle.radioStatus.lrssi.rawValue >= -120)
-    readonly property int  _telemLevel: {
-        if (!_telemAvailable) {
-            return 0
+    // ------------------------------------------------------------------- the status block
+    //
+    // Straight out of MainStatusIndicator: healthAndArmingCheckReport first, readyToFly
+    // second, sensor health and setup completion last. Three rungs exist because three
+    // generations of firmware answer the question differently, not because two firmwares are
+    // being told apart - every one of them is the aircraft reporting on itself, which is why
+    // no branch below has to know which autopilot it is talking to.
+    //
+    // Armed outranks all three: what the aircraft is doing beats what it thinks it could do.
+    //
+    // Elapsed time is counted from _takeoffTime rather than read out of the vehicle's flightTime
+    // Fact, and that is a lifetime decision, not a style one. getFact() is Q_INVOKABLE, so QML
+    // takes implicit ownership of what it hands back, and FactGroup::_addFact never sets a parent
+    // on the Fact (FactGroup.cc:116) - the wrapper is destructible, and collecting it deletes a
+    // member that lives inside the vehicle. Holding one in a property re-evaluated every second
+    // while armed is the worst version of that. _takeoffTime already carries the arming instant,
+    // including the reconnect-mid-flight case, so nothing here needs the Fact at all.
+    property int _flightSeconds: 0
+    Timer {
+        interval: 1000
+        repeat:   true
+        running:  root._takeoffTime !== null
+        onTriggered: root._flightSeconds = Math.max(0, Math.floor((Date.now() - root._takeoffTime.getTime()) / 1000))
+    }
+    readonly property string _flightElapsedText: {
+        const m = Math.floor(_flightSeconds / 60)
+        const s = _flightSeconds % 60
+        return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
+    }
+    readonly property var _status: {
+        if (!_activeVehicle) {
+            return { text: qsTr("기체 연결 안 됨"), background: _statusIdleColor, ink: "#d8dee4" }
         }
-        const dbm = _activeVehicle.radioStatus.lrssi.rawValue
-        return dbm >= -70 ? 4 : dbm >= -85 ? 3 : dbm >= -95 ? 2 : 1
+        // Above armed, because every rung below reads a value the aircraft last sent and none of
+        // them expires. With the link gone the block held whatever it had been - green 시동 가능
+        // on a machine nobody can talk to, or blue 비행 중 with flightTime still counting up off
+        // the ground station's own clock - which is the one reading that says a dead aircraft is
+        // alive. What is on screen after this is a stale value with a red block over it saying so.
+        if (_communicationLost) {
+            return { text: qsTr("통신 두절"), background: _alarmColor, ink: _statusInkColor }
+        }
+        if (_activeVehicle.armed) {
+            return { text: qsTr("비행 중 %1").arg(_takeoffTime ? _flightElapsedText : ""),
+                     background: _statusFlyColor, ink: _statusInkColor }
+        }
+        const report = _activeVehicle.healthAndArmingCheckReport
+        if (report && report.supported) {
+            if (!report.canArm) {
+                return { text: qsTr("시동 불가"), background: _alarmColor, ink: _statusInkColor }
+            }
+            return report.hasWarningsOrErrors
+                ? { text: qsTr("주의"),      background: _warnColor,     ink: _statusInkColor }
+                : { text: qsTr("시동 가능"), background: _statusOkColor, ink: _statusInkColor }
+        }
+        // Amber belongs to the rung above and nowhere else. Only that one can separate "will arm,
+        // with complaints" from "will not arm"; the two below answer a single yes-or-no, and this
+        // block's own words are 시동 가능 / 시동 불가, so their no is 시동 불가. readyToFly is the
+        // health bit of MAV_SYS_STATUS_PREARM_CHECK - the prearm checks themselves having failed,
+        // which is the refusal, not a note beside it. Stock paints these amber; amber here reads
+        // as "warnings, but it will still arm" and sends the operator to a switch that does
+        // nothing. On an airframe without health reports - ArduPilot, which is what this is
+        // delivered on - this rung is the only one that ever runs, so amber here left red
+        // unreachable and the operator with no colour for a refused arm.
+        if (_activeVehicle.readyToFlyAvailable) {
+            return _activeVehicle.readyToFly
+                ? { text: qsTr("시동 가능"), background: _statusOkColor, ink: _statusInkColor }
+                : { text: qsTr("시동 불가"), background: _alarmColor,    ink: _statusInkColor }
+        }
+        return (_activeVehicle.allSensorsHealthy && _activeVehicle.autopilotPlugin
+                && _activeVehicle.autopilotPlugin.setupComplete)
+            ? { text: qsTr("시동 가능"), background: _statusOkColor, ink: _statusInkColor }
+            : { text: qsTr("시동 불가"), background: _alarmColor,    ink: _statusInkColor }
     }
 
     // The worst pack, not the first: an airframe can report several, and the flight pack is
@@ -438,20 +526,63 @@ Item {
     // MAV_BATTERY_CHARGE_STATE: 2 LOW, 3 CRITICAL, 4 EMERGENCY, 5 FAILED, 6 UNHEALTHY. The
     // autopilot's own judgement of the pack, which is what a failsafe acts on — the battery
     // indicator's thresholds are display bands (80 / 60 by default) and mean nothing here.
-    readonly property int _batteryState: _lowestBattery ? _lowestBattery.chargeState.rawValue : 0
-    readonly property bool _batteryLow:      (_batteryState === 2) || (!isNaN(_batteryPercent) && _batteryPercent <= 30)
-    // 3 CRITICAL to 6 UNHEALTHY; 7 is CHARGING, which is the opposite of an alarm.
-    readonly property bool _batteryCritical: ((_batteryState >= 3) && (_batteryState <= 6)) ||
-                                             (!isNaN(_batteryPercent) && (_batteryPercent <= 20))
+    //
+    // The worst verdict across every pack, not the verdict of the pack showing the lowest
+    // percentage: those are two different questions and their answers come apart. A cell fault
+    // has the autopilot call a 40 % pack CRITICAL while a healthy 35 % pack still reports OK,
+    // and reading the state off the lowest-percentage pack then drew the group white with the
+    // failsafe already on its way. The number displayed stays the lowest pack's - that question
+    // really is "how much is left", and the lowest pack is its honest answer.
+    readonly property int _batteryState: {
+        if (!_activeVehicle) {
+            return 0
+        }
+        let worst = 0
+        for (let i = 0; i < _activeVehicle.batteries.count; ++i) {
+            const state = _activeVehicle.batteries.get(i).chargeState.rawValue
+            // 7 is CHARGING, which is not a severity: taken into the maximum it would let a pack
+            // sitting on a charger outrank another pack's CRITICAL.
+            if (state <= 6) {
+                worst = Math.max(worst, state)
+            }
+        }
+        return worst
+    }
+    // The aircraft's verdict, and only ever the aircraft's verdict. It arrives in BATTERY_STATUS
+    // (BatteryFactGroupListModel.cc) measured against BATT_LOW_MV / BATT_CRT_MV, and those are
+    // the numbers that actually fire the failsafe: the moment the colour changes is the moment
+    // the return begins, and no threshold chosen here could put the screen and the aircraft on
+    // two different plans.
+    //
+    // But it is often not speaking, and this bar shipped once already reading nothing else.
+    // ArduPilot - the delivery airframe - leaves chargeState at MAV_BATTERY_CHARGE_STATE_UNDEFINED,
+    // and a link carrying HIGH_LATENCY / HIGH_LATENCY2 fills percentRemaining and nothing else
+    // (BatteryFactGroupListModel.cc:88,98). On those two paths the aircraft's verdict alone left a
+    // pack at 5 % drawing plain white for the whole flight with no warning anywhere - worse than
+    // any threshold this program could pick wrong. So percentage stands in, and only where the
+    // aircraft has said nothing: once chargeState is set its numbers win and these are not read.
+    readonly property int  kBatteryLowPercent:      30
+    readonly property int  kBatteryCriticalPercent: 20
+    readonly property bool _batteryStateKnown: _batteryState > 0
+    readonly property bool _batteryLow: _batteryStateKnown
+        ? (_batteryState === 2)
+        : (!isNaN(_batteryPercent) && (_batteryPercent <= kBatteryLowPercent))
+    // 3 CRITICAL to 6 UNHEALTHY.
+    readonly property bool _batteryCritical: _batteryStateKnown
+        ? ((_batteryState >= 3) && (_batteryState <= 6))
+        : (!isNaN(_batteryPercent) && (_batteryPercent <= kBatteryCriticalPercent))
 
     readonly property color _batteryColor: {
-        if (!_lowestBattery) {
-            return _idleColor
-        }
         if (_batteryCritical) {
             return _alarmColor
         }
-        return _batteryLow ? _warnColor : "white"
+        if (_batteryLow) {
+            return _warnColor
+        }
+        // Neither the aircraft's verdict nor a percentage low enough to stand in for one.
+        // White rather than green: a wrong colour is worse than no colour, and the operator
+        // would read green as the aircraft clearing the pack when the aircraft never said so.
+        return "white"
     }
 
     /// The one line of prose on the bar: the most urgent thing wrong, or nothing at all.
@@ -459,22 +590,27 @@ Item {
         if (!_activeVehicle) {
             return ""
         }
-        if (_communicationLost) {
-            return qsTr("통신 두절 — 기체 응답 없음")
-        }
-        if (_rcLinkLost) {
-            return qsTr("조종기 신호 끊김")
-        }
+        // No comms-lost line and no RC-lost line: both are already on the screen, and larger -
+        // the link pill on the right for the first, and for the second the flashing centre
+        // banner that says the same thing in two sentences. What is left here is only ever the
+        // why - the sentence that explains a red block - and repeating either of those cost the
+        // takeoff row its place to say something no other part of the screen says.
         if (_batteryCritical) {
             return qsTr("배터리 위급 — 즉시 복귀하십시오")
-        }
-        if (!_activeVehicle.allSensorsHealthy) {
-            return qsTr("센서 이상 — 기체 상태를 확인하십시오")
         }
         // Why arming is refused used to be readable on the stock status indicator, which this
         // bar replaced; without it the operator is left with a button that does nothing.
         if (_activeVehicle.prearmError.length > 0) {
             return _activeVehicle.prearmError
+        }
+        // Below the prearm sentence, not above it: this one names no part and suggests no
+        // action, so above it it would have hidden the concrete refusal behind a generic line.
+        // It is still needed. The status block stops at readyToFly on the delivery airframe and
+        // never reaches its sensor-health rung, so an aircraft whose ARMING_CHECK has logging
+        // switched off flies with SYS_STATUS reporting the logger unhealthy while the block
+        // reads green - and nothing else on the screen would mention it.
+        if (!_activeVehicle.allSensorsHealthy) {
+            return qsTr("센서 이상 — 기체 상태를 확인하십시오")
         }
         if (_batteryLow) {
             return qsTr("배터리 낮음 — 복귀를 준비하십시오")
@@ -520,11 +656,28 @@ Item {
         }
     }
 
+    // Measured off the bar, not off the pictogram beside it. Tied to the icon, a separator on
+    // a bar half again as tall as its icons ends up a stub floating in the middle of the gap
+    // instead of a rule dividing it.
     component BarSep: Rectangle {
         Layout.alignment:       Qt.AlignVCenter
         Layout.preferredWidth:  1
-        Layout.preferredHeight: root._barIconSize * 1.2
+        Layout.preferredHeight: root._statusHeight * 0.7
         color:                  "#26ffffff"
+    }
+
+    // Every piece of text on this bar, for the sake of one line: the family. Nothing in this
+    // app calls QApplication::setFont - QGCLabel puts ScreenTools.normalFontFamily on itself,
+    // one label at a time - so a bare Text is drawn in the platform's default face instead,
+    // which under a Korean locale is not NanumGothic and does not match the labels beside it.
+    // Not only a mismatch, either: the platform default sets digits on their own widths, and
+    // the status block reads "비행 중 0:12:34" once armed, so its implicitWidth moved every
+    // second - and that width is what positions the message pictogram and the reason line and
+    // what the logo's visibility test is measured against, so the row shuffled and the logo
+    // blinked once a second at the width where that test turns over. Both faces this app ships
+    // set their digits on one width.
+    component BarText: Text {
+        font.family: ScreenTools.normalFontFamily
     }
 
     signal menuRequested()
@@ -732,12 +885,16 @@ Item {
 
     // ------------------------------------------------------------------------- top bar
     //
-    // Read at a glance, never touched: pictograms with a signal gauge rather than words, in
-    // the order a pilot checks them — what the aircraft is doing, then what it is flying on
-    // (satellites, radio, telemetry, battery), then the pod's AI, then the link. Words are
-    // spent only where a picture cannot carry the value: the flight mode, the battery
-    // percentage, and the warning line on the left, which is empty when nothing is wrong.
-    // Colour means something is wrong; everything healthy is plain white.
+    // Three regions. The two outer ones carry the same flex weight - both fillWidth with a
+    // preferred width of zero - so whatever the middle does not use is split in half. That,
+    // and only that, is what puts the middle group over the centre of the bar and keeps it
+    // there while a warning sentence grows on the left.
+    //
+    // What goes where follows who is speaking. The middle is the aircraft: its mode, its
+    // satellites, its receiver, its pack. The right is the ground station's own hardware: the
+    // clock, the wind, the link. The left is the verdict and the reason for it. With no
+    // aircraft the middle is emptied rather than filled with dashes - a dash cannot say
+    // whether a value was lost or was never there.
     Rectangle {
         id: topBar
         anchors.left:  parent.left
@@ -755,343 +912,638 @@ Item {
             anchors.rightMargin: ScreenTools.defaultFontPixelWidth * 1.2
             spacing:             ScreenTools.defaultFontPixelWidth * 1.1
 
-            // A plain Button paints the style's own opaque background, which read as a white
-            // slab on this dark bar. Transparent background plus an explicitly light icon
-            // matches how the toolbars in the other views render theirs.
-            Button {
-                Layout.preferredWidth:  root._menuIconSize + ScreenTools.defaultFontPixelWidth * 2
-                Layout.fillHeight:      true
-                onClicked:              root.menuRequested()
+            // ------------------------------------------------------------- left region
+            //
+            // clip is what makes the three regions safe. Both outer regions carry the same
+            // flex weight and no minimum, so each is handed exactly half of what the middle
+            // leaves and nothing it contains can enlarge it. Without clip a row whose content
+            // does not fit simply keeps drawing past the region's edge - over the middle
+            // group, which is where the mode, the satellites and the pack are. Clipped, a
+            // narrow bar loses the end of a sentence instead of overprinting the numbers.
+            //
+            // What gets given up first is chosen below rather than left to the cut: the brand
+            // mark goes, then the takeoff row, and the reason line keeps what is left. Those
+            // tests read this region's width, which is settled by the bar and the middle group
+            // alone - nothing on this side feeds back into it.
+            Item {
+                id:                    leftRegion
+                clip:                  true
+                Layout.fillWidth:      true
+                Layout.preferredWidth: 0
+                Layout.fillHeight:     true
 
-                background: Rectangle {
-                    color: parent.down ? "#33ffffff" : "transparent"
-                }
+                RowLayout {
+                    id:           leftRow
+                    anchors.fill: parent
+                    spacing:      ScreenTools.defaultFontPixelWidth * 1.1
 
-                contentItem: Item {
-                    QGCColoredImage {
-                        anchors.centerIn:  parent
-                        width:             root._menuIconSize
-                        height:            root._menuIconSize
-                        source:            "qrc:/qmlimages/Hamburger.svg"
-                        color:             "white"
-                        fillMode:          Image.PreserveAspectFit
-                        sourceSize.height: height
+                    // What this region has to hold however narrow it gets: the menu button, the
+                    // status block at its own minimum, the message pictogram, and the gaps
+                    // between them. Both optional items are measured against this one figure.
+                    // Measured separately they each concluded on their own that there was room,
+                    // and between the two thresholds both stayed on a region that could hold
+                    // neither - the overflow then came out of whatever had no floor under it,
+                    // which was the menu button's touch target and the takeoff time's last
+                    // characters, clipped without so much as an ellipsis.
+                    readonly property real _essentialWidth:
+                        root._menuButtonWidth +
+                        statusBlockText.implicitWidth + ScreenTools.defaultFontPixelWidth * 2 +
+                        Math.max(root._barIconSize, ScreenTools.minTouchPixels) +
+                        spacing * 3
+
+                    // A plain Button paints the style's own opaque background, which read as a
+                    // white slab on this dark bar. Transparent background plus an explicitly
+                    // light icon matches how the toolbars in the other views render theirs.
+                    Button {
+                        Layout.preferredWidth:  root._menuButtonWidth
+                        // _menuButtonWidth is already the floor ScreenTools puts under a touch
+                        // target, so there is nothing below this to shrink into: without the
+                        // minimum a RowLayout short of room takes it from here first, and a
+                        // hamburger too small to hit reliably is the last thing on the bar that
+                        // should pay for a long takeoff time.
+                        Layout.minimumWidth:    Layout.preferredWidth
+                        Layout.fillHeight:      true
+                        onClicked:              root.menuRequested()
+
+                        background: Rectangle {
+                            color: parent.down ? "#33ffffff" : "transparent"
+                        }
+
+                        contentItem: Item {
+                            QGCColoredImage {
+                                anchors.centerIn:  parent
+                                width:             root._barIconSize
+                                height:            root._barIconSize
+                                source:            "qrc:/qmlimages/Hamburger.svg"
+                                color:             "white"
+                                fillMode:          Image.PreserveAspectFit
+                                sourceSize.height: height
+                            }
+                        }
+                    }
+
+                    // The police layout replaces FlyViewToolBar, so the brand mark lives here.
+                    // First thing dropped when the region is tight: it is the only item on the
+                    // bar that tells the operator nothing about the aircraft. What it has to
+                    // leave room for is everything essential, whichever of the takeoff row and
+                    // the reason line is up, and about ten characters beyond that.
+                    Image {
+                        id:                     brandLogo
+                        Layout.preferredHeight: root._statusHeight * 0.36
+                        Layout.preferredWidth:  Layout.preferredHeight * (1153 / 122)
+                        Layout.alignment:       Qt.AlignVCenter
+                        source:                 "/res/DavinciLabsLogo.png"
+                        fillMode:               Image.PreserveAspectFit
+                        smooth:                 true
+                        // Counts the takeoff row when the takeoff row is there, which is what
+                        // makes this the second thing to go and not merely the other thing to
+                        // go. The dependency runs one way only - the takeoff row's own test
+                        // does not look here - so there is no loop to fall into.
+                        //
+                        // One of the two, never both. The takeoff row is up exactly when the
+                        // reason line is empty - its own test carries that term - so reserving
+                        // the row and ten characters of prose at once charged this side for a
+                        // pair that cannot share the bar. That surcharge is most of the logo's
+                        // own width, and on the seven inch screen it put the threshold past
+                        // anything the region ever reaches: the logo was hidden at every width,
+                        // which is not the same thing as being the first item dropped.
+                        visible:                leftRegion.width > leftRow._essentialWidth +
+                                                    Layout.preferredWidth + leftRow.spacing +
+                                                    (takeoffRow.visible
+                                                         ? takeoffRow.implicitWidth + leftRow.spacing
+                                                         : ScreenTools.defaultFontPixelWidth * 10)
+                    }
+
+                    // The first thing read and the only filled shape on the bar. Black on a
+                    // bright ground rather than coloured text on the dark one: at seven inches
+                    // in daylight a block of colour is found without hunting for it, and it
+                    // gathers every state colour into one place on the screen and one binding
+                    // in the file.
+                    Rectangle {
+                        Layout.alignment:       Qt.AlignVCenter
+                        Layout.preferredHeight: root._statusHeight * 0.62
+                        Layout.preferredWidth:  statusBlockText.implicitWidth +
+                                                ScreenTools.defaultFontPixelWidth * 2
+                        // The one item here that may not be squeezed. The text inside is
+                        // centred and black, so a block narrower than its own word puts black
+                        // letters on the bar's dark ground - unreadable, and unreadable at the
+                        // exact moment the block is red.
+                        Layout.minimumWidth:    Layout.preferredWidth
+                        radius:                 height * 0.22
+                        color:                  root._status.background
+
+                        BarText {
+                            id:               statusBlockText
+                            anchors.centerIn: parent
+                            color:            root._status.ink
+                            font.bold:        true
+                            font.pixelSize:   root._statusBlockSize
+                            text:             root._status.text
+                        }
+                    }
+
+                    // STATUSTEXT from the aircraft - prearm refusals, EKF and thrust warnings.
+                    // Beside the status block because that is what they are for: almost every
+                    // one of them is the sentence explaining why the block is not green.
+                    Item {
+                        Layout.alignment:       Qt.AlignVCenter
+                        Layout.preferredWidth:  Math.max(root._barIconSize, ScreenTools.minTouchPixels)
+                        // Same reason as the menu button: already at the touch floor, so it may
+                        // not be the one that gives when the row runs short.
+                        Layout.minimumWidth:    Layout.preferredWidth
+                        Layout.preferredHeight: Math.min(root._statusHeight, ScreenTools.minTouchPixels)
+                        // Always there once a vehicle is: opening the drawer clears the unread
+                        // count, and a pictogram that vanishes on the tap that read it leaves
+                        // no way back to the list. The badge, not the presence, says what is new.
+                        visible:                root._activeVehicle
+
+                        QGCColoredImage {
+                            id:                messageIcon
+                            anchors.centerIn:  parent
+                            width:             root._barIconSize
+                            height:            root._barIconSize
+                            source:            "qrc:/InstrumentValueIcons/chat-bubble-dots.svg"
+                            fillMode:          Image.PreserveAspectFit
+                            sourceSize.height: root._barIconSize
+                            color:             !root._activeVehicle                      ? root._idleColor
+                                               : root._activeVehicle.messageTypeError    ? root._alarmColor
+                                               : root._activeVehicle.messageTypeWarning  ? root._warnColor
+                                                                                         : "white"
+                        }
+
+                        // Vehicle::messageCount, which resetAllMessages() zeroes when the
+                        // drawer opens - so this counts what has not been read, not what has
+                        // arrived.
+                        Rectangle {
+                            anchors.right:       messageIcon.right
+                            anchors.top:         messageIcon.top
+                            anchors.rightMargin: -root._badgeSize * 0.4
+                            anchors.topMargin:   -root._badgeSize * 0.4
+                            width:               Math.max(height, badgeText.implicitWidth + root._badgeSize * 0.7)
+                            height:              root._badgeSize * 1.6
+                            radius:              height / 2
+                            color:               root._alarmColor
+                            visible:             root._activeVehicle && (root._activeVehicle.messageCount > 0)
+
+                            BarText {
+                                id:               badgeText
+                                anchors.centerIn: parent
+                                color:            "white"
+                                font.bold:        true
+                                font.pixelSize:   root._badgeSize
+                                text:             root._activeVehicle ? root._activeVehicle.messageCount : ""
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked:    mainWindow.showIndicatorDrawer(vehicleMessagesPage, parent)
+                        }
+                    }
+
+                    // Required on the video screen for delivery: when this flight began and how
+                    // many times this airframe has flown. Duration and distance are on the
+                    // telemetry bar bottom left, so they are not repeated here.
+                    Row {
+                        id:               takeoffRow
+                        Layout.alignment: Qt.AlignVCenter
+                        spacing:          ScreenTools.defaultFontPixelWidth * 1.1
+                        // Gives its space up the moment there is something wrong to read, and
+                        // the moment its own region cannot hold it - the window width says
+                        // nothing about how much of it this side was given. First of the two
+                        // optional items to be granted room and last to be taken out, which is
+                        // the order the logo's test above is written to follow.
+                        visible:          root._activeVehicle && (root._warningText.length === 0) &&
+                                          (leftRegion.width > leftRow._essentialWidth +
+                                               takeoffRow.implicitWidth + leftRow.spacing)
+
+                        Repeater {
+                            model: [
+                                { label: qsTr("이륙"),   value: root._takeoffText },
+                                { label: qsTr("이륙 횟수"), value: qsTr("%1회").arg(App.TakeoffCounter.takeoffCount) }
+                            ]
+
+                            delegate: Row {
+                                id: logItem
+                                required property var modelData
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing:                5
+
+                                BarText {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    color:                  root._labelColor
+                                    font.pixelSize:         root._labelSize
+                                    text:                   logItem.modelData.label
+                                }
+
+                                BarText {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    color:                  "white"
+                                    font.pixelSize:         root._valueSize
+                                    text:                   logItem.modelData.value
+                                }
+                            }
+                        }
+                    }
+
+                    // The one line of prose on the bar. It answers why, never what - the block
+                    // to its left has already said what. Elided inside its own region so a long
+                    // prearm sentence cannot push the middle group off centre.
+                    BarText {
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignVCenter
+                        color:            root._alarmColor
+                        font.bold:        true
+                        font.pixelSize:   root._valueSize
+                        elide:            Text.ElideRight
+                        text:             root._warningText
                     }
                 }
             }
 
-            // The police layout replaces FlyViewToolBar, so the brand mark lives here.
-            Image {
-                Layout.preferredHeight: root._statusHeight * 0.36
-                Layout.preferredWidth:  Layout.preferredHeight * (1153 / 122)
-                Layout.alignment:       Qt.AlignVCenter
-                source:                 "/res/DavinciLabsLogo.png"
-                fillMode:               Image.PreserveAspectFit
-                smooth:                 true
-            }
-
-            // The one line of prose on the bar, and the reason the middle is kept empty:
-            // when something is wrong it appears here, where nothing else ever draws.
-            Text {
-                Layout.fillWidth:       true
-                Layout.leftMargin:      ScreenTools.defaultFontPixelWidth
-                Layout.alignment:       Qt.AlignVCenter
-                color:                  root._alarmColor
-                font.bold:              true
-                font.pixelSize:         root._valueSize
-                elide:                  Text.ElideRight
-                text:                   root._warningText
-            }
-
-            // Required on the video screen for delivery: when this flight began and how many
-            // times this airframe has flown. Duration and distance are on the telemetry bar
-            // bottom left, so they are not repeated here.
-            Row {
+            // ----------------------------------------------------------- centre region
+            //
+            // Fixed width by its own content and no fillWidth, which is what leaves the two
+            // outer regions an equal share to split and so centres this one on the bar.
+            RowLayout {
                 Layout.alignment: Qt.AlignVCenter
                 spacing:          ScreenTools.defaultFontPixelWidth * 1.1
-                // Gives its space up the moment there is something wrong to read.
-                visible:          root._activeVehicle && (root._warningText.length === 0) &&
-                                  (root.width > ScreenTools.defaultFontPixelWidth * 95)
-
-                Repeater {
-                    model: [
-                        { label: qsTr("이륙"),   value: root._takeoffText },
-                        { label: qsTr("이륙 횟수"), value: qsTr("%1회").arg(App.TakeoffCounter.takeoffCount) }
-                    ]
-
-                    delegate: Row {
-                        id: logItem
-                        required property var modelData
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing:                5
-
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            color:                  root._labelColor
-                            font.pixelSize:         root._labelSize
-                            text:                   logItem.modelData.label
-                        }
-
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            color:                  "white"
-                            font.pixelSize:         root._valueSize
-                            // Monospace keeps the clock and counters from shifting the row
-                            // sideways as digits change.
-                            font.family:            "Consolas, monospace"
-                            text:                   logItem.modelData.value
-                        }
-                    }
-                }
-            }
-
-            BarSep { visible: root._activeVehicle }
-
-            // What the aircraft is doing. The airframe glyph turns green while armed, which is
-            // the one state worth a colour of its own.
-            Row {
-                Layout.alignment: Qt.AlignVCenter
-                spacing:          ScreenTools.defaultFontPixelWidth * 0.6
+                // Every value here comes from the aircraft, so with no aircraft the group goes
+                // rather than each value falling back to a dash.
                 visible:          root._activeVehicle
 
-                BarIcon {
-                    source: "/qmlimages/Quad.svg"
-                    tint:   (root._activeVehicle && root._activeVehicle.armed) ? root._readyColor : "white"
-                }
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width:                  Math.min(implicitWidth, ScreenTools.defaultFontPixelWidth * 12)
-                    elide:                  Text.ElideRight
-                    color:                  "white"
-                    font.bold:              true
-                    font.pixelSize:         root._valueSize
-                    text:                   root._activeVehicle ? root._activeVehicle.flightMode : ""
-                }
-            }
-
-            BarSep { visible: root._activeVehicle }
-
-            // Satellites: the count is the number an operator quotes, the gauge is the fix
-            // quality behind it. A tap opens QGC's own GPS page, which this bar replaces.
-            Item {
-                Layout.alignment:       Qt.AlignVCenter
-                Layout.preferredWidth:  gpsRow.implicitWidth
-                Layout.preferredHeight: root._barIconSize * 1.6
-                visible:                root._activeVehicle
-
+                // What the aircraft is doing. Plain white now that the state colours live in
+                // the status block - a green mode name was a second answer to a question the
+                // block already answers, and the two could disagree.
                 Row {
-                    id:               gpsRow
-                    anchors.centerIn: parent
-                    spacing:          ScreenTools.defaultFontPixelWidth * 0.5
+                    Layout.alignment: Qt.AlignVCenter
+                    spacing:          ScreenTools.defaultFontPixelWidth * 0.6
 
                     BarIcon {
-                        source: "/qmlimages/Gps.svg"
-                        tint:   root._gpsLevel > 1 ? "white" : root._warnColor
+                        source: "/qmlimages/Quad.svg"
                     }
 
-                    Text {
+                    BarText {
                         anchors.verticalCenter: parent.verticalCenter
-                        color:                  root._gpsLevel > 1 ? "white" : root._warnColor
+                        width:                  Math.min(implicitWidth, ScreenTools.defaultFontPixelWidth * 12)
+                        elide:                  Text.ElideRight
+                        color:                  "white"
                         font.bold:              true
                         font.pixelSize:         root._valueSize
-                        text:                   root._activeVehicle
-                                                    ? root._activeVehicle.gps.count.valueString : "--"
+                        text:                   root._activeVehicle ? root._activeVehicle.flightMode : ""
+                    }
+                }
+
+                BarSep {}
+
+                // Satellites and the fix behind them. No signal bars: bars are the idiom for
+                // radio strength, and a GPS fix is not a strength - eighteen satellites with no
+                // fix is an ordinary sight on a cold start and would have drawn four full bars.
+                // A tap opens QGC's own GPS page, which this bar replaces.
+                Item {
+                    Layout.alignment:       Qt.AlignVCenter
+                    Layout.preferredWidth:  gpsRow.implicitWidth
+                    Layout.preferredHeight: Math.min(root._statusHeight, ScreenTools.minTouchPixels)
+
+                    Row {
+                        id:               gpsRow
+                        anchors.centerIn: parent
+                        spacing:          ScreenTools.defaultFontPixelWidth * 0.5
+
+                        BarIcon {
+                            source: "/qmlimages/Gps.svg"
+                            tint:   root._gpsFixed ? "white" : root._warnColor
+                        }
+
+                        BarText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            color:                  root._gpsFixed ? "white" : root._warnColor
+                            font.bold:              true
+                            font.pixelSize:         root._valueSize
+                            text:                   root._activeVehicle
+                                                        ? root._activeVehicle.gps.count.valueString : ""
+                        }
+
+                        BarText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            color:                  root._gpsFixed ? "white" : root._warnColor
+                            font.pixelSize:         root._labelSize
+                            text:                   root._gpsFixText
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked:    mainWindow.showIndicatorDrawer(gpsDetailPage, parent)
+                    }
+                }
+
+                BarSep { visible: root._rcAvailable }
+
+                // The pilot's radio. Bars here, because this one really is a signal strength.
+                Row {
+                    Layout.alignment: Qt.AlignVCenter
+                    spacing:          ScreenTools.defaultFontPixelWidth * 0.5
+                    visible:          root._rcAvailable
+
+                    BarIcon {
+                        source: "/qmlimages/RC.svg"
+                        tint:   root._rcLevel > 1 ? "white" : root._alarmColor
                     }
 
                     BarGauge {
                         anchors.verticalCenter: parent.verticalCenter
-                        level:                  root._gpsLevel
-                        tint:                   root._gpsLevel > 1 ? "white" : root._warnColor
+                        level:                  root._rcLevel
+                        tint:                   root._rcLevel > 1 ? "white" : root._alarmColor
                     }
                 }
 
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked:    mainWindow.showIndicatorDrawer(gpsDetailPage, parent)
-                }
-            }
+                BarSep { visible: root._lowestBattery }
 
-            // The pilot's radio.
-            Row {
-                Layout.alignment: Qt.AlignVCenter
-                spacing:          ScreenTools.defaultFontPixelWidth * 0.5
-                visible:          root._rcAvailable
-
-                BarIcon {
-                    source: "/qmlimages/RC.svg"
-                    tint:   root._rcLevel > 1 ? "white" : root._alarmColor
-                }
-
-                BarGauge {
-                    anchors.verticalCenter: parent.verticalCenter
-                    level:                  root._rcLevel
-                    tint:                   root._rcLevel > 1 ? "white" : root._alarmColor
-                }
-            }
-
-            // The telemetry radio, shown only where one reports its strength.
-            Row {
-                Layout.alignment: Qt.AlignVCenter
-                spacing:          ScreenTools.defaultFontPixelWidth * 0.5
-                visible:          root._telemAvailable
-
-                BarIcon { source: "/qmlimages/TelemRSSI.svg" }
-
-                BarGauge {
-                    anchors.verticalCenter: parent.verticalCenter
-                    level:                  root._telemLevel
-                    tint:                   root._telemLevel > 1 ? "white" : root._warnColor
-                }
-            }
-
-            // Battery: the only number on the bar that changes an operator's plan, so it keeps
-            // its digits, and the glyph carries the warning colours.
-            Row {
-                Layout.alignment: Qt.AlignVCenter
-                spacing:          ScreenTools.defaultFontPixelWidth * 0.5
-                visible:          root._lowestBattery
-
-                BarIcon {
-                    source: "/qmlimages/Battery.svg"
-                    tint:   root._batteryColor
-                }
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    color:                  root._batteryColor
-                    font.bold:              true
-                    font.pixelSize:         root._valueSize
-                    // Percentage when the pack reports one, its voltage when it does not.
-                    // Bindings run whether or not the group is visible, so the pack is
-                    // checked here too rather than only in the group's visibility.
-                    text:                   !root._lowestBattery
-                                                ? ""
-                                                : (isNaN(root._batteryPercent)
-                                                       ? root._lowestBattery.voltage.valueString + qsTr(" V")
-                                                       : qsTr("%1 %").arg(Math.round(root._batteryPercent)))
-                }
-            }
-
-            // STATUSTEXT from the aircraft — prearm refusals, EKF and thrust warnings. The
-            // stock status indicator carried this and the police layout hides that toolbar, so
-            // without it the messages have nowhere to appear.
-            Item {
-                Layout.alignment:       Qt.AlignVCenter
-                Layout.preferredWidth:  root._barIconSize
-                Layout.preferredHeight: root._barIconSize * 1.6
-                // Always there once a vehicle is: opening the drawer clears the unread count,
-                // and a pictogram that vanishes on the tap that read it leaves no way back to
-                // the list. The colour, not the presence, says whether anything is new.
-                visible:                root._activeVehicle
-
-                QGCColoredImage {
-                    anchors.centerIn:  parent
-                    width:             root._barIconSize
-                    height:            root._barIconSize
-                    source:            "/res/VehicleMessages.png"
-                    fillMode:          Image.PreserveAspectFit
-                    sourceSize.height: root._barIconSize
-                    color:             !root._activeVehicle          ? root._idleColor
-                                       : root._activeVehicle.messageTypeError   ? root._alarmColor
-                                       : root._activeVehicle.messageTypeWarning ? root._warnColor
-                                                                                : "white"
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked:    mainWindow.showIndicatorDrawer(vehicleMessagesPage, parent)
-                }
-            }
-
-            BarSep {}
-
-            // The pod's tracking module: lit when it is following a target, plain when it is
-            // only watching, grey when it is not there.
-            Row {
-                id:               aiGroup
-                Layout.alignment: Qt.AlignVCenter
-                spacing:          ScreenTools.defaultFontPixelWidth * 0.5
-
-                readonly property bool tracking: App.SiyiAiController.hasTarget &&
-                                                 !App.SiyiAiController.targetLost
-                readonly property color tint: !App.SiyiAiController.connected ? root._idleColor
-                                              : tracking                     ? root._accentColor
-                                                                             : "white"
-
-                BarIcon {
-                    source: "/res/police_ai.svg"
-                    tint:   aiGroup.tint
-                }
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    color:                  aiGroup.tint
-                    font.bold:              true
-                    font.pixelSize:         root._valueSize
-                    text: {
-                        if (!App.SiyiAiController.connected) {
-                            return qsTr("AI 없음")
-                        }
-                        if (App.SiyiAiController.hasTarget) {
-                            return App.SiyiAiController.targetLost ? qsTr("유실") : qsTr("추적중")
-                        }
-                        return App.SiyiAiController.recognitionEnabled ? qsTr("준비") : qsTr("대기")
-                    }
-                }
-            }
-
-            // The link, at the far right and the only pill on the bar: it is the one thing here
-            // that is also a button. Without a vehicle it opens QGC's link chooser; with one it
-            // lists the links that are up, each with its own disconnect.
-            Rectangle {
-                id:                     linkIndicator
-                Layout.alignment:       Qt.AlignVCenter
-                Layout.preferredHeight: root._barIconSize * 1.65
-                Layout.preferredWidth:  linkRow.implicitWidth + ScreenTools.defaultFontPixelWidth * 2.2
-                radius:                 height / 2
-
-                // Three states, not two. Nothing attached yet is not the same as a link that
-                // dropped mid flight, and only the second one is an alarm.
-                readonly property bool  notYet: !root._activeVehicle
-                readonly property color tint:   notYet ? root._idleColor
-                                                       : (root._linkUp ? root._readyColor : root._alarmColor)
-
-                color: notYet ? "#14ffffff"
-                              : (root._linkUp ? "#2622c46a" : "#26ff5b5b")
-
+                // Battery: the only number on the bar that changes an operator's plan, so it
+                // keeps its digits. Upright cell, deliberately a different shape from the
+                // controller's flat one on the right - two identical glyphs are how 58% and 38%
+                // get read the wrong way round.
                 Row {
-                    id:                     linkRow
-                    anchors.centerIn:       parent
-                    spacing:                ScreenTools.defaultFontPixelWidth * 0.6
+                    Layout.alignment: Qt.AlignVCenter
+                    spacing:          ScreenTools.defaultFontPixelWidth * 0.5
+                    visible:          root._lowestBattery
 
-                    // A dot reads as state at any size. A plug drawn at 16 px does not.
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width:                  Math.max(8, root._barIconSize * 0.36)
-                        height:                 width
-                        radius:                 width / 2
-                        color:                  linkIndicator.notYet ? "transparent" : linkIndicator.tint
-                        border.width:           linkIndicator.notYet ? Math.max(1, width * 0.16) : 0
-                        border.color:           linkIndicator.tint
+                    BarIcon {
+                        source: "/qmlimages/Battery.svg"
+                        tint:   root._batteryColor
                     }
 
-                    Text {
+                    BarText {
                         anchors.verticalCenter: parent.verticalCenter
-                        color:                  linkIndicator.tint
+                        color:                  root._batteryColor
                         font.bold:              true
                         font.pixelSize:         root._valueSize
-                        text:                   linkIndicator.notYet
-                                                    ? qsTr("연결 안 됨")
-                                                    : (root._linkUp ? qsTr("연결됨") : qsTr("신호 끊김"))
+                        // Percentage when the pack reports one, its voltage when it does not.
+                        // Bindings run whether or not the group is visible, so the pack is
+                        // checked here too rather than only in the group's visibility.
+                        text:                   !root._lowestBattery
+                                                    ? ""
+                                                    : (isNaN(root._batteryPercent)
+                                                           ? root._lowestBattery.voltage.valueString + qsTr(" V")
+                                                           : qsTr("%1 %").arg(Math.round(root._batteryPercent)))
                     }
                 }
+            }
 
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked:    mainWindow.showIndicatorDrawer(root._activeVehicle ? linkConnectedPage
-                                                                                     : linkSelectPage,
-                                                                 linkIndicator)
+            // ------------------------------------------------------------ right region
+            //
+            // The ground station's own side. Right-anchored inside a region that carries the
+            // same flex weight as the left one, so the group hugs the edge without taking part
+            // in the arithmetic that centres the middle. Clipped for the same reason the left
+            // side is: anchored to the right edge, a row too wide for its region grows towards
+            // the middle group, and the middle group is where the aircraft's numbers are. The
+            // cut then falls on the left end of this row, which is where the least urgent
+            // thing on it sits.
+            Item {
+                id:                    rightRegion
+                clip:                  true
+                Layout.fillWidth:      true
+                Layout.preferredWidth: 0
+                Layout.fillHeight:     true
+
+                RowLayout {
+                    id:                     rightRow
+                    anchors.right:          parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing:                ScreenTools.defaultFontPixelWidth * 1.1
+
+                    // Everything on this side except the clock, counted from what is on the bar
+                    // rather than from the full set. A fixed six gaps was the count for all seven
+                    // items showing, which is a state the desktop never reaches - no controller
+                    // pack, and no wind estimate from an airframe that does not send one leaves
+                    // three items and two gaps - so four spacings that were never drawn were
+                    // subtracted anyway and the clock vanished with its own room still free. The
+                    // separators are in the sum now too; they were not before. The clock itself
+                    // is skipped so that hiding it cannot change the number that hides it, and
+                    // preferred/implicit widths are used rather than laid-out ones for the same
+                    // reason - a laid-out width is an output of the visibility this feeds.
+                    readonly property real _widthWithoutClock: {
+                        let total = 0
+                        let skipped = 0
+                        for (let i = 0; i < children.length; ++i) {
+                            const item = children[i]
+                            // Skipped by identity, and before any property of them is read. The
+                            // clock because this figure is what decides whether it is shown; the
+                            // three separators because they all follow the clock now, so reading
+                            // their visibility here would make this sum depend on its own result.
+                            if ((item === clockSep) || (item === batterySep) || (item === linkSep)) {
+                                skipped += 1
+                                continue
+                            }
+                            if ((item === barClock) || !item.visible) {
+                                continue
+                            }
+                            const preferred = item.Layout.preferredWidth
+                            total += ((preferred > 0) ? preferred : item.implicitWidth) + spacing
+                        }
+                        // Counted flat instead of dropped. Dropping them lost a pixel and a gap
+                        // apiece - about thirty across the three - and this row has no width of
+                        // its own: it grows to implicitWidth and the region clips it from the
+                        // LEFT, where the clock is. Undercounting therefore shows a clock that is
+                        // then sliced in half, which is the exact thing this figure exists to
+                        // prevent. Over-counting a hidden separator only hides the clock early,
+                        // and a missing clock reads as a missing clock.
+                        return total + (skipped * (1 + spacing))
+                    }
+
+                    // Wall clock. Every entry in the aircraft's message list and every log line
+                    // is stamped, and a stamp is only worth carrying if the same clock is
+                    // readable on the bar.
+                    BarText {
+                        id:               barClock
+                        Layout.alignment: Qt.AlignVCenter
+                        // The one thing on this side the operator can also read off the
+                        // tablet's own status bar, so it is what goes when the region cannot
+                        // hold the row - half a clock cut by the region edge is worse than no
+                        // clock. Measured against what is actually beside it, which never
+                        // depends on this one, so the test cannot feed itself.
+                        visible:          rightRegion.width - implicitWidth -
+                                          rightRow._widthWithoutClock > 0
+                        color:            "white"
+                        font.bold:        true
+                        font.pixelSize:   root._valueSize
+                        text:             Qt.formatTime(new Date(), "HH:mm:ss")
+
+                        Timer {
+                            interval:    1000
+                            running:     true
+                            repeat:      true
+                            onTriggered: barClock.text = Qt.formatTime(new Date(), "HH:mm:ss")
+                        }
+                    }
+
+                    // Only where there is something on its left to divide from. The clock is
+                    // the one item on this side that hides itself, and when it did this rule
+                    // became the first thing in the row - a stroke drawn down the edge of a
+                    // group it was not separating from anything.
+                    BarSep {
+                        id:      clockSep
+                        visible: windGroup.visible && barClock.visible
+                    }
+
+                    // The aircraft's own wind estimate, which costs no network and describes the
+                    // air the aircraft is actually in rather than the air over the airfield.
+                    // telemetryAvailable stays false until an estimate arrives, so an airframe
+                    // that does not estimate wind shows nothing here instead of a reading of
+                    // zero it never made.
+                    //
+                    // A bearing in figures, not a turning arrow. Nothing on this bar points
+                    // north and the map below can be turned heading-up, so a rotated arrow has
+                    // no reference to be read against - and the two ends of it mean opposite
+                    // things: 180 with the arrow down could be wind out of the south or wind
+                    // towards it, which is the difference between planning the return into the
+                    // wind and planning it downwind. "180°에서" says which. The convention is
+                    // the MAVLink WIND message's, the one ArduPilot sends: the bearing the
+                    // wind is coming from. (PX4's WIND_COV carries the opposite sense into the
+                    // same Fact - see VehicleWindFactGroup - so this label is right for the
+                    // airframe this bar is built for and would need the +180 for that one.)
+                    Row {
+                        id:               windGroup
+                        Layout.alignment: Qt.AlignVCenter
+                        spacing:          ScreenTools.defaultFontPixelWidth * 0.5
+                        visible:          root._activeVehicle && root._activeVehicle.wind.telemetryAvailable
+
+                        BarText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            color:                  "white"
+                            font.bold:              true
+                            font.pixelSize:         root._valueSize
+                            // HIGH_LATENCY carries a wind speed and no bearing at all, and the
+                            // Fact starts as NaN, so the bearing is printed only once there is
+                            // one to print rather than as "NaN°".
+                            text: {
+                                if (!root._activeVehicle) {
+                                    return ""
+                                }
+                                const wind = root._activeVehicle.wind
+                                const speed = wind.speed.valueString + " " + wind.speed.units
+                                return isNaN(wind.direction.rawValue)
+                                           ? speed
+                                           : qsTr("%1°에서 %2").arg(Math.round(wind.direction.rawValue)).arg(speed)
+                            }
+                        }
+                    }
+
+                    // Same rule as the clock's separator, for the same reason: it has to have
+                    // something on its left, not merely something on its right. With no wind
+                    // estimate and the clock squeezed out - a laptop desk, or a narrow bar -
+                    // this was the first item in the row, a rule drawn down the region's edge.
+                    BarSep {
+                        id:      batterySep
+                        visible: controllerBatteryGroup.visible &&
+                                 (barClock.visible || windGroup.visible)
+                    }
+
+                    // The controller's own battery. Flat cell on its side, deliberately not the
+                    // aircraft's upright one: two identical glyphs a few centimetres apart is
+                    // how 58% and 38% get read the wrong way round. Absent everywhere there is
+                    // no such battery to read - a laptop control desk is a real deployment -
+                    // and absent rather than zero, because a controller reading 0% is a
+                    // controller about to go dark.
+                    Row {
+                        id:               controllerBatteryGroup
+                        Layout.alignment: Qt.AlignVCenter
+                        spacing:          ScreenTools.defaultFontPixelWidth * 0.5
+                        visible:          App.ControllerBattery.percent >= 0
+
+                        readonly property color tint:
+                            App.ControllerBattery.percent <= root._controllerBatteryCriticalPercent ? root._alarmColor
+                            : App.ControllerBattery.percent <= root._controllerBatteryLowPercent    ? root._warnColor
+                                                                                                   : "white"
+
+                        BarIcon {
+                            source: "qrc:/InstrumentValueIcons/battery-full.svg"
+                            tint:   controllerBatteryGroup.tint
+                        }
+
+                        BarText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            color:                  controllerBatteryGroup.tint
+                            font.bold:              true
+                            font.pixelSize:         root._valueSize
+                            text:                   qsTr("%1 %").arg(App.ControllerBattery.percent)
+                        }
+                    }
+
+                    // Unconditional, this one divided the link group from nothing at all: it is
+                    // the last separator in the row, so with the clock hidden, no wind estimate
+                    // and no controller pack it stood alone at the head of the row.
+                    BarSep {
+                        id:      linkSep
+                        visible: barClock.visible || windGroup.visible ||
+                                 controllerBatteryGroup.visible
+                    }
+
+                    // The link, and the only thing on the bar that is also a button: with no
+                    // vehicle it opens QGC's link chooser, with one it lists the links that are
+                    // up, each with its own disconnect. A chain, because that is what a link is.
+                    // Not a wifi fan - the fan says how strong a radio is, and this says only
+                    // whether packets are arriving.
+                    Item {
+                        id:                     linkIndicator
+                        Layout.alignment:       Qt.AlignVCenter
+                        Layout.preferredWidth:  linkRow.implicitWidth + ScreenTools.defaultFontPixelWidth
+                        Layout.preferredHeight: Math.min(root._statusHeight, ScreenTools.minTouchPixels)
+
+                        // White while nothing is wrong, including before anything is attached:
+                        // not yet connected is not a fault, and red is reserved for a link that
+                        // was there and went.
+                        readonly property color tint: (root._activeVehicle && !root._linkUp)
+                                                          ? root._alarmColor : "white"
+
+                        Row {
+                            id:               linkRow
+                            anchors.centerIn: parent
+                            spacing:          ScreenTools.defaultFontPixelWidth * 0.6
+
+                            Item {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width:                  root._barIconSize
+                                height:                 root._barIconSize
+
+                                BarIcon {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    source:                   "qrc:/InstrumentValueIcons/link.svg"
+                                    tint:                     linkIndicator.tint
+                                }
+
+                                // Drawn rather than fetched: one diagonal rule is not worth a
+                                // second copy of the chain in the resources.
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width:            parent.width * 1.2
+                                    height:           Math.max(2, root._barIconSize * 0.09)
+                                    radius:           height / 2
+                                    rotation:         45
+                                    color:            linkIndicator.tint
+                                    visible:          root._activeVehicle && !root._linkUp
+                                }
+                            }
+
+                            BarText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                color:                  linkIndicator.tint
+                                font.bold:              true
+                                font.pixelSize:         root._valueSize
+                                text:                   !root._activeVehicle
+                                                            ? qsTr("연결 안 됨")
+                                                            : (root._linkUp ? qsTr("연결됨") : qsTr("신호 끊김"))
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked:    mainWindow.showIndicatorDrawer(root._activeVehicle ? linkConnectedPage
+                                                                                             : linkSelectPage,
+                                                                         linkIndicator)
+                        }
+                    }
                 }
             }
         }

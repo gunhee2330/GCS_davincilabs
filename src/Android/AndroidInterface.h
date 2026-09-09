@@ -10,6 +10,10 @@ namespace AndroidInterface {
 void setNativeMethods();
 bool checkStoragePermissions();
 QString getSDCardPath();
+/// Charge level of the device the application is running on, 0..100.
+/// -1 means not known - no Android runtime, or the platform had no reading to give. Callers
+/// must show nothing rather than a zero: a controller reading 0% is a controller about to die.
+int getBatteryPercent();
 void setKeepScreenOn(bool on);
 void openFileImportDialog(const QString& destPath, std::function<void(const QString&)> callback);
 

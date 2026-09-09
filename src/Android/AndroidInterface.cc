@@ -155,6 +155,18 @@ bool checkStoragePermissions()
     return hasPermission;
 }
 
+int getBatteryPercent()
+{
+    const jint percent = QJniObject::callStaticMethod<jint>(kJniQGCActivityClassName, "getBatteryPercent", "()I");
+    QJniEnvironment env;
+    if (env.checkAndClearExceptions()) {
+        qCWarning(AndroidInterfaceLog) << "Exception in getBatteryPercent";
+        return -1;
+    }
+
+    return static_cast<int>(percent);
+}
+
 QString getSDCardPath()
 {
     if (!checkStoragePermissions()) {
