@@ -158,6 +158,11 @@ Item {
         /// A status word rather than a count: set smaller so it still fits the value band.
         property bool   word: false
 
+        // The card is given a width by the dashboard so it lines up with the telemetry bar under
+        // it; sharing that width out evenly is what lets the card be narrowed without the stats
+        // spilling past its edge.
+        Layout.fillWidth: true
+
         spacing: root._em * 0.15
 
         Row {
@@ -202,9 +207,11 @@ Item {
     }
 
     RowLayout {
-        id:               row
-        anchors.centerIn: parent
-        spacing:          root._em * 0.55
+        id:                  row
+        anchors.fill:        parent
+        anchors.leftMargin:  root._em * 0.35
+        anchors.rightMargin: root._em * 0.35
+        spacing:             root._em * 0.3
 
         Stat {
             label: qsTr("인원")

@@ -1380,18 +1380,26 @@ Item {
                 onTriggered: App.SiyiCameraController.toggleRecording()
             },
             ToolStripAction {
-                // The pod's AI module, and only it. Checked follows the module's own answer rather
-                // than the press, so a module that is absent or that refused the stream resolution
-                // does not sit here reading as armed.
+                // The pod's AI module. The highlight follows the operator's request as well as the
+                // module's answer: a press has to light the button at once or the control reads as
+                // dead while the module is still answering. The request is dropped once the module
+                // disagrees for good (see _aiRequested), so a refusal still stops reading as armed.
                 text:        qsTr("AI")
                 iconSource:  "/res/police_ai.svg"
                 checkable:   true
-                checked:     App.SiyiAiController.recognitionEnabled
+                checked:     root._aiRequested !== null ? root._aiRequested
+                                                       : App.SiyiAiController.recognitionEnabled
                 onTriggered: {
-                    root._setAiEnabled(!App.SiyiAiController.recognitionEnabled)
+                    // The strip button is a checkable Button: it flips its own checked state and
+                    // writes it through to this action before triggering, so checked is already
+                    // the state the press is asking for. Negating it commanded the opposite one
+                    // and the rebinding below snapped the highlight straight back off.
+                    root._setAiEnabled(checked)
                     // The strip button owns its own checked state once pressed, which drops
                     // the binding above; put it back so the highlight keeps following.
-                    checked = Qt.binding(() => App.SiyiAiController.recognitionEnabled)
+                    checked = Qt.binding(() => root._aiRequested !== null
+                                                   ? root._aiRequested
+                                                   : App.SiyiAiController.recognitionEnabled)
                 }
             },
             ToolStripAction {
@@ -1945,6 +1953,18 @@ Item {
     readonly property bool _showSingleVehicleUI: true
     readonly property real _toolsMargin: ScreenTools.defaultFontPixelWidth * 0.75
 
+    // Stacked, the detection card and the telemetry bar share one width (see aiPanel below). Left
+    // at the card's own implicit width that block runs under the camera column's tool strip, which
+    // then caps its height against the card and clips its lower buttons off - AI among them. The
+    // pair is narrowed to clear the strip instead; the card's stats share the width out between
+    // themselves. Measured off the instrument panel rather than telemetryBar.x, which is what this
+    // width decides.
+    readonly property real _cornerLeft:     flightInstruments.x +
+                                            (instrumentPanel.visible
+                                                 ? instrumentPanel.width + flightInstruments.spacing
+                                                 : 0)
+    readonly property real _cornerMaxWidth: cameraToolStrip.x - 8 - _cornerLeft
+
     // Bottom left: the camera windows own the right edge, and stacking the instruments under
     // them would leave the compass hidden behind a window. Attitude and compass sit at the
     // edge with the telemetry values inboard of them. QGC's FlyViewBottomRightRowLayout puts
@@ -1971,6 +1991,13 @@ Item {
         TelemetryValuesBar {
             id:                     telemetryBar
             Layout.alignment:       Qt.AlignBottom
+            // When the detection card stacks on top of this bar the two share a width, so the
+            // bottom-left corner reads as one block rather than two ragged strips. -1 leaves the
+            // bar at its own implicit width whenever the card sits beside it instead.
+            Layout.preferredWidth:  aiPanel._beside
+                                        ? -1
+                                        : Math.max(implicitWidth,
+                                                   Math.min(aiPanel.implicitWidth, root._cornerMaxWidth))
             settingsGroup:          factValueGrid.telemetryBarSettingsGroup
             specificVehicleForCard: null // Tracks the active vehicle
         }
@@ -2137,13 +2164,22 @@ Item {
         readonly property real _rightEdge: root.width - root._windowWidth - 6
         readonly property bool _beside:   _besideX + width <= _rightEdge
 
-        x:      Math.min(_beside ? _besideX : flightInstruments.x + telemetryBar.x,
-                         _rightEdge - width)
+        // Stacked, the card starts exactly where the telemetry bar does: pulling it left to fit a
+        // wider card would slide it over the attitude and compass beside them.
+        x:      _beside ? Math.min(_besideX, _rightEdge - width)
+                        : flightInstruments.x + telemetryBar.x
         y:      _beside ? flightInstruments.y + telemetryBar.y
                         : flightInstruments.y + telemetryBar.y - 6 - height
+        // Stacked above the bar the two share exactly one width, so the corner reads as one block
+        // and the card cannot reach across into the camera column - the stats share the narrower
+        // width out between themselves instead. Beside the bar it keeps its own width.
+        width:  _beside ? implicitWidth : telemetryBar.width
+
         // The bar's height is configurable down to a single row, which is shorter than this
-        // card's own two lines; matching it is what is wanted, being crushed by it is not.
-        height: Math.max(implicitHeight, telemetryBar.height)
+        // card's own two lines; matching it is what is wanted, being crushed by it is not. That
+        // only applies side by side - stacked, the card keeps its own height so the two together
+        // stay about as tall as the instruments beside them.
+        height: _beside ? Math.max(implicitHeight, telemetryBar.height) : implicitHeight
         z:      root.expandedPanel.length > 0 ? 21 : 3
     }
 
