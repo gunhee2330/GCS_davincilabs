@@ -70,6 +70,9 @@ signals:
     void iconSourceChanged          (QString iconSource);
     void alternateIconSourceChanged (QString alternateIconSource);
     void triggered                  (QObject* source);
+    /// A press held past the button's long-press threshold. The click that would otherwise
+    /// follow is not emitted, so an action may treat the two as separate commands.
+    void heldDown                   (QObject* source);
     void dropPanelComponentChanged  (void);
 
 protected:

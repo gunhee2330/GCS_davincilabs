@@ -35,6 +35,14 @@ Button {
 
     onCheckedChanged: { if (toolStripAction) toolStripAction.checked = checked }
 
+    // AbstractButton swallows the click that follows a long press, so the two never both fire
+    // and an action can put a second command on the hold.
+    onPressAndHold: {
+        if (toolStripAction && !toolStripAction.dropPanelComponent) {
+            toolStripAction.heldDown(this)
+        }
+    }
+
     onClicked: {
         if (mainWindow.allowViewSwitch()) {
             dropPanel.hide()
