@@ -357,8 +357,7 @@ Item {
     // fifth smaller than the icons beside it. The floor is here and not on the others because
     // the others are wider than 5 mm on their contents alone: the message pictogram takes it
     // explicitly, and the GPS and link groups carry a label each.
-    readonly property real _menuButtonWidth: Math.max(root._barIconSize + ScreenTools.defaultFontPixelWidth * 2,
-                                                      ScreenTools.minTouchPixels)
+    readonly property real _menuButtonWidth: PoliceBar.menuButtonWidth
     // Sized to its own pictograms now that QGC's toolbar indicators are not in it: the row
     // needs a touch target's height and nothing more, and every pixel saved here goes to the
     // map and the camera windows.
@@ -367,15 +366,25 @@ Item {
     /// Gap kept clear along the bottom edge now that the control panel floats rather than
     /// occupying two full-width bars.
     readonly property real _bottomInset:  8
+
+    /// Whether the camera strip is unfolded. Folded, only its handle is left on the screen.
+    property bool cameraStripOpen: true
     // The bar's proportions, pinned to the bar's own height rather than to the font. The
     // layout was drawn against a 68 px bar with 32 px pictograms and 21 px values, and a
     // ratio to the bar keeps those proportions whatever height the bar is finally given -
     // which also means enlarging the bar enlarges what the operator actually reads. The
     // floors are the desktop's, where the bar is barely half as tall.
-    readonly property real  _barIconSize:     Math.max(20, root._statusHeight * 0.47)
+    // Just under the cap height of the value beside it, so the pictogram reads as a label on
+    // that number rather than as the thing being looked at. At 0.47 it was half again the size
+    // of every value on the bar and drew the eye first.
+    readonly property real  _barIconSize:     PoliceBar.iconSize
     readonly property real  _labelSize:       Math.max(11, root._statusHeight * 0.22)
-    readonly property real  _valueSize:       Math.max(12, root._statusHeight * 0.31)
-    readonly property real  _statusBlockSize: Math.max(14, root._statusHeight * 0.35)
+    readonly property real  _valueSize:       PoliceBar.textSize
+    // No longer the largest thing on the bar. It was set above the values because it was the one
+    // the eye had to find first and it had only its size to do that with; the chip carries a
+    // coloured dot now, and a dot is found faster than a large word. Coming down also gives the
+    // left region back the width the brand mark and the message pictogram were competing for.
+    readonly property real  _statusBlockSize: Math.max(12, root._statusHeight * 0.23)
     readonly property real  _badgeSize:       Math.max(10, root._statusHeight * 0.19)
     readonly property color _labelColor:  "#9fb2c4"
     readonly property color _barColor:    PoliceBar.color
@@ -386,8 +395,6 @@ Item {
     // for a flight in progress: green already means "ready to go", which flying is not.
     readonly property color _statusOkColor:   "#22c46a"
     readonly property color _statusFlyColor:  "#3aa0f5"
-    readonly property color _statusIdleColor: "#33ffffff"
-    readonly property color _statusInkColor:  "black"
     readonly property color _warnColor:   "#ffb02e"
 
     // Fixed percentages, unlike the aircraft's pack: this is the Android device's own battery,
@@ -456,7 +463,7 @@ Item {
     }
     readonly property var _status: {
         if (!_activeVehicle) {
-            return { text: qsTr("기체 연결 안 됨"), background: _statusIdleColor, ink: "#d8dee4" }
+            return { text: qsTr("기체 연결 안 됨"), accent: _idleColor }
         }
         // Above armed, because every rung below reads a value the aircraft last sent and none of
         // them expires. With the link gone the block held whatever it had been - green 시동 가능
@@ -464,20 +471,20 @@ Item {
         // the ground station's own clock - which is the one reading that says a dead aircraft is
         // alive. What is on screen after this is a stale value with a red block over it saying so.
         if (_communicationLost) {
-            return { text: qsTr("통신 두절"), background: _alarmColor, ink: _statusInkColor }
+            return { text: qsTr("통신 두절"), accent: _alarmColor }
         }
         if (_activeVehicle.armed) {
             return { text: qsTr("비행 중 %1").arg(_takeoffTime ? _flightElapsedText : ""),
-                     background: _statusFlyColor, ink: _statusInkColor }
+                     accent: _statusFlyColor }
         }
         const report = _activeVehicle.healthAndArmingCheckReport
         if (report && report.supported) {
             if (!report.canArm) {
-                return { text: qsTr("시동 불가"), background: _alarmColor, ink: _statusInkColor }
+                return { text: qsTr("시동 불가"), accent: _alarmColor }
             }
             return report.hasWarningsOrErrors
-                ? { text: qsTr("주의"),      background: _warnColor,     ink: _statusInkColor }
-                : { text: qsTr("시동 가능"), background: _statusOkColor, ink: _statusInkColor }
+                ? { text: qsTr("주의"),      accent: _warnColor }
+                : { text: qsTr("시동 가능"), accent: _statusOkColor }
         }
         // Amber belongs to the rung above and nowhere else. Only that one can separate "will arm,
         // with complaints" from "will not arm"; the two below answer a single yes-or-no, and this
@@ -490,13 +497,13 @@ Item {
         // unreachable and the operator with no colour for a refused arm.
         if (_activeVehicle.readyToFlyAvailable) {
             return _activeVehicle.readyToFly
-                ? { text: qsTr("시동 가능"), background: _statusOkColor, ink: _statusInkColor }
-                : { text: qsTr("시동 불가"), background: _alarmColor,    ink: _statusInkColor }
+                ? { text: qsTr("시동 가능"), accent: _statusOkColor }
+                : { text: qsTr("시동 불가"), accent: _alarmColor }
         }
         return (_activeVehicle.allSensorsHealthy && _activeVehicle.autopilotPlugin
                 && _activeVehicle.autopilotPlugin.setupComplete)
-            ? { text: qsTr("시동 가능"), background: _statusOkColor, ink: _statusInkColor }
-            : { text: qsTr("시동 불가"), background: _alarmColor,    ink: _statusInkColor }
+            ? { text: qsTr("시동 가능"), accent: _statusOkColor }
+            : { text: qsTr("시동 불가"), accent: _alarmColor }
     }
 
     // The worst pack, not the first: an airframe can report several, and the flight pack is
@@ -586,38 +593,6 @@ Item {
     }
 
     /// The one line of prose on the bar: the most urgent thing wrong, or nothing at all.
-    readonly property string _warningText: {
-        if (!_activeVehicle) {
-            return ""
-        }
-        // No comms-lost line and no RC-lost line: both are already on the screen, and larger -
-        // the link pill on the right for the first, and for the second the flashing centre
-        // banner that says the same thing in two sentences. What is left here is only ever the
-        // why - the sentence that explains a red block - and repeating either of those cost the
-        // takeoff row its place to say something no other part of the screen says.
-        if (_batteryCritical) {
-            return qsTr("배터리 위급 — 즉시 복귀하십시오")
-        }
-        // Why arming is refused used to be readable on the stock status indicator, which this
-        // bar replaced; without it the operator is left with a button that does nothing.
-        if (_activeVehicle.prearmError.length > 0) {
-            return _activeVehicle.prearmError
-        }
-        // Below the prearm sentence, not above it: this one names no part and suggests no
-        // action, so above it it would have hidden the concrete refusal behind a generic line.
-        // It is still needed. The status block stops at readyToFly on the delivery airframe and
-        // never reaches its sensor-health rung, so an aircraft whose ARMING_CHECK has logging
-        // switched off flies with SYS_STATUS reporting the logger unhealthy while the block
-        // reads green - and nothing else on the screen would mention it.
-        if (!_activeVehicle.allSensorsHealthy) {
-            return qsTr("센서 이상 — 기체 상태를 확인하십시오")
-        }
-        if (_batteryLow) {
-            return qsTr("배터리 낮음 — 복귀를 준비하십시오")
-        }
-        return ""
-    }
-
     readonly property color _idleColor:   "#8a9199"
     readonly property color _normalColor: "#e8edf2"
     readonly property color _alarmColor:  "#ff5b5b"
@@ -677,7 +652,12 @@ Item {
     // blinked once a second at the width where that test turns over. Both faces this app ships
     // set their digits on one width.
     component BarText: Text {
-        font.family: ScreenTools.normalFontFamily
+        // The detection card's face, so the bar and the block bottom left read as one app. Open
+        // Sans carries no Hangul, so Korean falls through to the platform's own face - which is
+        // exactly what the card's labels are drawn in - while the digits come out of Open Sans
+        // like the card's counts. Either way it is a face this app ships, which is what the
+        // paragraph above is really asking for: both of them set their digits on one width.
+        font.family: "Open Sans"
     }
 
     signal menuRequested()
@@ -686,7 +666,12 @@ Item {
     // positions afterwards; a resize only re-clamps them through the drag axis limits.
     /// Which pod sensor the EO window shows. The pod's sub stream stays thermal either way,
     /// so the IR window is unaffected by this choice.
-    property bool eoShowsWideAngle: false
+    ///
+    /// Read off the routing the pod was last given rather than held as a flag of its own. The
+    /// choice is made in the camera panel now, and a flag here would leave the window title
+    /// naming one sensor while the window showed the other the moment it was used there.
+    readonly property bool eoShowsWideAngle:
+        App.SiyiCameraController.cameraImageType === 5 /* MainWideAngleSubThermal */
 
     /// The AI module's own RTSP feed replaces the main window when it is enabled - the same
     /// picture with the module's boxes drawn in. The thermal window always keeps the sub stream.
@@ -717,11 +702,16 @@ Item {
     // Image mode 3 is zoom on main, 5 is wide angle on main, and both leave thermal on sub.
     // The AI module infers on the main stream and its manual requires the zoom camera, so
     // enabling AI forces the zoom choice.
+    //
+    // Re-asserts the operator's own pick rather than a default, so a reconnect or an AI toggle
+    // no longer drags the picture back off the wide-angle camera they chose in the camera panel.
+    // The pod sends no readback of its routing, so what it was last told is the only record of
+    // that pick there is, and it has to be re-sent: a pod that power-cycled came back in
+    // whatever mode it booted in.
     function _applyPodStreams() {
         const wide = eoShowsWideAngle &&
                      !QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue
         App.SiyiCameraController.setCameraImageType(wide ? 5 : 3)
-        eoShowsWideAngle = wide
     }
 
     // Re-apply when AI is switched on or off, since AI pins the main stream to the zoom
@@ -933,9 +923,10 @@ Item {
                 Layout.fillHeight:     true
 
                 RowLayout {
-                    id:           leftRow
-                    anchors.fill: parent
-                    spacing:      ScreenTools.defaultFontPixelWidth * 1.1
+                    id:                 leftRow
+                    anchors.fill:       parent
+                    anchors.leftMargin: PoliceBar.margin
+                    spacing:            PoliceBar.margin
 
                     // What this region has to hold however narrow it gets: the menu button, the
                     // status block at its own minimum, the message pictogram, and the gaps
@@ -947,7 +938,7 @@ Item {
                     // characters, clipped without so much as an ellipsis.
                     readonly property real _essentialWidth:
                         root._menuButtonWidth +
-                        statusBlockText.implicitWidth + ScreenTools.defaultFontPixelWidth * 2 +
+                        statusBlock.Layout.preferredWidth +
                         Math.max(root._barIconSize, ScreenTools.minTouchPixels) +
                         spacing * 3
 
@@ -963,6 +954,11 @@ Item {
                         // should pay for a long takeoff time.
                         Layout.minimumWidth:    Layout.preferredWidth
                         Layout.fillHeight:      true
+                        // The style's own padding, which the other three bars do not have: with
+                        // it the glyph sat thirty pixels further in than the same glyph one view
+                        // across. The touch target is the button, which keeps its full width.
+                        leftPadding:            0
+                        rightPadding:           0
                         onClicked:              root.menuRequested()
 
                         background: Rectangle {
@@ -971,7 +967,13 @@ Item {
 
                         contentItem: Item {
                             QGCColoredImage {
-                                anchors.centerIn:  parent
+                                // Against the button's left edge, not its centre. The other three
+                                // bars build this button out of QGCToolBarButton, whose content
+                                // sits at that edge, and the glyph an operator sees first should
+                                // not step sideways when they change view. The button keeps its
+                                // full touch width; only the picture inside it moves.
+                                anchors.left:           parent.left
+                                anchors.verticalCenter: parent.verticalCenter
                                 width:             root._barIconSize
                                 height:            root._barIconSize
                                 source:            "qrc:/qmlimages/Hamburger.svg"
@@ -982,36 +984,34 @@ Item {
                         }
                     }
 
-                    // The police layout replaces FlyViewToolBar, so the brand mark lives here.
-                    // First thing dropped when the region is tight: it is the only item on the
-                    // bar that tells the operator nothing about the aircraft. What it has to
-                    // leave room for is everything essential, whichever of the takeoff row and
-                    // the reason line is up, and about ten characters beyond that.
+                    // The police layout replaces FlyViewToolBar, so the brand mark lives here,
+                    // and it stays: a mark that is on the bar until an aircraft connects and gone
+                    // for the whole of every flight reads as a fault rather than as a layout that
+                    // ran out of room. Set small - at nine and a half to one it costs only what
+                    // its height buys - and left to the layout to squeeze rather than dropped, so
+                    // what gives on a narrow bar is a mark a little smaller and not the takeoff
+                    // row's place as well. PreserveAspectFit keeps it in proportion while it does.
                     Image {
                         id:                     brandLogo
-                        Layout.preferredHeight: root._statusHeight * 0.36
+                        Layout.preferredHeight: PoliceBar.logoHeight
                         Layout.preferredWidth:  Layout.preferredHeight * (1153 / 122)
+                        // Never more than what is left once the essential items have their room.
+                        // Kept visible but capped rather than dropped: without the cap the mark
+                        // took its full width off the top of the row and the message pictogram -
+                        // which has a touch floor and no way to give - was squeezed to nothing,
+                        // taking the aircraft's own message list with it. PreserveAspectFit
+                        // shrinks the mark in proportion as the cap tightens.
+                        Layout.maximumWidth:    Math.max(0, leftRegion.width -
+                                                            leftRow._essentialWidth -
+                                                            leftRow.spacing)
                         Layout.alignment:       Qt.AlignVCenter
                         source:                 "/res/DavinciLabsLogo.png"
                         fillMode:               Image.PreserveAspectFit
                         smooth:                 true
-                        // Counts the takeoff row when the takeoff row is there, which is what
-                        // makes this the second thing to go and not merely the other thing to
-                        // go. The dependency runs one way only - the takeoff row's own test
-                        // does not look here - so there is no loop to fall into.
-                        //
-                        // One of the two, never both. The takeoff row is up exactly when the
-                        // reason line is empty - its own test carries that term - so reserving
-                        // the row and ten characters of prose at once charged this side for a
-                        // pair that cannot share the bar. That surcharge is most of the logo's
-                        // own width, and on the seven inch screen it put the threshold past
-                        // anything the region ever reaches: the logo was hidden at every width,
-                        // which is not the same thing as being the first item dropped.
-                        visible:                leftRegion.width > leftRow._essentialWidth +
-                                                    Layout.preferredWidth + leftRow.spacing +
-                                                    (takeoffRow.visible
-                                                         ? takeoffRow.implicitWidth + leftRow.spacing
-                                                         : ScreenTools.defaultFontPixelWidth * 10)
+                        // Always, once there is a bar to put it on. The takeoff row still counts
+                        // it, so the two are charged for once between them and the dependency
+                        // runs one way - there is no loop to fall into.
+                        visible:                true
                     }
 
                     // The first thing read and the only filled shape on the bar. Black on a
@@ -1020,25 +1020,43 @@ Item {
                     // gathers every state colour into one place on the screen and one binding
                     // in the file.
                     Rectangle {
+                        id:                     statusBlock
                         Layout.alignment:       Qt.AlignVCenter
-                        Layout.preferredHeight: root._statusHeight * 0.62
-                        Layout.preferredWidth:  statusBlockText.implicitWidth +
+                        Layout.preferredHeight: root._statusHeight * 0.50
+                        Layout.preferredWidth:  statusRow.implicitWidth +
                                                 ScreenTools.defaultFontPixelWidth * 2
-                        // The one item here that may not be squeezed. The text inside is
-                        // centred and black, so a block narrower than its own word puts black
-                        // letters on the bar's dark ground - unreadable, and unreadable at the
-                        // exact moment the block is red.
+                        // The one item here that may not be squeezed: squeezed, the word inside
+                        // is what gets cut, and this is the word the operator reads first.
                         Layout.minimumWidth:    Layout.preferredWidth
                         radius:                 height * 0.22
-                        color:                  root._status.background
+                        // The bar's own ground with the state colour on a dot beside the word,
+                        // rather than a slab of that colour with black letters on it. Same shape
+                        // as the tracking chips on the AI window, so one form says "state" across
+                        // the app; and the colour, carried by the dot, no longer has to be a
+                        // background the text can still be read against.
+                        color:                  "#1e2630"
 
-                        BarText {
-                            id:               statusBlockText
+                        Row {
+                            id:               statusRow
                             anchors.centerIn: parent
-                            color:            root._status.ink
-                            font.bold:        true
-                            font.pixelSize:   root._statusBlockSize
-                            text:             root._status.text
+                            spacing:          ScreenTools.defaultFontPixelWidth * 0.7
+
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width:                  Math.max(9, root._statusBlockSize * 0.52)
+                                height:                 width
+                                radius:                 width / 2
+                                color:                  root._status.accent
+                            }
+
+                            BarText {
+                                id:                     statusBlockText
+                                anchors.verticalCenter: parent.verticalCenter
+                                color:                  root._status.accent
+                                font.weight:            Font.DemiBold
+                                font.pixelSize:         root._statusBlockSize
+                                text:                   root._status.text
+                            }
                         }
                     }
 
@@ -1064,6 +1082,12 @@ Item {
                             height:            root._barIconSize
                             source:            "qrc:/InstrumentValueIcons/chat-bubble-dots.svg"
                             fillMode:          Image.PreserveAspectFit
+                            // Both dimensions, not height alone: this glyph came out blank at
+                            // twenty pixels while every other icon on the bar drew at the same
+                            // size, and a width the provider has to derive is the only thing its
+                            // request did differently. Its viewBox is square, so naming both
+                            // asks for exactly what deriving would have given.
+                            sourceSize.width:  root._barIconSize
                             sourceSize.height: root._barIconSize
                             color:             !root._activeVehicle                      ? root._idleColor
                                                : root._activeVehicle.messageTypeError    ? root._alarmColor
@@ -1089,7 +1113,7 @@ Item {
                                 id:               badgeText
                                 anchors.centerIn: parent
                                 color:            "white"
-                                font.bold:        true
+                                font.weight:      Font.DemiBold
                                 font.pixelSize:   root._badgeSize
                                 text:             root._activeVehicle ? root._activeVehicle.messageCount : ""
                             }
@@ -1110,12 +1134,15 @@ Item {
                         spacing:          ScreenTools.defaultFontPixelWidth * 1.1
                         // Gives its space up the moment there is something wrong to read, and
                         // the moment its own region cannot hold it - the window width says
-                        // nothing about how much of it this side was given. First of the two
-                        // optional items to be granted room and last to be taken out, which is
-                        // the order the logo's test above is written to follow.
-                        visible:          root._activeVehicle && (root._warningText.length === 0) &&
+                        // nothing about how much of it this side was given. Now the second of
+                        // the two optional items to be granted room and the first to be taken
+                        // out, so it counts the brand mark when the mark is up.
+                        visible:          root._activeVehicle &&
                                           (leftRegion.width > leftRow._essentialWidth +
-                                               takeoffRow.implicitWidth + leftRow.spacing)
+                                               takeoffRow.implicitWidth + leftRow.spacing +
+                                               (brandLogo.visible
+                                                    ? brandLogo.Layout.preferredWidth + leftRow.spacing
+                                                    : 0))
 
                         Repeater {
                             model: [
@@ -1146,18 +1173,14 @@ Item {
                         }
                     }
 
-                    // The one line of prose on the bar. It answers why, never what - the block
-                    // to its left has already said what. Elided inside its own region so a long
-                    // prearm sentence cannot push the middle group off centre.
-                    BarText {
-                        Layout.fillWidth: true
-                        Layout.alignment: Qt.AlignVCenter
-                        color:            root._alarmColor
-                        font.bold:        true
-                        font.pixelSize:   root._valueSize
-                        elide:            Text.ElideRight
-                        text:             root._warningText
-                    }
+                    // No line of prose here any more. The region is not wide enough to hold one:
+                    // "센서 이상 — 기체 상태를 확인하십시오" wants some five hundred pixels and had
+                    // under two hundred, so what actually reached the operator was "센서 이상 ...",
+                    // which names no part and suggests no action - and it cost the brand mark its
+                    // place for the whole of every flight. The sentences themselves are still on
+                    // the bar: they are STATUSTEXT, and the pictogram to the left opens the list
+                    // of them with the unread count on it.
+                    Item { Layout.fillWidth: true }
                 }
             }
 
@@ -1188,13 +1211,11 @@ Item {
                         width:                  Math.min(implicitWidth, ScreenTools.defaultFontPixelWidth * 12)
                         elide:                  Text.ElideRight
                         color:                  "white"
-                        font.bold:              true
+                        font.weight:            Font.DemiBold
                         font.pixelSize:         root._valueSize
                         text:                   root._activeVehicle ? root._activeVehicle.flightMode : ""
                     }
                 }
-
-                BarSep {}
 
                 // Satellites and the fix behind them. No signal bars: bars are the idiom for
                 // radio strength, and a GPS fix is not a strength - eighteen satellites with no
@@ -1218,7 +1239,7 @@ Item {
                         BarText {
                             anchors.verticalCenter: parent.verticalCenter
                             color:                  root._gpsFixed ? "white" : root._warnColor
-                            font.bold:              true
+                            font.weight:            Font.DemiBold
                             font.pixelSize:         root._valueSize
                             text:                   root._activeVehicle
                                                         ? root._activeVehicle.gps.count.valueString : ""
@@ -1238,8 +1259,6 @@ Item {
                     }
                 }
 
-                BarSep { visible: root._rcAvailable }
-
                 // The pilot's radio. Bars here, because this one really is a signal strength.
                 Row {
                     Layout.alignment: Qt.AlignVCenter
@@ -1258,8 +1277,6 @@ Item {
                     }
                 }
 
-                BarSep { visible: root._lowestBattery }
-
                 // Battery: the only number on the bar that changes an operator's plan, so it
                 // keeps its digits. Upright cell, deliberately a different shape from the
                 // controller's flat one on the right - two identical glyphs are how 58% and 38%
@@ -1277,7 +1294,7 @@ Item {
                     BarText {
                         anchors.verticalCenter: parent.verticalCenter
                         color:                  root._batteryColor
-                        font.bold:              true
+                        font.weight:            Font.DemiBold
                         font.pixelSize:         root._valueSize
                         // Percentage when the pack reports one, its voltage when it does not.
                         // Bindings run whether or not the group is visible, so the pack is
@@ -1325,32 +1342,30 @@ Item {
                     // reason - a laid-out width is an output of the visibility this feeds.
                     readonly property real _widthWithoutClock: {
                         let total = 0
-                        let skipped = 0
                         for (let i = 0; i < children.length; ++i) {
                             const item = children[i]
-                            // Skipped by identity, and before any property of them is read. The
-                            // clock because this figure is what decides whether it is shown; the
-                            // three separators because they all follow the clock now, so reading
-                            // their visibility here would make this sum depend on its own result.
-                            if ((item === clockSep) || (item === batterySep) || (item === linkSep)) {
-                                skipped += 1
-                                continue
-                            }
+                            // Only the clock is skipped, and by identity before any property of
+                            // it is read: this figure is what decides whether it is shown, so
+                            // reading its visibility here would make the sum depend on its own
+                            // result. The one separator left leads the row rather than following
+                            // the clock, and its own test names neither, so it counts normally.
                             if ((item === barClock) || !item.visible) {
                                 continue
                             }
                             const preferred = item.Layout.preferredWidth
                             total += ((preferred > 0) ? preferred : item.implicitWidth) + spacing
                         }
-                        // Counted flat instead of dropped. Dropping them lost a pixel and a gap
-                        // apiece - about thirty across the three - and this row has no width of
-                        // its own: it grows to implicitWidth and the region clips it from the
-                        // LEFT, where the clock is. Undercounting therefore shows a clock that is
-                        // then sliced in half, which is the exact thing this figure exists to
-                        // prevent. Over-counting a hidden separator only hides the clock early,
-                        // and a missing clock reads as a missing clock.
-                        return total + (skipped * (1 + spacing))
+                        return total
                     }
+
+                    // The one rule on the bar, and it marks the seam the operator has to see:
+                    // everything left of it is the aircraft, everything right of it is the
+                    // controller in their hands. Inside each group there is nothing to divide -
+                    // they are one thing each - and ruling between their members said the
+                    // opposite, that all six were of a kind. Drawn only when there is an
+                    // aircraft group on the other side of it to divide from, which is the same
+                    // condition the middle region itself carries.
+                    BarSep { visible: root._activeVehicle }
 
                     // Wall clock. Every entry in the aircraft's message list and every log line
                     // is stamped, and a stamp is only worth carrying if the same clock is
@@ -1366,7 +1381,7 @@ Item {
                         visible:          rightRegion.width - implicitWidth -
                                           rightRow._widthWithoutClock > 0
                         color:            "white"
-                        font.bold:        true
+                        font.weight:      Font.DemiBold
                         font.pixelSize:   root._valueSize
                         text:             Qt.formatTime(new Date(), "HH:mm:ss")
 
@@ -1376,15 +1391,6 @@ Item {
                             repeat:      true
                             onTriggered: barClock.text = Qt.formatTime(new Date(), "HH:mm:ss")
                         }
-                    }
-
-                    // Only where there is something on its left to divide from. The clock is
-                    // the one item on this side that hides itself, and when it did this rule
-                    // became the first thing in the row - a stroke drawn down the edge of a
-                    // group it was not separating from anything.
-                    BarSep {
-                        id:      clockSep
-                        visible: windGroup.visible && barClock.visible
                     }
 
                     // The aircraft's own wind estimate, which costs no network and describes the
@@ -1412,7 +1418,7 @@ Item {
                         BarText {
                             anchors.verticalCenter: parent.verticalCenter
                             color:                  "white"
-                            font.bold:              true
+                            font.weight:            Font.DemiBold
                             font.pixelSize:         root._valueSize
                             // HIGH_LATENCY carries a wind speed and no bearing at all, and the
                             // Fact starts as NaN, so the bearing is printed only once there is
@@ -1428,16 +1434,6 @@ Item {
                                            : qsTr("%1°에서 %2").arg(Math.round(wind.direction.rawValue)).arg(speed)
                             }
                         }
-                    }
-
-                    // Same rule as the clock's separator, for the same reason: it has to have
-                    // something on its left, not merely something on its right. With no wind
-                    // estimate and the clock squeezed out - a laptop desk, or a narrow bar -
-                    // this was the first item in the row, a rule drawn down the region's edge.
-                    BarSep {
-                        id:      batterySep
-                        visible: controllerBatteryGroup.visible &&
-                                 (barClock.visible || windGroup.visible)
                     }
 
                     // The controller's own battery. Flat cell on its side, deliberately not the
@@ -1465,19 +1461,10 @@ Item {
                         BarText {
                             anchors.verticalCenter: parent.verticalCenter
                             color:                  controllerBatteryGroup.tint
-                            font.bold:              true
+                            font.weight:            Font.DemiBold
                             font.pixelSize:         root._valueSize
                             text:                   qsTr("%1 %").arg(App.ControllerBattery.percent)
                         }
-                    }
-
-                    // Unconditional, this one divided the link group from nothing at all: it is
-                    // the last separator in the row, so with the clock hidden, no wind estimate
-                    // and no controller pack it stood alone at the head of the row.
-                    BarSep {
-                        id:      linkSep
-                        visible: barClock.visible || windGroup.visible ||
-                                 controllerBatteryGroup.visible
                     }
 
                     // The link, and the only thing on the bar that is also a button: with no
@@ -1529,7 +1516,7 @@ Item {
                             BarText {
                                 anchors.verticalCenter: parent.verticalCenter
                                 color:                  linkIndicator.tint
-                                font.bold:              true
+                                font.weight:            Font.DemiBold
                                 font.pixelSize:         root._valueSize
                                 text:                   !root._activeVehicle
                                                             ? qsTr("연결 안 됨")
@@ -1791,45 +1778,33 @@ Item {
                              QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue
                 onTriggered: (source) => root._dropLeft(cameraDropPanelComponent, source)
             },
+            // Wide angle, 20x and recentre used to sit here. The camera panel above carries all
+            // three - the sensor combination, the zoom pair with its magnification readout, and
+            // its own 중앙 on the same center() call - so the strip is down to the things that
+            // are not in it. Zoom there is stepped rather than the strip's one tap to 20x.
+            // One shutter for both, the way a camera has one: a press takes the photo, a press
+            // held starts and stops the video. Two buttons for it cost two of the strip's rungs
+            // and put the operator's thumb one rung away from the wrong one; a stills camera has
+            // taught everyone which button takes a picture, and it is this shape.
+            //
+            // The label follows the pod's own recording state rather than the request, so a start
+            // that never took does not sit here reading as recording, and the glyph carries the
+            // state too - ring and dot for ready, ring and square for stop.
             ToolStripAction {
-                // Labelled with the sensor it switches to, like the AI button.
-                text:        root.eoShowsWideAngle ? qsTr("줌") : qsTr("광각")
-                iconSource:  root.eoShowsWideAngle ? "qrc:/InstrumentValueIcons/zoom-in.svg"
-                                                   : "qrc:/InstrumentValueIcons/zoom-out.svg"
-                // AI pins the main stream to the zoom camera, so with the module on this
-                // button would snap straight back to 광각 with nothing said to the operator.
+                // Named for what it will do, including when that is nothing: the pod refuses both
+                // a photo and a recording with no card in it and reports nothing back beyond the
+                // refusal, so left enabled this button answered a press with silence - which
+                // reads as a broken control rather than as a missing card.
+                text:        App.SiyiCameraController.noSdCard  ? qsTr("SD카드 없음")
+                             : App.SiyiCameraController.recording ? qsTr("녹화중지")
+                                                                  : qsTr("촬영")
+                iconSource:  App.SiyiCameraController.recording ? "/res/police_shutter_recording.svg"
+                                                                : "/res/police_shutter.svg"
+                fullColorIcon: true
                 enabled:     App.SiyiCameraController.connected &&
-                             !QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue
-                onTriggered: {
-                    root.eoShowsWideAngle = !root.eoShowsWideAngle
-                    root._applyPodStreams()
-                }
-            },
-            ToolStripAction {
-                text:        qsTr("20x")
-                iconSource:  "qrc:/InstrumentValueIcons/search.svg"
-                enabled:     App.SiyiCameraController.connected
-                onTriggered: App.SiyiCameraController.setZoom(20)
-            },
-            ToolStripAction {
-                text:        qsTr("중앙")
-                iconSource:  "qrc:/InstrumentValueIcons/gimbal-1.svg"
-                enabled:     App.SiyiCameraController.connected
-                onTriggered: App.SiyiCameraController.center()
-            },
-            ToolStripAction {
-                text:        qsTr("촬영")
-                iconSource:  "qrc:/InstrumentValueIcons/camera.svg"
-                enabled:     App.SiyiCameraController.connected
+                             !App.SiyiCameraController.noSdCard
                 onTriggered: App.SiyiCameraController.takePhoto()
-            },
-            ToolStripAction {
-                // Label follows the pod's own recording state, so a start that never took does not
-                // sit here reading as recording.
-                text:        App.SiyiCameraController.recording ? qsTr("녹화중지") : qsTr("녹화")
-                iconSource:  "qrc:/InstrumentValueIcons/film.svg"
-                enabled:     App.SiyiCameraController.connected
-                onTriggered: App.SiyiCameraController.toggleRecording()
+                onHeldDown:  App.SiyiCameraController.toggleRecording()
             },
             ToolStripAction {
                 // The pod's AI module. The highlight follows the operator's request as well as the
@@ -1927,6 +1902,10 @@ Item {
         // 복귀고도 panel is open closes that panel instead of firing a camera command.
         z:                  toolStrip.z - 2
         width:              ScreenTools.defaultFontPixelWidth * 7
+        // Folded away by the handle beside it. It is a column of buttons down the middle of the
+        // screen and the map beneath it is what the operator reads between camera actions, so it
+        // gets out of the way the same way the plan view's mission panel does.
+        visible:            root.cameraStripOpen
         // Stops above the detection card, but only where the card is actually underneath: on a
         // screen wide enough for the card to sit clear of this column, deferring to it anyway
         // clipped the top of the strip off.
@@ -1936,6 +1915,41 @@ Item {
             return floor - y
         }
         model:              cameraToolActions.model
+    }
+
+    // The strip's handle, and the only part of it that stays when it is folded. Same ground as
+    // the strip so open they read as one piece, and its own touch floor so it can still be hit
+    // with a glove. Kept at the strip's top rather than its middle: the strip's height changes
+    // with the detection card under it, and a handle that moved with it would be somewhere new
+    // every time the operator reached for it.
+    Rectangle {
+        id:     cameraStripHandle
+        width:  Math.max(ScreenTools.defaultFontPixelWidth * 2.6, ScreenTools.minTouchPixels * 0.55)
+        height: Math.max(ScreenTools.minTouchPixels, ScreenTools.defaultFontPixelHeight * 2.2)
+        x:      root.cameraStripOpen ? cameraToolStrip.x - width - 4
+                                     : root.width - root._windowWidth - 8 - width
+        y:      cameraToolStrip.y
+        z:      cameraToolStrip.z
+        radius: ScreenTools.defaultFontPixelWidth / 2
+        color:  Qt.rgba(qgcPal.window.r, qgcPal.window.g, qgcPal.window.b,
+                        cameraStripHandleArea.pressed ? 0.95 : 0.75)
+
+        Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
+
+        QGCColoredImage {
+            anchors.centerIn: parent
+            width:            ScreenTools.defaultFontPixelHeight
+            height:           width
+            source:           root.cameraStripOpen ? "/res/chevron-double-right.svg"
+                                                   : "/res/chevron-double-left.svg"
+            color:            qgcPal.text
+        }
+
+        QGCMouseArea {
+            id:           cameraStripHandleArea
+            anchors.fill: parent
+            onClicked:    root.cameraStripOpen = !root.cameraStripOpen
+        }
     }
 
     // A fresh DropPanel per open, as the plan and map views do: the panel positions itself
@@ -2425,10 +2439,14 @@ Item {
     // resolved ones run back through the bar's width and into this.
     readonly property real _compassHeightPerWidth: 0.5125
     readonly property real _cornerStackHeight:     aiPanel.implicitHeight + 6 + telemetryBar.implicitHeight
+    // Short of the block beside it on purpose. Matched exactly, the pill was the largest thing
+    // in the corner and the dial inside it far bigger than it needs to be to read a heading off;
+    // the width it gives up here goes to the card and the bar, which have counts to fit.
+    readonly property real _compassOfStack:        0.78
     // Never at the bar's expense: a pill wide enough to squeeze the values it sits next to has
     // matched the wrong thing.
     readonly property real _instrumentWidth:
-        Math.min(_cornerStackHeight / _compassHeightPerWidth,
+        Math.min((_cornerStackHeight * _compassOfStack) / _compassHeightPerWidth,
                  (cameraToolStrip.x - 16 - flightInstruments.spacing) - telemetryBar.implicitWidth)
 
     // Bottom left: the camera windows own the right edge, and stacking the instruments under
@@ -2473,10 +2491,12 @@ Item {
             // When the detection card stacks on top of this bar the two share a width, so the
             // bottom-left corner reads as one block rather than two ragged strips. -1 leaves the
             // bar at its own implicit width whenever the card sits beside it instead.
-            // Its own content width, short of the camera strip. Not conditioned on which side
-            // the card takes: the card reads this width to decide that, and reading it back
+            // The whole band between the compass and the camera strip. Not conditioned on which
+            // side the card takes: the card reads this width to decide that, and reading it back
             // here was a binding loop Qt broke whichever way it happened to evaluate first.
-            Layout.preferredWidth:  Math.min(implicitWidth, root._cornerMaxWidth)
+            // Wider than its own content now, so the values inside it centre rather than sitting
+            // against the left edge with the surplus pooled on the right.
+            Layout.preferredWidth:  Math.max(implicitWidth, root._cornerMaxWidth)
             settingsGroup:          factValueGrid.telemetryBarSettingsGroup
             specificVehicleForCard: null // Tracks the active vehicle
         }
@@ -2609,7 +2629,12 @@ Item {
             }
         }
 
+        // How to get back out, said once on the way in and then gone. It is the same two
+        // gestures every time, so after the first few seconds it is a caption printed over the
+        // picture the operator opened this view to look at. Faded rather than cut so the eye
+        // is not pulled back to it as it goes.
         Rectangle {
+            id:                   hintChip
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom:       parent.bottom
             // Above the detection card, which floats over this layer.
@@ -2619,6 +2644,33 @@ Item {
             radius:          4
             color:           "#c0121b24"
             z:               2
+            opacity:         0
+            visible:         opacity > 0
+
+            Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.InOutQuad } }
+
+            // Restarted on every entry, not only the first: the layer is not destroyed between
+            // them, so a timer left run out would leave the hint hidden for the rest of the
+            // session and the gesture unlearnable for whoever picks the controller up next.
+            Timer {
+                id:          hintTimer
+                interval:    3000
+                onTriggered: hintChip.opacity = 0
+            }
+
+            Connections {
+                target: root
+
+                function onExpandedPanelChanged() {
+                    if (root.expandedPanel.length > 0) {
+                        hintChip.opacity = 1
+                        hintTimer.restart()
+                    } else {
+                        hintTimer.stop()
+                        hintChip.opacity = 0
+                    }
+                }
+            }
 
             Text {
                 id:             fullscreenHint
@@ -2647,10 +2699,21 @@ Item {
 
         // Stacked, the card starts exactly where the telemetry bar does: pulling it left to fit a
         // wider card would slide it over the attitude and compass beside them.
-        x:      _beside ? Math.min(_besideX, _rightEdge - width)
-                        : flightInstruments.x + telemetryBar.x
-        y:      _beside ? flightInstruments.y + telemetryBar.y
-                        : flightInstruments.y + telemetryBar.y - 6 - height
+        // Full screen there is no instrument row to line up with, so the corner's x would only
+        // be where the map happened to leave it - a card sitting a little left of centre for no
+        // reason the operator can see. Centred on the screen instead, under the hint above it.
+        x:      root.expandedPanel.length > 0
+                    ? (root.width - width) / 2
+                    : (_beside ? Math.min(_besideX, _rightEdge - width)
+                               : flightInstruments.x + telemetryBar.x)
+        // Full screen there is no telemetry bar under it to sit on - the instruments go with the
+        // map - so the card was left hanging one bar's height above the bottom edge, over the
+        // picture, with the fullscreen hint drawn through it. Against the bottom instead, which
+        // is where the hint already expects to find it.
+        y:      root.expandedPanel.length > 0
+                    ? root.height - root._bottomInset - height
+                    : (_beside ? flightInstruments.y + telemetryBar.y
+                               : flightInstruments.y + telemetryBar.y - 6 - height)
         // Stacked above the bar the two share exactly one width, so the corner reads as one block
         // and the card cannot reach across into the camera column - the stats share the narrower
         // width out between themselves instead. Beside the bar it keeps its own width.

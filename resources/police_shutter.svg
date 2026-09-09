@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- Shutter: a ring the strip tints like every other pictogram, and a red centre that stays
+       red however the button is tinted, because red is what the control means. -->
+  <circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" stroke-width="3.5"/>
+  <circle cx="24" cy="24" r="11" fill="#ff3b30"/>
+</svg>

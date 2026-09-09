@@ -28,7 +28,10 @@ Item {
         id:                 mainLayout
         anchors.margins:    _toolsMargin
         anchors.bottom:     parent.bottom
-        anchors.left:       parent.left
+        // Centred, not left anchored: the police layout gives this bar a width to match the card
+        // stacked on it, and against the left edge every pixel of that surplus showed up as one
+        // empty strip down the right-hand side.
+        anchors.horizontalCenter: parent.horizontalCenter
 
         RowLayout {
             visible: factValueGrid.settingsUnlocked

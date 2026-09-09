@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- Recording: the same ring with a square in it, the stop shape, so the state is read from
+       the glyph and not only from the word under it. -->
+  <circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" stroke-width="3.5"/>
+  <rect x="16" y="16" width="16" height="16" rx="2.5" fill="#ff3b30"/>
+</svg>

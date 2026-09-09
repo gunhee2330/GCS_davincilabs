@@ -306,6 +306,7 @@ endif()
 set(QGC_APP_RESOURCES
     "${CMAKE_SOURCE_DIR}/resources/BingNoTileBytes.dat"
     "${CMAKE_SOURCE_DIR}/resources/CameraGimbal.png"
+    "${CMAKE_SOURCE_DIR}/resources/chevron-double-left.svg"
     "${CMAKE_SOURCE_DIR}/resources/chevron-double-right.svg"
     "${CMAKE_SOURCE_DIR}/resources/DavinciLabsLogo.png"
     "${CMAKE_SOURCE_DIR}/resources/GeoFence.svg"
@@ -319,6 +320,8 @@ set(QGC_APP_RESOURCES
     "${CMAKE_SOURCE_DIR}/resources/police_menu_power.svg"
     "${CMAKE_SOURCE_DIR}/resources/police_menu_settings.svg"
     "${CMAKE_SOURCE_DIR}/resources/police_menu_vehicle.svg"
+    "${CMAKE_SOURCE_DIR}/resources/police_shutter.svg"
+    "${CMAKE_SOURCE_DIR}/resources/police_shutter_recording.svg"
     "${CMAKE_SOURCE_DIR}/resources/rtl.svg"
     "${CMAKE_SOURCE_DIR}/resources/SplashScreen.png"
     "${CMAKE_SOURCE_DIR}/resources/takeoff.svg"
