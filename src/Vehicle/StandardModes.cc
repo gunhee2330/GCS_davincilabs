@@ -2,6 +2,8 @@
 #include "Vehicle.h"
 #include "QGCLoggingCategory.h"
 
+#include <algorithm>
+
 QGC_LOGGING_CATEGORY(StandardModesLog, "Vehicle.StandardModes")
 
 static void requestMessageResultHandler(void *resultHandlerData, MAV_RESULT result,
@@ -68,7 +70,7 @@ void StandardModes::gotMessage(MAV_RESULT result, const mavlink_message_t &messa
             "cannotBeSet:" << cannotBeSet <<
             "custom_mode:" << availableModes.custom_mode;
 
-        _modeList += FirmwareFlightMode{
+        const FirmwareFlightMode mode{
             name,
             availableModes.standard_mode,
             availableModes.custom_mode,
@@ -78,8 +80,40 @@ void StandardModes::gotMessage(MAV_RESULT result, const mavlink_message_t &messa
             true   // multi-rotor - Since we don't know at this point we assume multi-rotor support as well
         };
 
+        // Replaced rather than appended when this mode is already here. One request answered
+        // twice - a retransmit, or a walk restarted while the first one's replies were still
+        // arriving - otherwise leaves the same mode in the list twice, and ensureUniqueModeNames
+        // below then tells the two apart by renaming the second: a vehicle with exactly one
+        // Stabilized reported "Stabilized (1)" on the flight bar. custom_mode is what identifies
+        // a mode to the rest of QGC - it is the key the name lookup is built on - so it is what
+        // sameness is judged by here.
+        const auto existing = std::find_if(_modeList.begin(), _modeList.end(),
+                                           [&mode](const FirmwareFlightMode &candidate) {
+                                               return candidate.custom_mode == mode.custom_mode;
+                                           });
+        if (existing == _modeList.end()) {
+            _modeList += mode;
+        } else {
+            *existing = mode;
+        }
+
         if (availableModes.mode_index >= availableModes.number_modes) { // We are done
+            // Short means the walk was restarted part-way through: request() clears what has
+            // arrived so far, the replies already in flight keep landing in the cleared list,
+            // and the last of them ends the walk on a list missing everything before the
+            // restart. Committing that drops those modes from the name lookup, which is how a
+            // plain Stabilized came to read as "Unknown 81:458752" on the flight bar. Walk it
+            // again rather than commit a hole - once, so a vehicle that really does answer
+            // short still gets its list rather than an endless re-request.
+            if ((_modeList.size() < availableModes.number_modes) && !_retriedShortList) {
+                qCDebug(StandardModesLog) << "Short mode list" << _modeList.size() << "of"
+                                          << availableModes.number_modes << "- re-requesting";
+                _retriedShortList = true;
+                request();
+                return;
+            }
             qCDebug(StandardModesLog) << "Completed, num modes:" << availableModes.number_modes;
+            _retriedShortList = false;
             ensureUniqueModeNames();
             _vehicle->firmwarePlugin()->updateAvailableFlightModes(_modeList);
             emit modesUpdated();
@@ -134,6 +168,16 @@ void StandardModes::requestMode(int modeIndex)
 
 void StandardModes::availableModesMonitorReceived(uint8_t seq)
 {
+    if (_lastSeq == -1) {
+        // The first monitor of this connection says nothing has changed - there is nothing yet
+        // to have changed from. The initial request is already under way by now, and treating
+        // this as a change restarts that walk from the beginning part-way through it, which is
+        // exactly the truncation guarded against above. Seeded rather than compared, so the
+        // next monitor is the first one that can mean anything.
+        _lastSeq = seq;
+        return;
+    }
+
     if (_lastSeq != seq) {
         qCDebug(StandardModesLog) << "Available modes changed, re-requesting";
         _lastSeq = seq;

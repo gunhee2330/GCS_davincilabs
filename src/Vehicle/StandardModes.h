@@ -42,6 +42,9 @@ private:
 
     bool _requestActive{false};
     bool _wantReset{false};
+    /// Set while one short walk has already been retried, so a vehicle that genuinely answers
+    /// with fewer modes than it advertises is not re-requested forever.
+    bool _retriedShortList{false};
 
     int _lastSeq{-1};
 
