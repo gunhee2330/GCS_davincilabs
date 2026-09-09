@@ -48,6 +48,10 @@ class SiyiCameraController : public QObject
     Q_PROPERTY(bool     hdrEnabled          READ hdrEnabled             NOTIFY configChanged)
     Q_PROPERTY(int      motionMode          READ motionMode             NOTIFY configChanged)
     Q_PROPERTY(QString  recordingStatusText READ recordingStatusText    NOTIFY configChanged)
+    /// The pod answering that it has nowhere to put a photo or a video. Both commands are
+    /// refused in that state and the pod says nothing further about it, so a control that
+    /// offers them anyway is one that does nothing when pressed.
+    Q_PROPERTY(bool     noSdCard            READ noSdCard               NOTIFY configChanged)
 
     /// Laser rangefinder distance in metres, NaN when no recent reading. ZT30 only.
     Q_PROPERTY(double   rangefinderDistance READ rangefinderDistance    NOTIFY rangefinderDistanceChanged)
@@ -193,6 +197,9 @@ public:
     [[nodiscard]] bool hdrEnabled() const { return _config.hdrEnabled; }
     [[nodiscard]] int motionMode() const { return static_cast<int>(_config.motionMode); }
     [[nodiscard]] QString recordingStatusText() const;
+    [[nodiscard]] bool noSdCard() const {
+        return _config.recordingStatus == SiyiProtocol::RecordingStatus::NoCard;
+    }
 
     [[nodiscard]] double rangefinderDistance() const { return _rangefinderDistance; }
     [[nodiscard]] bool rangefinderAvailable() const { return std::isfinite(_rangefinderDistance); }

@@ -16,6 +16,12 @@ ColumnLayout {
     readonly property bool _aiConfigured: QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue
     readonly property bool _aiConnected:  SiyiAiController.connected
 
+    /// Which of the pod's two optical sensors is on the main stream. Read off the routing the
+    /// pod was last given rather than kept as a flag here, so the switch below still reads true
+    /// when the sensor list further down is what changed it.
+    readonly property bool _wideAngleMain:
+        SiyiCameraController.cameraImageType === 5 /* MainWideAngleSubThermal */
+
     QGCPalette { id: qgcPal; colorGroupEnabled: enabled }
 
     function _startSlew(yawRate, pitchRate) {
@@ -177,6 +183,20 @@ ColumnLayout {
         Layout.fillWidth:   true
         text:               qsTr("줌 %1배").arg(SiyiCameraController.zoomMultiple.toFixed(1))
         font.pointSize:     ScreenTools.smallFontPointSize
+    }
+
+    // The pod's other optical sensor, as one switch rather than a line in the nine-deep sensor
+    // list below. Its lens is fixed, so it is not somewhere the zoom buttons above can reach:
+    // the zoom camera at its widest is still narrower than this one. Both routings leave thermal
+    // on the sub stream, so the IR window is unaffected either way.
+    QGCButton {
+        Layout.fillWidth:   true
+        visible:            root._isZT30
+        // The AI module infers on the main stream and its manual requires the zoom camera, so
+        // with the module on this would be undone the moment anything re-applied the routing.
+        enabled:            root._connected && !root._aiConfigured
+        text:               root._wideAngleMain ? qsTr("줌 카메라") : qsTr("광각 카메라")
+        onClicked:          SiyiCameraController.setCameraImageType(root._wideAngleMain ? 3 : 5)
     }
 
     RowLayout {
