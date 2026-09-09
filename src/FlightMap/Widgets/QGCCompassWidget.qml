@@ -124,6 +124,14 @@ Rectangle {
     QGCLabel {
         anchors.horizontalCenter:   parent.horizontalCenter
         y:                          size * 0.74
+        // Sized with the dial, not with the app. Everything else here is drawn off size, so on
+        // a compass smaller than the default this reading kept the app's own point size and grew
+        // against the markings around it until it printed over the S. _fontSize is the ratio the
+        // widget already works out for exactly this, and had no reader until now.
+        // _fontSize divides by _defaultSize, which is zero for the moment before ScreenTools has
+        // measured the font - and QFont refuses a point size of zero out loud, once per frame
+        // until it settles.
+        font.pointSize:             _fontSize > 0 ? _fontSize : ScreenTools.defaultFontPointSize
         text:                       vehicle && !usedByMultipleVehicleList ? _heading.toFixed(0) + "°" : ""
         horizontalAlignment:        Text.AlignHCenter
     }
