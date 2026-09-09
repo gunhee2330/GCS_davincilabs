@@ -28,9 +28,17 @@ Rectangle {
     QGCToolBarButton {
         id: menuButton
         objectName: "toolbar_mainMenu"
+        anchors.left: parent.left
+        anchors.leftMargin: PoliceBar.margin
+        width: PoliceBar.menuButtonWidth
         height: parent.height
+        // No padding of its own: the fly view's bar is the reference and its menu glyph is
+        // centred in a plain touch-sized button. This component's own horizontal padding is
+        // what put the mark on this bar thirteen pixels off the one next door.
+        leftPadding: 0
+        rightPadding: 0
         icon.source: "qrc:/qmlimages/Hamburger.svg"
-        iconHeight: ScreenTools.defaultFontPixelHeight * 1.2
+        iconHeight: PoliceBar.iconSize
         iconColor: PoliceBar.content
         onClicked: mainWindow.showToolSelectDialog()
     }
@@ -39,10 +47,13 @@ Rectangle {
         id: qgcButton
         objectName: "toolbar_qgcLogo"
         anchors.left: menuButton.right
+        anchors.leftMargin: PoliceBar.margin
         height: parent.height
+        leftPadding: 0
+        rightPadding: 0
         icon.source: "/res/DavinciLabsLogo.png"
         iconAspectRatio: 1153 / 122
-        iconHeight: ScreenTools.defaultFontPixelHeight
+        iconHeight: PoliceBar.logoHeight
         iconColor: PoliceBar.content
         onClicked: mainWindow.showToolSelectDialog()
     }

@@ -463,19 +463,24 @@ ApplicationWindow {
 
             RowLayout {
                 id:                 toolDrawerToolbarLayout
-                anchors.leftMargin: ScreenTools.defaultFontPixelWidth
+                anchors.leftMargin: PoliceBar.margin
                 anchors.left:       parent.left
                 anchors.top:        parent.top
                 anchors.bottom:     parent.bottom
-                spacing:            ScreenTools.defaultFontPixelWidth
+                spacing:            PoliceBar.margin
 
                 // Keeps the ☰ present in Analyze/Settings/Setup too, so the way back to the
                 // tool list is the same control in every view.
                 QGCToolBarButton {
                     objectName: "toolbar_mainMenu"
+                    Layout.preferredWidth: PoliceBar.menuButtonWidth
                     Layout.fillHeight: true
+                    // See PlanViewToolBar: the fly view's bar is the reference and this
+                    // component's own horizontal padding is not part of it.
+                    leftPadding: 0
+                    rightPadding: 0
                     icon.source: "qrc:/qmlimages/Hamburger.svg"
-                    iconHeight: ScreenTools.defaultFontPixelHeight * 1.2
+                    iconHeight: PoliceBar.iconSize
                     iconColor: PoliceBar.content
                     onClicked: mainWindow.showToolSelectDialog()
                 }
@@ -484,9 +489,11 @@ ApplicationWindow {
                     id: qgcButton
                     objectName: "toolbar_qgcLogo"
                     height: parent.height
+                    leftPadding: 0
+                    rightPadding: 0
                     icon.source: "/res/DavinciLabsLogo.png"
                     iconAspectRatio: 1153 / 122
-                    iconHeight: ScreenTools.defaultFontPixelHeight
+                    iconHeight: PoliceBar.logoHeight
                     iconColor: PoliceBar.content
                     onClicked: mainWindow.showToolSelectDialog()
                 }
@@ -495,7 +502,7 @@ ApplicationWindow {
                     id:             toolbarDrawerText
                     text:           toolDrawer.toolTitle
                     color:          PoliceBar.content
-                    font.pointSize: ScreenTools.largeFontPointSize
+                    font.pixelSize: PoliceBar.textSize
                 }
             }
         }
