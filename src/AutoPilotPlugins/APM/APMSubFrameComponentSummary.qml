@@ -40,6 +40,7 @@ Item {
 
     ColumnLayout {
         id: mainLayout
+        width: parent.width
         spacing: 0
 
         VehicleSummaryRow {

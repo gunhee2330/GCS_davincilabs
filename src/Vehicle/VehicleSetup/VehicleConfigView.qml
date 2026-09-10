@@ -25,6 +25,23 @@ Rectangle {
     readonly property real      _buttonWidth:       _defaultTextWidth * 18
     readonly property string    _armedVehicleText:  qsTr("This operation cannot be performed while the vehicle is armed.")
 
+    /// Name of whatever the right panel is showing. The sidebar selection scrolls out of view on a
+    /// short screen, so the header is the only place the operator can read back where they are.
+    readonly property string    _panelTitle: {
+        switch (_selectedSpecial) {
+        case "summary":     return qsTr("Summary")
+        case "parameters":  return qsTr("Parameters")
+        case "firmware":    return qsTr("Firmware")
+        case "opticalflow": return qsTr("Optical Flow")
+        }
+        if (!_fullParameterVehicleAvailable) return ""
+        var components = _activeVehicle.autopilotPlugin.vehicleComponents
+        if (_selectedComponentIndex < 0 || _selectedComponentIndex >= components.length) return ""
+        var component = components[_selectedComponentIndex]
+        var sectionId = _sectionId(_selectedComponentIndex, _selectedSectionIndex)
+        return sectionId !== "" ? _sectionDisplayName(component, sectionId) : component.name
+    }
+
     property var    _activeVehicle:                 QGroundControl.multiVehicleManager.activeVehicle
     property bool   _vehicleArmed:                  _activeVehicle ? _activeVehicle.armed : false
     property string _messagePanelText:              qsTr("missing message panel text")
@@ -348,6 +365,16 @@ Rectangle {
         }
     }
 
+    // Declared ahead of leftPanel so it stacks behind it. The rail only reads as its own zone
+    // if it is a shade lighter than the panel it borders
+    Rectangle {
+        anchors.left:   parent.left
+        anchors.right:  divider.right
+        anchors.top:    parent.top
+        anchors.bottom: parent.bottom
+        color:          qgcPal.windowShade
+    }
+
     ColumnLayout {
         id:                 leftPanel
         width:              Math.max(buttonColumn.implicitWidth + _horizontalMargin, ScreenTools.defaultFontPixelWidth * 22)
@@ -471,8 +498,8 @@ Rectangle {
                                 id:             sectionBtn
                                 objectName:     "vehicleConfig_section_" + modelData.replace(/ /g, "")
                                 Layout.fillWidth: true
-                                padding:        ScreenTools.defaultFontPixelWidth * 0.75
-                                leftPadding:    ScreenTools.defaultFontPixelWidth * 3
+                                padding:        ScreenTools.defaultFontPixelHeight * 0.5
+                                leftPadding:    ScreenTools.defaultFontPixelHeight * 2.2
                                 hoverEnabled:   !ScreenTools.isMobile
 
                                 property int sectionIndex: index
@@ -499,13 +526,28 @@ Rectangle {
                                     if (typeof panelLoader.item.sectionVisible !== "function") return true
                                     return panelLoader.item.sectionVisible(modelData)
                                 }
-                                property color textColor: sectionChecked || pressed ? qgcPal.buttonHighlightText : qgcPal.buttonText
+                                property color textColor: qgcPal.buttonText
                                 visible: sectionMatchesSearch && sectionContentVisible
 
+                                // A sub-item is subordinate to its parent row, so it gets the quieter
+                                // shade fill rather than the parent's accent tint
                                 background: Rectangle {
-                                    color:   qgcPal.buttonHighlight
-                                    opacity: sectionBtn.sectionChecked || sectionBtn.pressed ? 1 : sectionBtn.enabled && sectionBtn.hovered ? 0.2 : 0
-                                    radius:  ScreenTools.defaultFontPixelWidth / 2
+                                    color:   qgcPal.windowShadeLight
+                                    opacity: sectionBtn.sectionChecked || sectionBtn.pressed ? 1 : sectionBtn.enabled && sectionBtn.hovered ? 0.5 : 0
+                                    radius:  ScreenTools.defaultFontPixelHeight * 0.39
+
+                                    // That fill is barely a shade off the rail, which leaves label brightness as the only
+                                    // selection cue. This stripe carries it instead, narrower than the parent row's so the
+                                    // sub-item still reads as subordinate. Only drawn while checked, when the fill is opaque
+                                    Rectangle {
+                                        anchors.left:   parent.left
+                                        anchors.top:    parent.top
+                                        anchors.bottom: parent.bottom
+                                        width:          Math.max(2, Math.round(ScreenTools.defaultFontPixelHeight * 0.1))
+                                        radius:         width / 2
+                                        color:          qgcPal.buttonHighlight
+                                        visible:        sectionBtn.sectionChecked
+                                    }
                                 }
 
                                 contentItem: RowLayout {
@@ -522,6 +564,7 @@ Rectangle {
                                     QGCLabel {
                                         text:  vehicleConfigView._sectionDisplayName(compColumn.comp, modelData)
                                         color: sectionBtn.textColor
+                                        opacity: sectionBtn.sectionChecked ? 1 : 0.7
                                         font.pointSize: ScreenTools.defaultFontPointSize * 0.9
                                         horizontalAlignment: Text.AlignLeft
                                         Layout.fillWidth: true
@@ -587,16 +630,72 @@ Rectangle {
         }
     }
 
+    // Full height and drawn in the border colour: it is the rail's right edge, not a floating rule
     Rectangle {
         id:                     divider
-        anchors.topMargin:      _verticalMargin
-        anchors.bottomMargin:   _verticalMargin
         anchors.leftMargin:     _horizontalMargin
         anchors.left:           leftPanel.right
         anchors.top:            parent.top
         anchors.bottom:         parent.bottom
         width:                  1
-        color:                  qgcPal.windowShade
+        color:                  qgcPal.groupBorder
+    }
+
+    Item {
+        id:                 panelHeader
+        anchors.leftMargin: _horizontalMargin
+        anchors.left:       divider.right
+        anchors.right:      parent.right
+        anchors.top:        parent.top
+        visible:            _panelTitle !== ""
+        height:             visible ? panelTitleLabel.implicitHeight + _defaultTextHeight * 1.7 : 0
+
+        QGCLabel {
+            id:                     panelTitleLabel
+            anchors.leftMargin:     _defaultTextHeight * 1.1
+            anchors.left:           parent.left
+            anchors.rightMargin:    _defaultTextHeight * 1.1
+            // A hidden item still has geometry, so anchoring to the pill unconditionally would
+            // shorten the title by the pill's width even when disarmed
+            anchors.right:          armedPill.visible ? armedPill.left : parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text:                   _panelTitle
+            font.pointSize:         ScreenTools.mediumFontPointSize
+            font.bold:              true
+            elide:                  Text.ElideRight
+        }
+
+        // Same armed condition the panels already refuse edits on, surfaced once at the top so the
+        // operator sees why the fields below will not take input
+        Rectangle {
+            id:                     armedPill
+            anchors.rightMargin:    _defaultTextHeight * 1.1
+            anchors.right:          parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width:                  armedPillLabel.implicitWidth + _defaultTextHeight * 1.2
+            height:                 armedPillLabel.implicitHeight + _defaultTextHeight * 0.45
+            radius:                 height / 2
+            color:                  qgcPal.window
+            border.width:           1
+            border.color:           qgcPal.groupBorder
+            visible:                _vehicleArmed
+
+            QGCLabel {
+                id:                 armedPillLabel
+                anchors.centerIn:   parent
+                text:               qsTr("Locked while armed")
+                font.bold:          true
+                opacity:            0.7
+            }
+        }
+
+        Rectangle {
+            anchors.left:   parent.left
+            anchors.right:  parent.right
+            anchors.bottom: parent.bottom
+            height:         2
+            color:          qgcPal.groupBorder
+        }
     }
 
     Loader {
@@ -608,7 +707,7 @@ Rectangle {
         anchors.rightMargin:    _horizontalMargin
         anchors.left:           divider.right
         anchors.right:          parent.right
-        anchors.top:            parent.top
+        anchors.top:            panelHeader.bottom
         anchors.bottom:         parent.bottom
 
         function setSource(source, vehicleComponent) {

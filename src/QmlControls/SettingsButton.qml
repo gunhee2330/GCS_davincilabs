@@ -7,12 +7,17 @@ import QGroundControl.Controls
 
 Button {
     id:             control
-    padding:        ScreenTools.defaultFontPixelWidth * 0.75
+    padding:        ScreenTools.defaultFontPixelHeight * 0.61
     hoverEnabled:   !ScreenTools.isMobile
     autoExclusive:  true
     icon.color:     textColor
 
-    property color textColor: checked || pressed ? qgcPal.buttonHighlightText : qgcPal.buttonText
+    // No bold on the checked row: a Control font never reaches QGCLabel, which is a plain Text,
+    // and binding the label directly would resize the rail on every selection because the rail
+    // is as wide as its widest row.
+    // The selected row is a dark tint plus an accent stripe, not an accent flood, so the
+    // label keeps full contrast against sunlight instead of inverting to a dark-on-blue
+    property color textColor: qgcPal.buttonText
     property bool expandable: false
     property bool expanded:   false
 
@@ -23,14 +28,32 @@ Button {
         colorGroupEnabled:  control.enabled
     }
 
-    background: Rectangle {
-        color:      qgcPal.buttonHighlight
-        opacity:    checked || pressed ? 1 : enabled && hovered ? .2 : 0
-        radius:     ScreenTools.defaultFontPixelWidth / 2
+    background: Item {
+        // The tint lands on #2f3f53, within two points per channel of the mockup's #2d3a4a and
+        // indistinguishable from it. Kept as a tint rather than a fixed colour so it follows the
+        // rail if the rail moves, and because a fixed one would need a palette role of its own
+        Rectangle {
+            anchors.fill:   parent
+            color:          qgcPal.buttonHighlight
+            opacity:        control.checked || control.pressed ? 0.25 : control.enabled && control.hovered ? 0.1 : 0
+            radius:         ScreenTools.defaultFontPixelHeight * 0.39
+        }
+
+        // Kept a sibling of the tint rather than a child so it is not dimmed by its opacity.
+        // This stripe is the selection cue that survives glare at arm's length
+        Rectangle {
+            anchors.left:   parent.left
+            anchors.top:    parent.top
+            anchors.bottom: parent.bottom
+            width:          Math.max(2, Math.round(ScreenTools.defaultFontPixelHeight * 0.17))
+            radius:         width / 2
+            color:          qgcPal.buttonHighlight
+            visible:        control.checked
+        }
     }
 
     contentItem: RowLayout {
-        spacing: ScreenTools.defaultFontPixelWidth
+        spacing: ScreenTools.defaultFontPixelHeight * 0.61
 
         QGCColoredImage {
             source: control.icon.source

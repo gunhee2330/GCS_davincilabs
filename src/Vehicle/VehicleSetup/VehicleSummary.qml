@@ -12,7 +12,7 @@ Rectangle {
     anchors.leftMargin:  ScreenTools.defaultFontPixelWidth
     color:          qgcPal.window
 
-    property real _minSummaryW:     ScreenTools.isTinyScreen ? ScreenTools.defaultFontPixelWidth * 28 : ScreenTools.defaultFontPixelWidth * 36
+    property real _minSummaryW:     ScreenTools.isTinyScreen ? ScreenTools.defaultFontPixelWidth * 28 : ScreenTools.defaultFontPixelHeight * 13.2
     property real _summaryBoxSpace: ScreenTools.defaultFontPixelWidth * 2
     property real _margins:        ScreenTools.defaultFontPixelHeight / 2
 
@@ -85,16 +85,21 @@ Rectangle {
                         Layout.fillHeight: true
                         implicitWidth: _minSummaryW
                         implicitHeight: mainLayout.implicitHeight + (_margins * 2)
-                        radius: ScreenTools.defaultFontPixelHeight / 4
-                        color: qgcPal.windowShade
+                        radius: ScreenTools.defaultFontPixelHeight / 2
+                        color: qgcPal.button
                         visible: {
                             void QGroundControl.corePlugin.showAdvancedUI // re-bind when maintenance mode toggles
                             return modelData.summaryQmlSource.toString() !== "" && vehicleConfigView._componentAllowed(modelData)
                         }
                         border.width: 1
-                        border.color: Qt.rgba(qgcPal.text.r, qgcPal.text.g, qgcPal.text.b, 0.1)
+                        // A card still owing setup is outlined entirely, so it is findable in a grid
+                        // of a dozen without reading a single label
+                        // At full strength: half alpha composited fainter than the plain border it outranks
+                        border.color: setupIncomplete ? qgcPal.colorOrange : qgcPal.groupBorder
 
-                        readonly property real titleHeight: ScreenTools.defaultFontPixelHeight * 2
+                        readonly property real titleHeight: ScreenTools.defaultFontPixelHeight * 2.4
+                        readonly property bool showsSetupState: modelData.requiresSetup && modelData.setupSource !== ""
+                        readonly property bool setupIncomplete: showsSetupState && !modelData.setupComplete
 
                         ColumnLayout {
                             id: mainLayout
@@ -109,19 +114,40 @@ Rectangle {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: titleHeight
                                 text: capitalizeWords(modelData.name)
-                                rightPadding: setupIndicator.visible ? setupIndicator.width + ScreenTools.defaultFontPixelWidth * 2 : leftPadding
+                                backgroundColor: qgcPal.windowShadeLight
+                                showBorder: true
+                                backRadius: ScreenTools.defaultFontPixelHeight * 0.39
 
-                                // Setup indicator
-                                Rectangle {
-                                    id:                     setupIndicator
-                                    anchors.rightMargin:    ScreenTools.defaultFontPixelWidth
-                                    anchors.right:          parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width:                  ScreenTools.defaultFontPixelWidth * 1.5
-                                    height:                 width
-                                    radius:                 width / 2
-                                    color:                  modelData.setupComplete ? qgcPal.colorGreen : qgcPal.colorRed
-                                    visible:                modelData.requiresSetup && modelData.setupSource !== ""
+                                // The stock content item centres the label and has no room for a
+                                // chevron; the title is a navigation target, so it reads left to
+                                // right and ends in the affordance that says so
+                                contentItem: RowLayout {
+                                    spacing: ScreenTools.defaultFontPixelWidth
+
+                                    QGCLabel {
+                                        Layout.fillWidth:   true
+                                        text:               capitalizeWords(modelData.name)
+                                        font.bold:          true
+                                        elide:              Text.ElideRight
+                                    }
+
+                                    // Setup indicator
+                                    Rectangle {
+                                        id:      setupIndicator
+                                        width:   ScreenTools.defaultFontPixelWidth * 1.5
+                                        height:  width
+                                        radius:  width / 2
+                                        color:   setupIncomplete ? qgcPal.colorOrange : qgcPal.colorGreen
+                                        visible: showsSetupState
+                                    }
+
+                                    QGCColoredImage {
+                                        source:  "/InstrumentValueIcons/cheveron-right.svg"
+                                        color:   qgcPal.text
+                                        opacity: 0.4
+                                        width:   ScreenTools.defaultFontPixelHeight * 0.75
+                                        height:  width
+                                    }
                                 }
 
                                 onClicked : {
