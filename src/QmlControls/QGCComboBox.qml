@@ -11,7 +11,11 @@ T.ComboBox {
     property string alternateText: ""
 
     id: control
-    padding: ScreenTools.comboBoxPadding
+    // The mockup gives the combo box the same box as the text field: 12 across,
+    // 8 down and a 7 corner against its 18px text metric
+    padding: ScreenTools.defaultFontPixelHeight * 0.67
+    topPadding: ScreenTools.defaultFontPixelHeight * 0.44
+    bottomPadding: topPadding
     spacing: ScreenTools.defaultFontPixelWidth
     font.pointSize: ScreenTools.defaultFontPointSize
     font.family: ScreenTools.normalFontFamily
@@ -26,7 +30,6 @@ T.ComboBox {
     property real _popupWidth: width
     property real _largestTextWidth: 0
     property bool _onCompleted: false
-    property bool _showBorder: qgcPal.globalTheme === QGCPalette.Light
     property bool _showHighlight: enabled && pressed
 
     QGCPalette { id: qgcPal; colorGroupEnabled: enabled }
@@ -99,7 +102,11 @@ T.ComboBox {
         height: ScreenTools.defaultFontPixelWidth
         width: height
         source: "/qmlimages/arrow-down.png"
-        color: qgcPal.buttonText
+        // Follows the label so it inverts with it while pressed, the way QGCButton's icon does
+        color: text.color
+        // The mockup's chevron is a dimmed version of the label ink. 0.4 drops the light theme
+        // to 2.44:1, so it is dimmed only as far as 3:1 allows
+        opacity: 0.55
     }
 
     // The label of the button
@@ -107,15 +114,19 @@ T.ComboBox {
         id: text
         text: control.alternateText === "" ? control.currentText : control.alternateText
         font: control.font
-        color: qgcPal.buttonText
+        // The pressed fill is the highlight, so the label has to flip to that fill's foreground
+        color: _showHighlight ? qgcPal.buttonHighlightText : qgcPal.buttonText
         elide: Text.ElideRight
     }
 
     background: Rectangle {
-        color: qgcPal.button
+        // An input control, so it takes the input fill and matches the QGCTextField beside it
+        color: qgcPal.textField
         border.color: qgcPal.buttonBorder
-        border.width: _showBorder ? 1 : 0
-        radius: ScreenTools.defaultBorderRadius
+        // That fill is darker than the surfaces around it in the dark theme, so the border is
+        // what separates the two - draw it in both themes
+        border.width: 1
+        radius: ScreenTools.defaultFontPixelHeight * 0.39
 
         Rectangle {
             anchors.fill: parent

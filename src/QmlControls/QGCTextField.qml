@@ -8,6 +8,11 @@ import QGroundControl.Controls
 TextField {
     id:                 control
     color:              qgcPal.textFieldText
+    // Left unset this falls back to the Qt system palette, which read fine only while the dark
+    // field was white. The field is now the darkest surface on screen, so the placeholder has to
+    // come from the palette too - buttonBorder is the same muted ink as the field border and
+    // clears 3:1 on the field in both themes
+    placeholderTextColor: qgcPal.buttonBorder
     selectionColor:     qgcPal.textFieldText
     selectedTextColor:  qgcPal.textField
     activeFocusOnPress: true
@@ -19,8 +24,11 @@ TextField {
                             Qt.ImhNone                   // iOS numeric keyboard has no done button, we can't use it.
     leftPadding:        _marginPadding
     rightPadding:       _marginPadding + unitsHelpLayout.width
-    topPadding:         _marginPadding
-    bottomPadding:      _marginPadding
+    topPadding:         _verticalPadding
+    bottomPadding:      _verticalPadding
+    // The mockup right-aligns the numeric field against its units; free text
+    // still reads left to right
+    horizontalAlignment: numericValuesOnly ? TextInput.AlignRight : TextInput.AlignLeft
     EnterKey.type:      Qt.EnterKeyDone
 
     property bool   showUnits:          false
@@ -32,7 +40,9 @@ TextField {
     property bool   validationError:    false
 
     property real _helpLayoutWidth: 0
-    property real _marginPadding:   ScreenTools.defaultFontPixelHeight / 3
+    // Mockup field padding is 12 across and 8 down against its 18px text metric
+    property real _marginPadding:   ScreenTools.defaultFontPixelHeight * 0.67
+    property real _verticalPadding: ScreenTools.defaultFontPixelHeight * 0.44
 
     signal helpClicked
 
@@ -83,11 +93,15 @@ TextField {
     }
 
     background: Rectangle {
-        border.width:   control.validationError ? 2 : (qgcPal.globalTheme === QGCPalette.Light ? 1 : 0)
+        // The dark theme's field fill is darker than the surfaces around it, so
+        // the border is what separates the two - draw it in both themes
+        border.width:   control.validationError ? 2 : 1
         border.color:   control.validationError ? qgcPal.colorRed : qgcPal.buttonBorder
-        radius:         ScreenTools.defaultBorderRadius
+        // Mockup corner is 7 against its 18px text metric
+        radius:         ScreenTools.defaultFontPixelHeight * 0.39
         color:          qgcPal.textField
-        implicitWidth:  ScreenTools.implicitTextFieldWidth
+        // The mockup's 92 floor is what makes room for the wider padding above
+        implicitWidth:  Math.max(ScreenTools.implicitTextFieldWidth, ScreenTools.defaultFontPixelHeight * 5.1)
         implicitHeight: ScreenTools.implicitTextFieldHeight
 
         RowLayout {
@@ -137,6 +151,10 @@ TextField {
             // Units
             Text {
                 Layout.alignment:   Qt.AlignVCenter
+                // Right aligning the value parks it against the units, so the units need their
+                // own gap or "15.0" and "m" run together. The layout is right to left, so this
+                // margin is the space between the value and the unit
+                Layout.leftMargin:  ScreenTools.defaultFontPixelWidth
                 text:               control.unitsLabel
                 font.pointSize:     control.activeFocus ? ScreenTools.smallFontPointSize : ScreenTools.defaultFontPointSize
                 font.family:        ScreenTools.normalFontFamily

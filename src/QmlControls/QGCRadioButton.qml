@@ -17,8 +17,13 @@ RadioButton {
     indicator: Rectangle {
         implicitWidth:          ScreenTools.radioButtonIndicatorSize
         implicitHeight:         width
-        color:                  control.enabled ? "white" : "transparent"
-        border.color:           qgcPal.buttonBorder
+        // The dot is buttonHighlight, so the well must stay dark in the dark
+        // theme or the dot is invisible - textField is the palette's input fill
+        color:                  qgcPal.textField
+        border.color:           control.checked ? qgcPal.buttonHighlight : qgcPal.buttonBorder
+        // The mockup rings its 18px indicator with 2px so the ring reads at
+        // arm's length - same proportion, whatever the font metric gives us
+        border.width:           Math.max(1, Math.round(width / 9))
         radius:                 height / 2
         x:                      control.leftPadding
         y:                      parent.height / 2 - height / 2
@@ -32,8 +37,9 @@ RadioButton {
 
         Rectangle {
             anchors.centerIn:   parent
-            // Width should be an odd number to be centralized by the parent properly
-            width:              2 * Math.floor(parent.width / 4) + 1
+            // Mockup dot is 11 across an 18px indicator. Width should be an odd
+            // number to be centralized by the parent properly
+            width:              2 * Math.floor(parent.width * 0.3) + 1
             height:             width
             antialiasing:       true
             radius:             height * 0.5
