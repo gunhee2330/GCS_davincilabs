@@ -87,8 +87,10 @@ Rectangle {
                     color: _cameraInVideoMode ? qgcPal.window : qgcPal.windowShadeLight
                     radius: height * 0.5
                     anchors.left: parent.left
-                    border.color: qgcPal.text
-                    border.width: _cameraInPhotoMode ? 0 : 1
+                    // The shade roles now span under 1.2:1 in dark, so the fills alone no longer
+                    // separate the chips. Both are ringed and the active one takes the text ring
+                    border.color: _cameraInVideoMode ? qgcPal.text : qgcPal.groupBorder
+                    border.width: 1
 
                     QGCColoredImage {
                         height: parent.height * 0.5
@@ -115,8 +117,8 @@ Rectangle {
                     color: _cameraInPhotoMode ? qgcPal.window : qgcPal.windowShadeLight
                     radius: height * 0.5
                     anchors.right: parent.right
-                    border.color: qgcPal.text
-                    border.width: _cameraInPhotoMode ? 1 : 0
+                    border.color: _cameraInPhotoMode ? qgcPal.text : qgcPal.groupBorder
+                    border.width: 1
 
                     QGCColoredImage {
                         height: parent.height * 0.5

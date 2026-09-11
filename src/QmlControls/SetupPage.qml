@@ -14,7 +14,6 @@ Item {
 
     property alias  pageComponent:          pageLoader.sourceComponent
     property string pageName:               vehicleComponent ? vehicleComponent.name : ""
-    property string pageDescription:        vehicleComponent ? vehicleComponent.description : ""
     property real   availableWidth:         width - pageLoader.x
     property real   availableHeight:        height - pageLoader.y
     property bool   showAdvanced:           false
@@ -63,7 +62,9 @@ Item {
             width:              availableWidth
             spacing:            _margins
             layoutDirection:    Qt.RightToLeft
-            visible:            showAdvanced || (pageDescription !== "" && !ScreenTools.isShortScreen)
+            // The armed warning used to ride on the description's visibility, so it never
+            // showed on a page that had no description
+            visible:            showAdvanced || (!setupView.enabled && !ScreenTools.isShortScreen)
 
             QGCCheckBox {
                 id:         advancedCheckBox
@@ -74,13 +75,6 @@ Item {
             ColumnLayout {
                 spacing:            _margins
                 Layout.fillWidth:   true
-
-                QGCLabel {
-                    Layout.fillWidth:   true
-                    wrapMode:           Text.WordWrap
-                    text:               pageDescription
-                    visible:            pageDescription !== "" && !ScreenTools.isShortScreen
-                }
 
                 QGCLabel {
                     Layout.fillWidth:   true

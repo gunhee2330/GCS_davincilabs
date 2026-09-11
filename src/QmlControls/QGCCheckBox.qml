@@ -48,10 +48,13 @@ CheckBox {
         implicitHeight: implicitWidth
         x:              control.leftPadding
         y:              parent.height / 2 - height / 2
-        color:          control.enabled ? "white" : "transparent"
-        border.color:   qgcPal.buttonBorder
-        border.width:   1
-        radius:         ScreenTools.defaultBorderRadius
+        // Checked is a filled accent box with a dark tick, so the box takes the
+        // highlight fill and the glyph below takes that fill's foreground
+        color:          control.checked ? qgcPal.buttonHighlight : qgcPal.textField
+        border.color:   control.checked ? qgcPal.buttonHighlight : qgcPal.buttonBorder
+        // Mockup box is 18px with a 2px border and a 4px corner
+        border.width:   Math.max(1, Math.round(width / 9))
+        radius:         Math.round(width * 0.22)
         opacity:        control.checkedState === Qt.PartiallyChecked ? 0.5 : 1
 
         Rectangle {
@@ -63,7 +66,7 @@ CheckBox {
 
         QGCColoredImage {
             source:             "/qmlimages/checkbox-check.svg"
-            color:              qgcPal.buttonHighlight
+            color:              qgcPal.buttonHighlightText
             mipmap:             true
             fillMode:           Image.PreserveAspectFit
             width:              parent.implicitWidth * 0.75

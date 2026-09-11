@@ -206,7 +206,10 @@ Popup {
         color:          _qgcPal.windowShade
         radius:         root.padding / 2
         border.width:   1
-        border.color:   _qgcPal.windowShadeLight
+        // windowShadeLight sat a shade darker than windowShade and read as an outline. It is a
+        // shade lighter now, so it reads as a highlight and the dialog loses its edge against the
+        // scrim. Every other outline on this branch is groupBorder; this is the same job.
+        border.color:   _qgcPal.groupBorder
     }
 
     ColumnLayout {

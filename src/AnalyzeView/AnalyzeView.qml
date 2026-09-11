@@ -128,7 +128,9 @@ Rectangle {
         anchors.top:            parent.top
         anchors.bottom:         parent.bottom
         width:                  1
-        color:                  qgcPal.windowShade
+        // Border colour, like the same rail edge in vehicle and app settings: the shade roles
+        // sit too close to the window background to read as a rule
+        color:                  qgcPal.groupBorder
     }
 
     Item {

@@ -10,7 +10,9 @@ import QGroundControl.Controls
 ///     If icon only, icon will be centered
 Button {
     property bool primary: false
-    property bool showBorder: qgcPal.globalTheme === QGCPalette.Light
+    // The dark button fill is the same value as the window and the card it sits on, so the
+    // border is the only thing that draws the button - keep it in both themes
+    property bool showBorder: true
     property real backRadius: ScreenTools.defaultBorderRadius
     property real heightFactor: 0.5
     property string iconSource: ""

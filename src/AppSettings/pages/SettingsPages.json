@@ -5,7 +5,7 @@
         {
             "name": "General",
             "qml": "GeneralSettings.qml",
-            "icon": "qrc:/res/QGCLogoWhite.svg",
+            "icon": "qrc:/InstrumentValueIcons/cog.svg",
             "pageDefinition": "General.SettingsUI.json"
         },
         {
@@ -21,20 +21,55 @@
             "pageDefinition": "PlanView.SettingsUI.json"
         },
         {
-            "divider": true
-        },
-        {
-            "name": "ADSB Server",
-            "qml": "ADSBServerSettings.qml",
-            "icon": "qrc:/InstrumentValueIcons/airplane.svg",
-            "visible": "QGroundControl.corePlugin.showAdvancedUI",
-            "pageDefinition": "ADSBVehicleManager.SettingsUI.json"
-        },
-        {
             "name": "Comm Links",
             "qml": "CommLinksSettings.qml",
             "icon": "qrc:/InstrumentValueIcons/usb.svg",
             "pageDefinition": "CommLinks.SettingsUI.json"
+        },
+        {
+            "name": "Video",
+            "qml": "VideoSettings.qml",
+            "icon": "qrc:/InstrumentValueIcons/camera.svg",
+            "pageDefinition": "Video.SettingsUI.json",
+            "visible": "QGroundControl.settingsManager.videoSettings.userVisible"
+        },
+        {
+            "name": "Telemetry",
+            "qml": "TelemetrySettings.qml",
+            "icon": "qrc:/InstrumentValueIcons/radio.svg",
+            "visible": "QGroundControl.corePlugin.showAdvancedUI",
+            "pageDefinition": "Telemetry.SettingsUI.json"
+        },
+        {
+            "name": "Maps",
+            "qml": "MapsSettings.qml",
+            "icon": "qrc:/InstrumentValueIcons/globe.svg",
+            "pageDefinition": "Maps.SettingsUI.json"
+        },
+        {
+            "name": "NTRIP/RTK",
+            "qml": "NTRIPSettings.qml",
+            "icon": "qrc:/InstrumentValueIcons/station.svg",
+            "visible": "QGroundControl.corePlugin.showAdvancedUI && QGroundControl.settingsManager && QGroundControl.settingsManager.ntripSettings !== undefined",
+            "pageDefinition": "NTRIP.SettingsUI.json"
+        },
+        {
+            "comment": "Deprecated: pending removal in favor of the GeoMap engine",
+            "name": "3D View",
+            "qml": "Viewer3DSettings.qml",
+            "icon": "qrc:/qml/QGroundControl/Viewer3D/City3DMapIcon.svg",
+            "pageDefinition": "Viewer3D.SettingsUI.json",
+            "visible": "QGroundControl.corePlugin.showAdvancedUI && QGroundControl.settingsManager.viewer3DSettings.userVisible"
+        },
+        {
+            "name": "Developer",
+            "qml": "DeveloperModeSettings.qml",
+            "icon": "qrc:/InstrumentValueIcons/wrench.svg"
+        },
+        {
+            "name": "Help",
+            "qml": "HelpSettings.qml",
+            "icon": "qrc:/InstrumentValueIcons/question.svg"
         },
         {
             "name": "App Logging",
@@ -46,21 +81,8 @@
         {
             "name": "App Log Viewer",
             "qml": "AppLogging.qml",
-            "icon": "qrc:/InstrumentValueIcons/conversation.svg",
+            "icon": "qrc:/InstrumentValueIcons/view-list.svg",
             "visible": "QGroundControl.corePlugin.showAdvancedUI"
-        },
-        {
-            "name": "Maps",
-            "qml": "MapsSettings.qml",
-            "icon": "qrc:/InstrumentValueIcons/globe.svg",
-            "pageDefinition": "Maps.SettingsUI.json"
-        },
-        {
-            "name": "NTRIP/RTK",
-            "qml": "NTRIPSettings.qml",
-            "icon": "qrc:/InstrumentValueIcons/globe.svg",
-            "visible": "QGroundControl.corePlugin.showAdvancedUI && QGroundControl.settingsManager && QGroundControl.settingsManager.ntripSettings !== undefined",
-            "pageDefinition": "NTRIP.SettingsUI.json"
         },
         {
             "name": "PX4 Log Transfer",
@@ -70,46 +92,18 @@
             "pageDefinition": "PX4LogTransfer.SettingsUI.json"
         },
         {
+            "name": "ADSB Server",
+            "qml": "ADSBServerSettings.qml",
+            "icon": "qrc:/InstrumentValueIcons/airplane.svg",
+            "visible": "QGroundControl.corePlugin.showAdvancedUI",
+            "pageDefinition": "ADSBVehicleManager.SettingsUI.json"
+        },
+        {
             "name": "Remote ID",
             "qml": "RemoteIDSettings.qml",
             "icon": "qrc:/qmlimages/RidIconManNoID.svg",
             "visible": "QGroundControl.corePlugin.showAdvancedUI",
             "pageDefinition": "RemoteID.SettingsUI.json"
-        },
-        {
-            "name": "Telemetry",
-            "qml": "TelemetrySettings.qml",
-            "icon": "qrc:/InstrumentValueIcons/drone.svg",
-            "visible": "QGroundControl.corePlugin.showAdvancedUI",
-            "pageDefinition": "Telemetry.SettingsUI.json"
-        },
-        {
-            "name": "Video",
-            "qml": "VideoSettings.qml",
-            "icon": "qrc:/InstrumentValueIcons/camera.svg",
-            "pageDefinition": "Video.SettingsUI.json",
-            "visible": "QGroundControl.settingsManager.videoSettings.userVisible"
-        },
-        {
-            "comment": "Deprecated: kept at the bottom pending removal in favor of the GeoMap engine",
-            "name": "3D View",
-            "qml": "Viewer3DSettings.qml",
-            "icon": "qrc:/qml/QGroundControl/Viewer3D/City3DMapIcon.svg",
-            "pageDefinition": "Viewer3D.SettingsUI.json",
-            "visible": "QGroundControl.corePlugin.showAdvancedUI && QGroundControl.settingsManager.viewer3DSettings.userVisible"
-        },
-        {
-            "divider": true
-        },
-        {
-            "name": "Developer",
-            "qml": "DeveloperModeSettings.qml",
-            "icon": "qrc:/InstrumentValueIcons/wrench.svg"
-        },
-        {
-            "name": "Help",
-            "qml": "HelpSettings.qml",
-            "icon": "qrc:/InstrumentValueIcons/question.svg"
         },
         {
             "divider": true

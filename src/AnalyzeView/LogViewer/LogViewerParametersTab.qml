@@ -109,7 +109,8 @@ ColumnLayout {
             delegate: Rectangle {
                 width: ListView.view.width
                 height: _paramRow.implicitHeight + ScreenTools.defaultFontPixelHeight * 0.4
-                color: index % 2 === 0 ? qgcPal.windowShade : qgcPal.windowShadeDark
+                // Same ladder ends as the messages tab, so both tabs stripe alike
+                color: index % 2 === 0 ? qgcPal.windowShadeLight : qgcPal.windowShadeDark
                 radius: 2
 
                 // Format value: use metadata decimalPlaces when available,

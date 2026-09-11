@@ -24,6 +24,32 @@ Rectangle {
     property int  _expandedRevision: 0  // bumped to trigger re-evaluation
     property string _searchQuery: ""
 
+    /// Rail group headings, keyed by the first page of each group so a heading hides with the
+    /// page it rides on. Kept here rather than in SettingsPages.json because the page generator
+    /// rejects any key it does not already know
+    readonly property var _groupHeadings: ({
+        "General":      qsTr("Basic"),
+        "Comm Links":   qsTr("Connection"),
+        "Maps":         qsTr("Maps"),
+        "Developer":    qsTr("System"),
+        "App Logging":  qsTr("Advanced")
+    })
+
+    /// Name of whatever the right panel is showing. Mirrors the vehicle config header so the two
+    /// setup screens read the same way.
+    readonly property string _panelTitle: {
+        if (_selectedPageIndex < 0) return ""
+        var entry = settingsPagesModel.get(_selectedPageIndex)
+        if (!entry) return ""
+        if (_selectedSectionIndex >= 0) {
+            var sections = _pageSections(entry)
+            for (var i = 0; i < sections.length; i++) {
+                if (sections[i].index === _selectedSectionIndex) return sections[i].name
+            }
+        }
+        return entry.name ?? ""
+    }
+
     function _setExpanded(pageIndex, value) {
         _expandedPages[pageIndex] = value
         _expandedRevision++
@@ -166,6 +192,16 @@ Rectangle {
 
     SettingsPagesModel { id: settingsPagesModel }
 
+    // Declared ahead of leftPanel so it stacks behind it. The rail only reads as its own zone
+    // if it is a shade lighter than the panel it borders
+    Rectangle {
+        anchors.left:   parent.left
+        anchors.right:  divider.right
+        anchors.top:    parent.top
+        anchors.bottom: parent.bottom
+        color:          qgcPal.windowShade
+    }
+
     ColumnLayout {
         id:                 leftPanel
         width:              Math.max(buttonColumn.implicitWidth + _horizontalMargin, ScreenTools.defaultFontPixelWidth * 22)
@@ -259,6 +295,22 @@ Rectangle {
                         visible: pageName === "Divider"
                     }
 
+                    // Group heading, in the same quiet small type the config sections label with
+                    QGCLabel {
+                        Layout.fillWidth:   true
+                        Layout.leftMargin:  ScreenTools.defaultFontPixelHeight * 0.61
+                        Layout.topMargin:   index === 0 ? 0 : ScreenTools.defaultFontPixelHeight * 0.8
+                        Layout.bottomMargin: ScreenTools.defaultFontPixelHeight * 0.2
+                        text:               settingsView._groupHeadings[model.nameKey] ?? ""
+                        font.pointSize:     ScreenTools.defaultFontPointSize * 0.85
+                        font.bold:          true
+                        font.letterSpacing: ScreenTools.defaultFontPixelWidth * 0.12
+                        opacity:            0.6
+                        // Search reshuffles which pages survive, which would strand a heading over
+                        // a group whose first page filtered out
+                        visible:            text !== "" && pageAvailable && !isSearching
+                    }
+
                     // Page button
                     SettingsButton {
                         Layout.fillWidth: true
@@ -303,8 +355,8 @@ Rectangle {
                         Button {
                             id:             sectionBtn
                             Layout.fillWidth: true
-                            padding:        ScreenTools.defaultFontPixelWidth * 0.75
-                            leftPadding:    ScreenTools.defaultFontPixelWidth * 3
+                            padding:        ScreenTools.defaultFontPixelHeight * 0.5
+                            leftPadding:    ScreenTools.defaultFontPixelHeight * 2.2
                             hoverEnabled:   !ScreenTools.isMobile
 
                             property int sectionIndex: modelData.index
@@ -314,18 +366,34 @@ Rectangle {
                                 var matches = settingsView._matchingSections(pageColumn.index)
                                 return matches.indexOf(sectionIndex) !== -1
                             }
-                            property color textColor: sectionChecked || pressed ? qgcPal.buttonHighlightText : qgcPal.buttonText
+                            property color textColor: qgcPal.buttonText
                             visible: sectionMatchesSearch
 
+                            // A sub-item is subordinate to its parent row, so it gets the quieter
+                            // shade fill rather than the parent's accent tint
                             background: Rectangle {
-                                color:   qgcPal.buttonHighlight
-                                opacity: sectionBtn.sectionChecked || sectionBtn.pressed ? 1 : sectionBtn.enabled && sectionBtn.hovered ? 0.2 : 0
-                                radius:  ScreenTools.defaultFontPixelWidth / 2
+                                color:   qgcPal.windowShadeLight
+                                opacity: sectionBtn.sectionChecked || sectionBtn.pressed ? 1 : sectionBtn.enabled && sectionBtn.hovered ? 0.5 : 0
+                                radius:  ScreenTools.defaultFontPixelHeight * 0.39
+
+                                // That fill is barely a shade off the rail, which leaves label brightness as the only
+                                // selection cue. This stripe carries it instead, narrower than the parent row's so the
+                                // sub-item still reads as subordinate. Only drawn while checked, when the fill is opaque
+                                Rectangle {
+                                    anchors.left:   parent.left
+                                    anchors.top:    parent.top
+                                    anchors.bottom: parent.bottom
+                                    width:          Math.max(2, Math.round(ScreenTools.defaultFontPixelHeight * 0.1))
+                                    radius:         width / 2
+                                    color:          qgcPal.buttonHighlight
+                                    visible:        sectionBtn.sectionChecked
+                                }
                             }
 
                             contentItem: QGCLabel {
                                 text:  modelData.name
                                 color: sectionBtn.textColor
+                                opacity: sectionBtn.sectionChecked ? 1 : 0.7
                                 font.pointSize: ScreenTools.defaultFontPointSize * 0.9
                                 horizontalAlignment: Text.AlignLeft
                             }
@@ -343,16 +411,46 @@ Rectangle {
     }
     }
 
+    // Full height and drawn in the border colour: it is the rail's right edge, not a floating rule
     Rectangle {
         id:                     divider
-        anchors.topMargin:      _verticalMargin
-        anchors.bottomMargin:   _verticalMargin
         anchors.leftMargin:     _horizontalMargin
         anchors.left:           leftPanel.right
         anchors.top:            parent.top
         anchors.bottom:         parent.bottom
         width:                  1
-        color:                  qgcPal.windowShade
+        color:                  qgcPal.groupBorder
+    }
+
+    Item {
+        id:                 panelHeader
+        anchors.leftMargin: _horizontalMargin
+        anchors.left:       divider.right
+        anchors.right:      parent.right
+        anchors.top:        parent.top
+        visible:            _panelTitle !== ""
+        height:             visible ? panelTitleLabel.implicitHeight + _defaultTextHeight * 1.7 : 0
+
+        QGCLabel {
+            id:                     panelTitleLabel
+            anchors.leftMargin:     _defaultTextHeight * 1.1
+            anchors.left:           parent.left
+            anchors.rightMargin:    _defaultTextHeight * 1.1
+            anchors.right:          parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text:                   _panelTitle
+            font.pointSize:         ScreenTools.mediumFontPointSize
+            font.bold:              true
+            elide:                  Text.ElideRight
+        }
+
+        Rectangle {
+            anchors.left:   parent.left
+            anchors.right:  parent.right
+            anchors.bottom: parent.bottom
+            height:         2
+            color:          qgcPal.groupBorder
+        }
     }
 
     //-- Panel Contents
@@ -365,7 +463,7 @@ Rectangle {
         anchors.bottomMargin:   _verticalMargin
         anchors.left:           divider.right
         anchors.right:          parent.right
-        anchors.top:            parent.top
+        anchors.top:            panelHeader.bottom
         anchors.bottom:         parent.bottom
     }
 }

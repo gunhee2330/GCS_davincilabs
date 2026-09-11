@@ -25,7 +25,9 @@ ScrollView {
         delegate: Rectangle {
             width: ListView.view.width
             height: _msgRow.implicitHeight + ScreenTools.defaultFontPixelHeight * 0.4
-            color: index % 2 === 0 ? qgcPal.windowShade : qgcPal.windowShadeDark
+            // Both ends of the shade ladder: the adjacent pair is a few levels apart and the
+            // alternation disappears
+            color: index % 2 === 0 ? qgcPal.windowShadeLight : qgcPal.windowShadeDark
             radius: 2
 
             RowLayout {

@@ -37,7 +37,9 @@ Rectangle {
     readonly property real _margin: ScreenTools.defaultFontPixelWidth / 2
 
     color: qgcPal.windowShade
-    border.color: qgcPal.windowShadeDark
+    // The popup floats over a chart painted in windowShadeDark, so the border has to come from
+    // the border role to separate the two surfaces at all
+    border.color: qgcPal.groupBorder
     radius: ScreenTools.defaultFontPixelWidth * 0.3
     implicitWidth: _mainColumn.implicitWidth  + _margin * 2
     implicitHeight: _mainColumn.implicitHeight + _margin * 2

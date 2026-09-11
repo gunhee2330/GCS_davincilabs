@@ -10,32 +10,39 @@ AbstractButton   {
     checkable:  true
     padding:    0
 
-    property bool _showBorder:      qgcPal.globalTheme === QGCPalette.Light
-    property int  _sliderInset:     2
+    // The mockup draws a 26 x 46 track with a 20 knob against its 18px text
+    // metric, so the whole thing is kept as a ratio of the font metric
+    property real _trackHeight:     Math.round(ScreenTools.defaultFontPixelHeight * 1.45)
+    property int  _sliderInset:     Math.round(_trackHeight * 0.115)
     property bool _showHighlight:   enabled && (pressed || checked)
 
     QGCPalette { id: qgcPal; colorGroupEnabled: control.enabled }
 
     contentItem: Item {
         implicitWidth:  (label.visible ? label.contentWidth + ScreenTools.defaultFontPixelWidth : 0) + indicator.width
-        implicitHeight: label.contentHeight
+        // The track is now taller than a line of text, so it drives the height
+        implicitHeight: Math.max(label.contentHeight, indicator.height)
 
         QGCLabel {
-            id:             label
-            anchors.left:   parent.left
-            text:           visible ? control.text : "X"
-            visible:        control.text !== ""
+            id:                     label
+            anchors.left:           parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            text:                   visible ? control.text : "X"
+            visible:                control.text !== ""
         }
 
         Rectangle {
             id:                     indicator
             anchors.right:          parent.right
             anchors.verticalCenter: parent.verticalCenter
-            height:                 ScreenTools.defaultFontPixelHeight
-            width:                  height * 2
+            height:                 control._trackHeight
+            width:                  Math.round(height * 1.77)
             radius:                 height / 2
-            color:                  checked ? qgcPal.buttonHighlight : qgcPal.button
-            border.width:           _showBorder ? 1 : 0
+            // The OFF track was qgcPal.button, which is the same value as the card it sits on,
+            // leaving nothing but the border to find. The border colour is a step up from both,
+            // so filling the track with it makes the pill itself visible
+            color:                  checked ? qgcPal.buttonHighlight : qgcPal.buttonBorder
+            border.width:           1
             border.color:           qgcPal.buttonBorder
 
             Rectangle {
@@ -51,7 +58,9 @@ AbstractButton   {
                 height:                 parent.height - (_sliderInset * 2)
                 width:                  height
                 radius:                 height / 2
-                color:                  qgcPal.buttonText
+                // The knob rides on buttonHighlight when checked, so it has to
+                // flip to that fill's foreground to stay visible
+                color:                  control.checked ? qgcPal.buttonHighlightText : qgcPal.buttonText
             }
         }
     }

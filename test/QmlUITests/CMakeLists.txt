@@ -40,6 +40,10 @@ target_sources(${CMAKE_PROJECT_NAME}
         # via add_qgc_test so no ctest/CI sweep ever runs it
         ${CMAKE_CURRENT_SOURCE_DIR}/GeoMapPerfUITest.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/GeoMapPerfUITest.h
+        # Manual screenshot capture: standalone-registered, deliberately NOT added
+        # via add_qgc_test so no ctest/CI sweep ever runs it
+        ${CMAKE_CURRENT_SOURCE_DIR}/ScreenshotTest.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/ScreenshotTest.h
         ${CMAKE_CURRENT_SOURCE_DIR}/NTRIPSettingsUITest.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/NTRIPSettingsUITest.h
         ${CMAKE_CURRENT_SOURCE_DIR}/OnboardLogUITest.cc

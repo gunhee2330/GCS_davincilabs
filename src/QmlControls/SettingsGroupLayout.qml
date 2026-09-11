@@ -17,7 +17,9 @@ ColumnLayout {
     property string defaultBorderColor  : QGroundControl.globalPalette.groupBorder
     property string outerBorderColor    : defaultBorderColor
 
-    property string defaultHeadingPointSize:    ScreenTools.defaultFontPointSize + 1
+    // Quiet and small, the way the vehicle config sections label their cards: the heading is a
+    // signpost, and shouting it competes with the values the operator came to read
+    property string defaultHeadingPointSize:    ScreenTools.defaultFontPointSize * 0.85
     property string headingPointSize:           defaultHeadingPointSize
 
     property string heading
@@ -46,6 +48,7 @@ ColumnLayout {
             text:           heading
             font.pointSize: headingPointSize
             font.bold:      true
+            opacity:        0.6
         }
 
         QGCLabel {
@@ -62,7 +65,9 @@ ColumnLayout {
         Layout.fillWidth:   true
         implicitWidth:      _contentLayout.implicitWidth + (showBorder ? _margins * 2 : 0)
         implicitHeight:     _contentLayout.implicitHeight + (showBorder ? _margins * 2: 0)
-        color:              "transparent"
+        // Same card fill the vehicle config sections use, so both setup screens read as one
+        // surface. Borderless callers keep no fill: they have no margins to hold one
+        color:              showBorder ? QGroundControl.globalPalette.button : "transparent"
         border.color:       outerBorderColor
         border.width:       showBorder ? 1 : 0
         radius:             ScreenTools.defaultFontPixelHeight / 2

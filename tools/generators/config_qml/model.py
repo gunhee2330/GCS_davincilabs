@@ -53,6 +53,7 @@ class ControlDef(BaseControlDef):
     firstEntryIsAll: bool = False  # bitmask: first entry is "all" toggle
     toggleCheckbox: ToggleCheckboxDef | None = None  # toggleCheckbox: custom checked/onClicked
     indent: bool = False  # indent control with left margin
+    group: str = ""  # open a new card under this heading
     smallFont: bool = False  # label: use small font size
     description: str = ""  # factslider: help text above slider
     sliderFrom: str = ""  # factslider: min override
@@ -176,7 +177,7 @@ _ALLOWED_CONTROL_KEYS = frozenset({
     "comment", "param", "setting", "label", "control", "showWhen", "enableWhen",
     "optional", "sliderMin", "sliderMax", "enableCheckbox", "button", "options",
     "enumValues", "dialogButton", "actionButton", "warning", "raw", "bitMask",
-    "firstEntryIsAll", "toggleCheckbox", "indent", "smallFont", "description",
+    "firstEntryIsAll", "toggleCheckbox", "indent", "smallFont", "description", "group",
     "sliderFrom", "sliderTo", "majorTickStepSize", "decimalPlaces", "linkedParams",
     "component",
 })
@@ -253,6 +254,9 @@ def _build_page_def(data: dict, json_filename: str) -> PageDef:
                     firstEntryIsAll=ctrl_data.get("firstEntryIsAll", False),
                     toggleCheckbox=parse_toggle_checkbox(ctrl_data.get("toggleCheckbox")),
                     indent=ctrl_data.get("indent", False),
+                    group=require_qml_safe_string(
+                        ctrl_data.get("group", ""), "control group", json_filename
+                    ),
                     smallFont=ctrl_data.get("smallFont", False),
                     description=ctrl_data.get("description", ""),
                     sliderFrom=str(ctrl_data.get("sliderFrom", "")),

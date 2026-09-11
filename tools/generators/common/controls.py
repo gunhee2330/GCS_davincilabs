@@ -394,6 +394,10 @@ def render_radiogroup(
     for opt in options:
         lines.append(f'{inner}QGCRadioButton {{')
         lines.append(f'{inner}    text: {qml_tr(opt.label, tr_context)}')
+        # RadioButton defaults to 6px of left padding, which the indicator anchors to.
+        # Cards align every other row on the card margin, so the radios have to start
+        # there too. QGCCheckBox already zeroes it for the same reason.
+        lines.append(f'{inner}    leftPadding: 0')
         if opt.checked:
             if optional:
                 lines.append(f'{inner}    checked: {fact_ref} ? {opt.checked} : false')

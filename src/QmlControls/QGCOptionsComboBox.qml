@@ -25,7 +25,7 @@ ComboBox {
         implicitHeight:                 ScreenTools.implicitComboBoxHeight
         color:                          _controlQGCPal.window
         border.width:                   enabled ? 1 : 0
-        border.color:                   "#999"
+        border.color:                   _controlQGCPal.buttonBorder
     }
 
     /*! Adding the Combobox list item to the theme.  */
