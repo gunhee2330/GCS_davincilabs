@@ -20,16 +20,39 @@ ColumnLayout {
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
-    // Heading text only. Only some sections carry an icon, so on a page that mixes them the
-    // heading started at a different left edge card by card, and an icon fitted to heading
-    // height was both unreadable and indented by its own letterboxing when the artwork was
-    // taller than wide. iconSource is kept because the generator still emits it.
-    QGCLabel {
-        text: control.heading
-        font.pointSize: ScreenTools.defaultFontPointSize * 0.85
-        font.bold: true
-        opacity: 0.6
-        visible: control.heading !== ""
+    // The icon rides beside the heading rather than inside the card. It used to hold a column
+    // of its own down the card's left edge, which pushed every row in an illustrated section
+    // right by the icon's width - so on a page mixing illustrated and plain sections the rows
+    // started at a different place card by card. Up here it costs the rows nothing, and the
+    // heading still starts at the same left edge whether a section has artwork or not.
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: ScreenTools.defaultFontPixelWidth
+        visible: control.heading !== "" || control.iconSource !== ""
+
+        QGCLabel {
+            text: control.heading
+            font.pointSize: ScreenTools.defaultFontPointSize * 0.85
+            font.bold: true
+            opacity: 0.6
+            visible: control.heading !== ""
+        }
+
+        // Sized off the heading's own line and free to keep its aspect: the artwork is wider
+        // than tall in some sections and taller than wide in others, and a fixed box
+        // letterboxed the tall ones into looking indented.
+        QGCColoredImage {
+            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight
+            Layout.preferredWidth: Layout.preferredHeight * 2
+            fillMode: Image.PreserveAspectFit
+            horizontalAlignment: Image.AlignLeft
+            source: control.iconSource
+            color: qgcPal.text
+            opacity: 0.6
+            visible: control.iconSource !== ""
+        }
+
+        Item { Layout.fillWidth: true }
     }
 
     Rectangle {
