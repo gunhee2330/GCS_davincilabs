@@ -20,6 +20,10 @@ ColumnLayout {
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
+    // Heading text only. Only some sections carry an icon, so on a page that mixes them the
+    // heading started at a different left edge card by card, and an icon fitted to heading
+    // height was both unreadable and indented by its own letterboxing when the artwork was
+    // taller than wide. iconSource is kept because the generator still emits it.
     QGCLabel {
         text: control.heading
         font.pointSize: ScreenTools.defaultFontPointSize * 0.85
@@ -46,15 +50,6 @@ ColumnLayout {
             anchors.leftMargin: _margins
             anchors.rightMargin: _margins
             spacing: ScreenTools.defaultFontPixelWidth * 2
-
-            QGCColoredImage {
-                Layout.preferredWidth: ScreenTools.defaultFontPixelHeight * 3
-                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.5
-                source: control.iconSource
-                color: qgcPal.text
-                fillMode: Image.PreserveAspectFit
-                visible: control.iconSource !== ""
-            }
 
             ColumnLayout {
                 id: _controlsColumn

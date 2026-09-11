@@ -14,7 +14,9 @@ SetupPage {
         id: pageComponent
 
         Item {
-            width: Math.max(availableWidth, outerColumn.width)
+            // The floor is a constant rather than outerColumn.width because outerColumn now
+            // takes its width from this Item, and reading it back would close a binding loop
+            width: Math.max(availableWidth, ScreenTools.defaultFontPixelWidth * 70)
             height: outerColumn.height
 
             {{ controller_type }} {
@@ -102,13 +104,16 @@ SetupPage {
                 }
             }
 
-            property real _maxLeftMargin: ScreenTools.defaultFontPixelWidth * 20
-
             ColumnLayout {
                 id: outerColumn
                 spacing: _margins * 1.25
+                // Cards span the panel rather than huddling in its middle. Stock centred the
+                // content for a full window; the config rail already narrows the body, so
+                // centring only left the cards adrift of the left-aligned panel title above.
                 anchors.left: parent.left
-                anchors.leftMargin: Math.min((parent.width - width) / 2, _maxLeftMargin)
+                anchors.right: parent.right
+                anchors.leftMargin: _margins
+                anchors.rightMargin: _margins
 {% for sec_qml in sections %}
 
 {{ sec_qml }}

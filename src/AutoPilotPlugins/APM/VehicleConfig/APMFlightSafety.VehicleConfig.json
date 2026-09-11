@@ -68,6 +68,7 @@
                 {
                     "param": "RTL_LOIT_TIME",
                     "label": "Loiter above Home",
+                    "group": "Before Landing",
                     "control": "toggleCheckbox",
                     "toggleCheckbox": {
                         "checked": "_rtlLoitTimeFact.value > 0",
@@ -130,6 +131,7 @@
                 {
                     "param": "RTL_RADIUS",
                     "label": "Loiter radius",
+                    "group": "Before Landing",
                     "optional": true
                 },
                 {

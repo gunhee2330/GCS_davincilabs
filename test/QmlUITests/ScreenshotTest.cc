@@ -47,6 +47,14 @@ void ScreenshotTest::_captureScreens()
 
     runWithMockLink([] { return MockLink::startAPMArduCopterMockLink(); },
                     [this](QPointer<MockLink>, Vehicle *) {
+        // A 7in controller is far narrower than the default test window, and full-width cards
+        // are the layout narrowness can break. QGC_SCREENSHOT_WIDTH re-walks at that width.
+        const int narrowWidth = qEnvironmentVariableIntValue("QGC_SCREENSHOT_WIDTH");
+        if (narrowWidth > 0) {
+            _window->resize(narrowWidth, _window->height());
+            QTest::qWait(kSettleMs);
+        }
+
         _grab(QStringLiteral("04_flyview"));
         if (QTest::currentTestFailed()) return;
 
@@ -58,8 +66,21 @@ void ScreenshotTest::_captureScreens()
         _grab(QStringLiteral("01_vehicle_summary"));
         if (QTest::currentTestFailed()) return;
 
+        // A hand-coded setup page, kept alongside the generated ones so changes to
+        // SetupPage show up on both. It sits at the bottom of the rail, so grab it before
+        // an entry above it expands and pushes it past the window edge
+        QVERIFY2(clickButton(QStringLiteral("vehicleConfig_comp_Tuning-Advanced")), "Tuning button not clickable");
+        _grab(QStringLiteral("06_vehicle_tuning"));
+        if (QTest::currentTestFailed()) return;
+
         QVERIFY2(clickButton(QStringLiteral("vehicleConfig_comp_FlightSafety")), "Flight Safety button not clickable");
         _grab(QStringLiteral("02_vehicle_safety"));
+        if (QTest::currentTestFailed()) return;
+
+        // Failsafes carries the bitmask checkboxes and the repeated sections
+        // that Flight Safety has none of
+        QVERIFY2(clickButton(QStringLiteral("vehicleConfig_comp_Failsafes")), "Failsafes button not clickable");
+        _grab(QStringLiteral("05_vehicle_failsafes"));
         if (QTest::currentTestFailed()) return;
 
         QVERIFY(QMetaObject::invokeMethod(_window, "showSettingsTool",

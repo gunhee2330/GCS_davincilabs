@@ -171,8 +171,11 @@ def _qml_control(
 
         _v = _vis_expr(ctrl.showWhen, ctrl.optional, ctrl.param, fact_ref)
         if _v:
+            # The wrapper has to fill the card too, otherwise the row it hides behind
+            # shrinks to its contents and hugs the left edge while its siblings span
             qml = (
                 f"{indent}ColumnLayout {{\n{indent}    visible: {_v}\n"
+                f"{indent}    Layout.fillWidth: true\n"
                 + "\n".join(f"    {line}" for line in qml.splitlines())
                 + f"\n{indent}}}"
             )
@@ -251,6 +254,7 @@ def _qml_control(
                 f"{indent}ColumnLayout {{\n"
                 f"{indent}    visible: {_v}\n"
                 f"{indent}    spacing: 0\n"
+                f"{indent}    Layout.fillWidth: true\n"
                 f"{inner_qml}\n"
                 f"{indent}}}"
             )
@@ -383,14 +387,28 @@ def _qml_generated_section(sec: SectionDef, tr_context: str = "") -> str:
     """Generate QML for a section with auto-generated controls."""
     ind = "                "
     ctrl_indent = ind + "    "
-    controls = [_qml_control(ctrl, ctrl_indent, tr_context=tr_context) for ctrl in sec.controls]
-    return _env.get_template("generated_section.qml.j2").render(
-        ind=ind,
-        visible=_section_visible(sec),
-        title_qtr=qml_tr(sec.title, tr_context),
-        image=sec.image,
-        controls=controls,
-    )
+    # A control carrying `group` opens a new card under that heading, so a long section
+    # reads as a few short lists instead of one column of rows the eye has to count.
+    # A control without one stays in the card it follows, which leaves every section
+    # that names no group emitted exactly as before.
+    runs: list[tuple[str, list[ControlDef]]] = []
+    for ctrl in sec.controls:
+        if not runs or (ctrl.group and ctrl.group != runs[-1][0]):
+            runs.append((ctrl.group, []))
+        runs[-1][1].append(ctrl)
+    cards = [
+        _env.get_template("generated_section.qml.j2").render(
+            ind=ind,
+            visible=_section_visible(sec),
+            # The section's own name and icon ride the first card, so the section stays
+            # identifiable while the page shows every section at once
+            title_qtr=qml_tr(sec.title if idx == 0 else group, tr_context),
+            image=sec.image if idx == 0 else "",
+            controls=[_qml_control(c, ctrl_indent, tr_context=tr_context) for c in ctrls],
+        )
+        for idx, (group, ctrls) in enumerate(runs)
+    ]
+    return "\n".join(cards)
 
 
 def _qml_component_section(sec: SectionDef, tr_context: str = "") -> str:

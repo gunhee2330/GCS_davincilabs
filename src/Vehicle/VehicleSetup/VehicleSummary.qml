@@ -51,12 +51,13 @@ Rectangle {
             QGCLabel {
                 width:			parent.width
                 wrapMode:		Text.WordWrap
-                color:			setupComplete ? qgcPal.text : qgcPal.warningText
+                color:			qgcPal.warningText
                 font.bold:      true
                 horizontalAlignment: Text.AlignHCenter
-                text:           setupComplete ?
-                    qsTr("Your vehicle configuration summary appears below. Select components on the left to review or fine-tune settings.") :
-                    qsTr("WARNING: Configuration tasks remain before this vehicle is ready to fly. Open the red-marked components on the left to finish setup.")
+                // The complete-state text only narrated the card grid sitting right under it;
+                // the unfinished-setup warning is the half that says something the grid does not
+                visible:        !setupComplete
+                text:           qsTr("WARNING: Configuration tasks remain before this vehicle is ready to fly. Open the red-marked components on the left to finish setup.")
 
                 property bool setupComplete: QGroundControl.multiVehicleManager.activeVehicle ? QGroundControl.multiVehicleManager.activeVehicle.autopilotPlugin.setupComplete : false
             }

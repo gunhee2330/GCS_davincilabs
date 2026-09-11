@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from generators.config_qml.generate_pages import main as generate_config_pages
 from generators.config_qml.model import load_page_def
+from generators.config_qml.page_generator import generate_config_page_qml
 
 from ._helpers import REPO_ROOT
 
@@ -167,6 +168,24 @@ class TestQmlUnsafeStringRejection:
         data["sections"][0]["title"] = "ESC's & Motors (12-inch)"
         page = load_page_def(_make_page_json(tmp_path, data))
         assert page.sections[0].title == "ESC's & Motors (12-inch)"
+
+
+class TestControlGroups:
+    def test_group_splits_the_section_into_one_card_per_group(self, tmp_path: Path):
+        data = _minimal_page()
+        data["sections"][0]["controls"].append(
+            {"param": "PARAM_TWO", "control": "textfield", "group": "Second Card"}
+        )
+        qml = generate_config_page_qml(load_page_def(_make_page_json(tmp_path, data)))
+        assert qml.count("ConfigSection {") == 2
+        assert "PARAM_ONE" in qml.split("ConfigSection {")[1]
+        assert "PARAM_TWO" in qml.split("ConfigSection {")[2]
+
+    def test_ungrouped_section_stays_one_card(self, tmp_path: Path):
+        data = _minimal_page()
+        data["sections"][0]["controls"].append({"param": "PARAM_TWO", "control": "textfield"})
+        qml = generate_config_page_qml(load_page_def(_make_page_json(tmp_path, data)))
+        assert qml.count("ConfigSection {") == 1
 
 
 class TestRealPageDefinitions:
