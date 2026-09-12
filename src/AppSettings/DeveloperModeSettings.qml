@@ -9,13 +9,15 @@ SettingsPage {
     id:         root
     objectName: "settingsPage_DeveloperMode"
 
-    // TODO: Move to the Android Keystore before shipping and derive it from the
-    // vehicle serial number. This literal is a development placeholder only: QML
-    // is compiled into the package, so the value is recoverable from the binary.
-    // The failure counter and the lockout below live on this page instance, so
-    // leaving the page and coming back clears them. Move that state out at the
-    // same time as the PIN.
-    readonly property string _developerPin: "704183"
+    // Not a secret, and not pretending to be one. QML compiles into the package, so any literal
+    // here is readable from the binary, and the failure counter and lockout below live on this
+    // page instance - leaving and coming back clears them, so the lockout delays nobody. What
+    // actually gates this is the seven-tap gesture: nobody taps a version number seven times by
+    // accident, which is the whole job here, keeping an operator from wandering in.
+    //
+    // TODO: Move to the Android Keystore before shipping and derive it from the vehicle serial
+    // number, and move the failure state out at the same time, if this ever has to carry weight.
+    readonly property string _developerPin: "000000"
 
     readonly property int  _tapsToUnlock:   7
     readonly property int  _maxPinFailures: 5
