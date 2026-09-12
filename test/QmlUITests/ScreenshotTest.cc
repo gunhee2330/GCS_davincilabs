@@ -74,10 +74,116 @@ void ScreenshotTest::_grab(const QString &name)
     qDebug() << "screenshot" << path;
 }
 
+bool ScreenshotTest::_grabIndicatorPage(const QString &indicatorObjectName, const QString &name)
+{
+    const QString dir = qEnvironmentVariable("QGC_SCREENSHOT_DIR");
+    if (dir.isEmpty() || !QDir().mkpath(dir)) {
+        qWarning() << name << ": QGC_SCREENSHOT_DIR unusable";
+        return false;
+    }
+    if (!clickButton(indicatorObjectName)) {
+        return false;
+    }
+
+    QQuickItem *const page = findVisibleItem(_rootItem, QStringLiteral("indicatorDrawerLoader"), 2000);
+    if (!page) {
+        qWarning() << name << ": drawer did not open after clicking" << indicatorObjectName;
+        return false;
+    }
+    const auto savePage = [&](const QString &pngName) {
+        QTest::qWait(kSettleMs);
+
+        // Intersected with the flickable viewport: a page taller than the window is clipped, and
+        // past the clip is whatever sits behind the drawer, which differs between the two bars.
+        QRectF rect = page->mapRectToScene(QRectF(0, 0, page->width(), page->height()));
+        if (const QQuickItem *const viewport = page->parentItem()) {
+            rect &= viewport->mapRectToScene(QRectF(0, 0, viewport->width(), viewport->height()));
+        }
+        if (rect.isEmpty()) {
+            qWarning() << pngName << ": drawer page has no visible area";
+            return false;
+        }
+
+        const QImage window = _window->grabWindow();
+        if (window.isNull()) {
+            qWarning() << pngName << ": empty grab";
+            return false;
+        }
+        // grabWindow() returns device pixels while item geometry is in logical ones.
+        const qreal scale = window.width() / static_cast<qreal>(_window->width());
+        const QImage crop = window.copy(QRect(QPoint(qRound(rect.x() * scale), qRound(rect.y() * scale)),
+                                              QSize(qRound(rect.width() * scale), qRound(rect.height() * scale))));
+
+        const QString path = QDir(dir).filePath(pngName + QStringLiteral(".png"));
+        if (crop.isNull() || !crop.save(path)) {
+            qWarning() << pngName << ": cannot write" << path;
+            return false;
+        }
+        qDebug() << "screenshot" << path << crop.size();
+        return true;
+    };
+
+    if (!savePage(name)) {
+        return false;
+    }
+
+    // The expanded half is the rest of the page, and it is the half where a page lifted out of
+    // its old file quietly loses an outer-scope palette or settings object - the strings stay put
+    // and only the colours go wrong, so it has to be looked at rather than reasoned about.
+    QQuickItem *const expand = findVisibleItem(_rootItem, QStringLiteral("indicatorDrawerExpandButton"), 500);
+    if (expand && _clickItemAt(expand, 0.5, 0.5, QStringLiteral("indicatorDrawerExpandButton"))) {
+        if (!savePage(name + QStringLiteral("_expanded"))) {
+            return false;
+        }
+    }
+
+    QTest::keyClick(_window, Qt::Key_Escape);
+    return waitForCondition(
+        [&] { return findVisibleItem(_rootItem, QStringLiteral("indicatorDrawerLoader"), 0) == nullptr; },
+        2000,
+        QStringLiteral("indicatorDrawerLoader hidden"));
+}
+
+void ScreenshotTest::_captureIndicatorPages()
+{
+    runWithMockLink([] { return MockLink::startAPMArduCopterMockLink(MockConfiguration::OptionNone); },
+                    [this](QPointer<MockLink>, Vehicle *) {
+        // Both bars are listed and whichever one this build shows is the one walked: the stock
+        // toolbar is hidden under the police layout and the police bar is hidden without it, so
+        // the same slot produces the before/after crops on either side of the layout switch.
+        struct PageSpec { const char *indicatorObjectName; const char *pngName; };
+        static const PageSpec kPages[] = {
+            { "policeBar_batteryIndicator", "page_battery_police" },
+            { "policeBar_gpsIndicator",     "page_gps_police"     },
+            { "toolbar_batteryIndicator",   "page_battery_stock"  },
+            { "toolbar_gpsIndicator",       "page_gps_stock"      },
+        };
+
+        int grabbed = 0;
+        for (const PageSpec &spec : kPages) {
+            const QString indicator = QString::fromLatin1(spec.indicatorObjectName);
+            if (!findVisibleItem(_rootItem, indicator, 4000)) {
+                qDebug() << "indicator not in this layout, skipping:" << indicator;
+                continue;
+            }
+            QVERIFY2(_grabIndicatorPage(indicator, QString::fromLatin1(spec.pngName)),
+                     qPrintable(indicator));
+            grabbed++;
+        }
+        QVERIFY2(grabbed > 0, "no indicator was visible in either bar");
+    });
+}
+
 void ScreenshotTest::_captureNoVehicle()
 {
     startUI();
     if (QTest::currentTestFailed()) return;
+
+    // No aircraft means no pack, and the stock battery indicator answers that by hiding itself
+    // outright rather than offering an empty page. The police bar's battery carries the same
+    // condition on the item that takes the tap, so it must be gone here too.
+    QVERIFY2(!findVisibleItem(_rootItem, QStringLiteral("policeBar_batteryIndicator"), 500),
+             "police battery indicator still visible with no vehicle");
 
     _grab(QStringLiteral("ring_neg_0_no_vehicle"));
     stopUI();

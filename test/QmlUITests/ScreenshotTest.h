@@ -20,9 +20,19 @@ private slots:
 
     void _captureScreens();
 
+    /// The indicator drop-down pages, cropped to the page itself. The same page can be reached
+    /// from the police bar or from the stock toolbar, and only the crop is comparable between
+    /// the two - the drawer sits at a different x over a different background in each.
+    void _captureIndicatorPages();
+
 private:
     /// Wait for bindings/animations to settle, then write the live window to
     /// <QGC_SCREENSHOT_DIR>/<name>.png. Fails the test if the grab is empty or
     /// the file cannot be written.
     void _grab(const QString &name);
+
+    /// Click the indicator named \a indicatorObjectName, wait for its drop-down, and write the
+    /// page's own pixels to <QGC_SCREENSHOT_DIR>/<name>.png. Closes the drawer again so the
+    /// caller can walk several indicators. Returns false (after a qWarning) on any failure.
+    bool _grabIndicatorPage(const QString &indicatorObjectName, const QString &name);
 };

@@ -1222,6 +1222,7 @@ Item {
                 // fix is an ordinary sight on a cold start and would have drawn four full bars.
                 // A tap opens QGC's own GPS page, which this bar replaces.
                 Item {
+                    objectName:             "policeBar_gpsIndicator"
                     Layout.alignment:       Qt.AlignVCenter
                     Layout.preferredWidth:  gpsRow.implicitWidth
                     Layout.preferredHeight: Math.min(root._statusHeight, ScreenTools.minTouchPixels)
@@ -1281,29 +1282,46 @@ Item {
                 // keeps its digits. Upright cell, deliberately a different shape from the
                 // controller's flat one on the right - two identical glyphs are how 58% and 38%
                 // get read the wrong way round.
-                Row {
-                    Layout.alignment: Qt.AlignVCenter
-                    spacing:          ScreenTools.defaultFontPixelWidth * 0.5
-                    visible:          root._lowestBattery
+                // Wrapped the way the satellite group is, for the same reason: a tap wants a
+                // touch-sized target and a RowLayout child cannot anchor a MouseArea beside the
+                // Row. The wrapper carries the visibility, so with no pack there is nothing to
+                // press - which is what the stock indicator does, it hides itself outright.
+                Item {
+                    objectName:             "policeBar_batteryIndicator"
+                    Layout.alignment:       Qt.AlignVCenter
+                    Layout.preferredWidth:  batteryRow.implicitWidth
+                    Layout.preferredHeight: Math.min(root._statusHeight, ScreenTools.minTouchPixels)
+                    visible:                root._lowestBattery
 
-                    BarIcon {
-                        source: "/qmlimages/Battery.svg"
-                        tint:   root._batteryColor
+                    Row {
+                        id:               batteryRow
+                        anchors.centerIn: parent
+                        spacing:          ScreenTools.defaultFontPixelWidth * 0.5
+
+                        BarIcon {
+                            source: "/qmlimages/Battery.svg"
+                            tint:   root._batteryColor
+                        }
+
+                        BarText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            color:                  root._batteryColor
+                            font.weight:            Font.DemiBold
+                            font.pixelSize:         root._valueSize
+                            // Percentage when the pack reports one, its voltage when it does not.
+                            // Bindings run whether or not the group is visible, so the pack is
+                            // checked here too rather than only in the group's visibility.
+                            text:                   !root._lowestBattery
+                                                        ? ""
+                                                        : (isNaN(root._batteryPercent)
+                                                               ? root._lowestBattery.voltage.valueString + qsTr(" V")
+                                                               : qsTr("%1 %").arg(Math.round(root._batteryPercent)))
+                        }
                     }
 
-                    BarText {
-                        anchors.verticalCenter: parent.verticalCenter
-                        color:                  root._batteryColor
-                        font.weight:            Font.DemiBold
-                        font.pixelSize:         root._valueSize
-                        // Percentage when the pack reports one, its voltage when it does not.
-                        // Bindings run whether or not the group is visible, so the pack is
-                        // checked here too rather than only in the group's visibility.
-                        text:                   !root._lowestBattery
-                                                    ? ""
-                                                    : (isNaN(root._batteryPercent)
-                                                           ? root._lowestBattery.voltage.valueString + qsTr(" V")
-                                                           : qsTr("%1 %").arg(Math.round(root._batteryPercent)))
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked:    mainWindow.showIndicatorDrawer(batteryDetailPage, parent)
                     }
                 }
             }
@@ -1555,6 +1573,13 @@ Item {
         id: gpsDetailPage
 
         GPSIndicatorPage {}
+    }
+
+    // QGC's own battery detail, behind the battery group.
+    Component {
+        id: batteryDetailPage
+
+        BatteryIndicatorPage {}
     }
 
     // The aircraft's own messages, behind the message pictogram.
