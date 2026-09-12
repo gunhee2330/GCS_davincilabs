@@ -1536,6 +1536,20 @@ Item {
         }
     }
 
+    // Obstacle glow over the map. One instance rather than one per map engine: the police layer
+    // is built once whichever engine is loaded, and it is the only thing that knows where the map
+    // is still visible - the top bar covers the map's top and the camera column its right.
+    // z below every sibling so the tool strips and the instruments keep reading over it.
+    PoliceDroneObstacleGlow {
+        anchors.left:        parent.left
+        anchors.right:       parent.right
+        anchors.top:         topBar.bottom
+        anchors.bottom:      parent.bottom
+        anchors.rightMargin: root._windowWidth
+        z:                   -1
+        mapItem:             root.mapItem
+    }
+
     // QGC's own GPS detail, behind the satellite group.
     Component {
         id: gpsDetailPage

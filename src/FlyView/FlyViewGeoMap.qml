@@ -184,17 +184,6 @@ GeoMap {
         }
     }
 
-    // Proximity sensor arcs per vehicle
-    Repeater {
-        model: QGroundControl.multiVehicleManager.vehicles
-
-        FlyViewGeoProximityRadar {
-            scene: root.scene
-            surfaceModel: root.surfaceModel
-            vehicle: object
-        }
-    }
-
     // ADS-B traffic
     Repeater {
         model: QGroundControl.adsbVehicleManager.adsbVehicles
