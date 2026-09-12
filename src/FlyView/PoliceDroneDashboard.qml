@@ -2483,6 +2483,34 @@ Item {
                                  .rawValue.endsWith("HorizontalCompassAttitude.qml")
                 restoreMode: Binding.RestoreBindingOrValue
             }
+
+            // Around the compass dial, which is the pill's right-hand rounded end: that end's arc
+            // centre is the dial's centre, so the pill's own width and height place the ring and
+            // the shared compass widget stays untouched. Only for the horizontal instrument, for
+            // the same reason its width is only driven there -
+            // the other two put their compass somewhere else entirely.
+            PoliceDroneProximityRing {
+                active:        QGroundControl.settingsManager.flyViewSettings.instrumentQmlFile2
+                                   .rawValue.endsWith("HorizontalCompassAttitude.qml")
+                // The dial only turns under the nose-up setting; by default it is the card that
+                // stays put, so the top of the pill is north and the arcs have to follow heading.
+                northUp:       !QGroundControl.settingsManager.flyViewSettings.lockNoseUpCompass.rawValue
+                // The pill's rim is the ring's outer bound and the dial face its inner one. All the
+                // room there is between them is the margin HorizontalCompassAttitude keeps outside
+                // the dial, (width * 0.05) / 2; a band wider than that either buries the dial's
+                // ticks or paints on the attitude ball and the map either side of the pill.
+                ringRadius:    instrumentPanel.innerControl ? instrumentPanel.innerControl.height / 2 : 0
+                boldStroke:    instrumentPanel.innerControl ? instrumentPanel.innerControl.width * 0.025 : 0
+                warnStroke:    boldStroke * 0.7
+                // Nothing bright under these arcs to outline them against, and the outline would
+                // take half of the margin they have to fit in.
+                outlined:      false
+                x:             instrumentPanel.innerControl
+                                   ? instrumentPanel.innerControl.width - instrumentPanel.innerControl.height / 2 - (width / 2)
+                                   : 0
+                y:             instrumentPanel.innerControl ? (instrumentPanel.innerControl.height - height) / 2 : 0
+                showQuietRing: true
+            }
         }
 
         TelemetryValuesBar {
@@ -2737,6 +2765,7 @@ Item {
         showChrome:           root.expandedPanel === "primary"
         streamObjectName:     "fpvVideo"
         gimbalControlEnabled: false
+        proximityRingEnabled: true
         onActivated:          root._toggleExpanded("primary")
     }
 
