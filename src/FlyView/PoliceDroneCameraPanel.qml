@@ -21,6 +21,11 @@ Item {
     /// Only the stream the detector taps (videoContent) has results to draw.
     property bool personDetectionEnabled: false
 
+    /// Draws the proximity ring around the centre of the picture. Only for a camera bolted to
+    /// the airframe: the ring is vehicle-relative, so on a gimballed window its arcs would point
+    /// wherever the pod happens to be looking.
+    property bool proximityRingEnabled: false
+
     /// Enables long-press AI target selection on this panel.
     property bool targetPickEnabled: false
     property bool aiTargetVisible:      false
@@ -112,6 +117,15 @@ Item {
         targetHeight:  root.aiTargetHeight
         targetLabel:   root.aiTargetLabel
         fillMode:      Image.PreserveAspectCrop
+    }
+
+    // Centred on the panel rather than on contentRect: the fill mode crops rather than
+    // letterboxes, so the picture's centre is the panel's centre even before frames arrive.
+    PoliceDroneProximityRing {
+        anchors.centerIn:   parent
+        active:             root.proximityRingEnabled
+        ringRadius:         Math.min(root.width, root.height) * 0.33
+        showDistanceLabels: true
     }
 
     Rectangle {
