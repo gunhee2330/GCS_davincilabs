@@ -13,6 +13,11 @@ class ScreenshotTest : public QmlUITestBase
     Q_OBJECT
 
 private slots:
+    /// The ring must stay blank with no vehicle at all, so this walks the UI
+    /// before any MockLink exists. Its own slot because runWithMockLink() owns
+    /// the boot/teardown of the connected walk below.
+    void _captureNoVehicle();
+
     void _captureScreens();
 
 private:
