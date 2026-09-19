@@ -45,8 +45,8 @@ void injectProximity(Vehicle *vehicle, const double (&metresPerSector)[8])
         (void) mavlink_msg_distance_sensor_pack_chan(
             vehicle->id(), MAV_COMP_ID_AUTOPILOT1, MAVLINK_COMM_0, &msg,
             0,                                                           // time_boot_ms
-            20,                                                          // min_distance cm
-            4000,                                                        // max_distance cm -> 40 m
+            40,                                                          // min_distance cm
+            1200,                                                        // max_distance cm -> 12 m, a TF Mini's own range
             static_cast<uint16_t>(metresPerSector[sector] * 100.0),       // current_distance cm
             MAV_DISTANCE_SENSOR_LASER,
             static_cast<uint8_t>(sector),                                // id
@@ -209,12 +209,14 @@ void ScreenshotTest::_captureScreens()
             QTest::qWait(kSettleMs);
         }
 
-        // maxDistance is 40 m, so the bands sit at 24 m (60%) and 12 m (30%).
+        // The bands are absolute metres now: warn at 10 m, red under 7 m. "Far" is 11 m rather than
+        // the sensor's own 12 m ceiling, which the overlays read as a clear path rather than as an
+        // obstacle and would leave the far frame indistinguishable from a broken one.
         // Sectors 3 (YAW_135) and 5 (YAW_225) are never fed, so they stay NaN.
-        const double rgFar[8]   = { 35, 35, 35, kNoReading, 35, kNoReading, 35, 35 };
-        const double rgWarn[8]  = { 18, 35, 35, kNoReading, 35, kNoReading, 35, 35 };
-        const double rgBad[8]   = {  6, 35, 35, kNoReading, 35, kNoReading, 35, 35 };
-        const double rgMixed[8] = { 35, 35,  6, kNoReading, 35, kNoReading, 18, 35 };
+        const double rgFar[8]   = { 11, 11, 11, kNoReading, 11, kNoReading, 11, 11 };
+        const double rgWarn[8]  = { 8.5, 11, 11, kNoReading, 11, kNoReading, 11, 11 };
+        const double rgBad[8]   = {  4, 11, 11, kNoReading, 11, kNoReading, 11, 11 };
+        const double rgMixed[8] = { 11, 11,  4, kNoReading, 11, kNoReading, 8.5, 11 };
 
         // Armed but nothing injected yet, so the fact group has never seen a
         // DISTANCE_SENSOR: telemetryAvailable is false and the ring must stay blank.
@@ -255,8 +257,8 @@ void ScreenshotTest::_captureScreens()
         // can be seen to light on its own and no other.
         const char *const rgEdgeNames[4] = { "top", "right", "bottom", "left" };
         for (int corner = 0; corner < 4; corner++) {
-            double rgOneClose[8] = { 35, 35, 35, 35, 35, 35, 35, 35 };
-            rgOneClose[corner * 2] = 6;
+            double rgOneClose[8] = { 11, 11, 11, 11, 11, 11, 11, 11 };
+            rgOneClose[corner * 2] = 4;
             injectProximity(vehicle, rgOneClose);
             _grab(QStringLiteral("glow_%1_%2").arg(corner).arg(QLatin1String(rgEdgeNames[corner])));
             if (QTest::currentTestFailed()) return;

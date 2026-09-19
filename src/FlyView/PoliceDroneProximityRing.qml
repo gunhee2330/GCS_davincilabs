@@ -57,9 +57,18 @@ Item {
 
     readonly property var _vehicle: QGroundControl.multiVehicleManager.activeVehicle
 
-    // Fractions of maxDistance. Above _warnRatio nothing is drawn at all.
-    readonly property real _warnRatio: 0.6
-    readonly property real _badRatio:  0.3
+    // Metres, not a share of the sensor's range. Above _warnMetres nothing is drawn at all.
+    //
+    // A share of maxDistance moves the bands with whatever rangefinder is fitted, which reads well
+    // until the fitted one is a TF Mini: it tops out at 12 m, so the old 0.6/0.3 put the warning at
+    // 7.2 m and the red band at 3.6 m. At the 5 m/s this airframe flies, a stop the operator has to
+    // start themselves needs about 7.5 m - a second to see the band and reach the stick, then 2.5 m
+    // to shed the speed at MPC_ACC_HOR_MAX 5 m/s^2 - so red at 3.6 m arrives after the collision.
+    //
+    // 10 m and 7 m instead. 12 m is the sensor's own ceiling, where readings are least trustworthy
+    // and a band would simply be lit whenever anything is in view, so the warning starts below it.
+    readonly property real _warnMetres: 10
+    readonly property real _badMetres:  7
 
     readonly property real _outlineWidth: outlined ? 2 : 0
 
@@ -75,32 +84,38 @@ Item {
     readonly property real _headingRotation:
         (northUp && _vehicle && !isNaN(_vehicle.heading.rawValue)) ? _vehicle.heading.rawValue : 0
 
-    function _sectorRatio(sectorIndex) {
+    function _sectorDistance(sectorIndex) {
         const distance = proximityValues.rgRotationValues[sectorIndex]
         // A sector the aircraft has never reported comes through as NaN and must stay blank: the
         // ring covers eight directions, a given airframe rarely carries eight sensors.
-        if (isNaN(distance) || !(proximityValues.maxDistance > 0)) {
+        if (isNaN(distance) || (distance <= 0)) {
             return NaN
         }
-        return distance / proximityValues.maxDistance
+        // A reading sitting at the sensor's own ceiling is how a rangefinder says it saw nothing,
+        // not an obstacle parked exactly at the limit. Only checked when the ceiling is known.
+        const maxDistance = proximityValues.maxDistance
+        if ((maxDistance > 0) && (distance >= maxDistance)) {
+            return NaN
+        }
+        return distance
     }
 
     function _sectorStroke(sectorIndex) {
-        const ratio = _sectorRatio(sectorIndex)
-        if (isNaN(ratio) || ratio > _warnRatio) {
+        const distance = _sectorDistance(sectorIndex)
+        if (isNaN(distance) || distance > _warnMetres) {
             return 0
         }
-        return ratio < _badRatio ? boldStroke : warnStroke
+        return distance < _badMetres ? boldStroke : warnStroke
     }
 
     function _sectorColor(sectorIndex) {
-        const ratio = _sectorRatio(sectorIndex)
-        if (isNaN(ratio) || ratio > _warnRatio) {
+        const distance = _sectorDistance(sectorIndex)
+        if (isNaN(distance) || distance > _warnMetres) {
             return "transparent"
         }
         // Orange rather than yellow for the warning band: the palette's colorYellow is a pure
         // #ffff00, while colorOrange lands nearer the mockup's amber warning tone.
-        return ratio < _badRatio ? qgcPal.colorRed : qgcPal.colorOrange
+        return distance < _badMetres ? qgcPal.colorRed : qgcPal.colorOrange
     }
 
     function _sectorStartAngle(sectorIndex) {
@@ -187,7 +202,7 @@ Item {
             // past the panel's top edge and on top of the toolbar above.
             readonly property real _labelRadius: root._arcRadius - root.boldStroke - (height / 2)
 
-            visible: root.showDistanceLabels && (root._sectorRatio(index) < root._badRatio)
+            visible: root.showDistanceLabels && (root._sectorDistance(index) < root._badMetres)
             x:       (root.width  / 2) + (Math.cos(_angle) * _labelRadius) - (width  / 2)
             y:       (root.height / 2) + (Math.sin(_angle) * _labelRadius) - (height / 2)
             width:   distanceLabel.implicitWidth  + ScreenTools.defaultFontPixelWidth

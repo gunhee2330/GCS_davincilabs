@@ -29,9 +29,12 @@ Item {
 
     readonly property var _vehicle: QGroundControl.multiVehicleManager.activeVehicle
 
-    // Fractions of maxDistance, as on the ring. Above _warnRatio nothing is drawn at all.
-    readonly property real _warnRatio: 0.6
-    readonly property real _badRatio:  0.3
+    // Metres, as on the ring, and the same two numbers: the edge and the arc describe the same
+    // obstacle, so a band that lit at a different distance from its own arc would read as a second
+    // reading. See PoliceDroneProximityRing.qml for why the bands are absolute rather than a share
+    // of the sensor's range.
+    readonly property real _warnMetres: 10
+    readonly property real _badMetres:  7
 
     // A share of the map's own width, so the band keeps its weight on a 7in controller and on a
     // desk monitor alike.
@@ -42,30 +45,28 @@ Item {
         return heading + ((mapItem && mapItem.geoMap) ? mapItem.geoMap.camera.heading : 0)
     }
 
-    /// Closest reading per edge, as a fraction of maxDistance: top, right, bottom, left. NaN where
-    /// no sector bearing on that edge reported anything.
-    readonly property var _edgeRatios: {
-        const ratios = [NaN, NaN, NaN, NaN]
+    /// Closest reading per edge in metres: top, right, bottom, left. NaN where no sector bearing on
+    /// that edge reported anything.
+    readonly property var _edgeDistances: {
+        const distances = [NaN, NaN, NaN, NaN]
         const maxDistance = proximityValues.maxDistance
-        if (!(maxDistance > 0)) {
-            return ratios
-        }
         for (let sector = 0; sector < 8; ++sector) {
             const distance = proximityValues.rgRotationValues[sector]
-            // A sector this airframe does not carry arrives as NaN and leaves its edges dark.
-            if (isNaN(distance)) {
+            // A sector this airframe does not carry arrives as NaN and leaves its edges dark, and a
+            // reading at the sensor's own ceiling is it reporting a clear path rather than an
+            // obstacle at the limit.
+            if (isNaN(distance) || (distance <= 0) || ((maxDistance > 0) && (distance >= maxDistance))) {
                 continue
             }
-            const ratio = distance / maxDistance
             const screenAngle = (sector * 45) + root._screenRotation
             for (let edge = 0; edge < 4; ++edge) {
                 const offset = Math.abs(((screenAngle - (edge * 90)) % 360 + 540) % 360 - 180)
-                if (offset <= 45 && (isNaN(ratios[edge]) || ratio < ratios[edge])) {
-                    ratios[edge] = ratio
+                if (offset <= 45 && (isNaN(distances[edge]) || distance < distances[edge])) {
+                    distances[edge] = distance
                 }
             }
         }
-        return ratios
+        return distances
     }
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
@@ -86,8 +87,8 @@ Item {
 
             required property int index
 
-            readonly property real _ratio: root._edgeRatios[index]
-            readonly property bool _bad:   _ratio < root._badRatio
+            readonly property real _distance: root._edgeDistances[index]
+            readonly property bool _bad:      _distance < root._badMetres
 
             // Top and bottom ramp down the screen, left and right across it.
             readonly property bool _alongY: (index % 2) === 0
@@ -99,7 +100,7 @@ Item {
             readonly property color _glow: Qt.alpha(_bad ? qgcPal.colorRed : qgcPal.colorOrange,
                                                     _bad ? 0.8 : 0.45)
 
-            visible: !isNaN(_ratio) && (_ratio <= root._warnRatio)
+            visible: !isNaN(_distance) && (_distance <= root._warnMetres)
             x:       index === 1 ? root.width  - root._thickness : 0
             y:       index === 2 ? root.height - root._thickness : 0
             width:   _alongY ? root.width  : root._thickness
@@ -142,7 +143,7 @@ Item {
                     font.bold:        true
                     // One decimal: the fact's own valueString carries two, more precision than a
                     // proximity sensor earns and a wider pill for no gain.
-                    text:             (band._ratio * proximityValues.maxDistance).toFixed(1) + " m"
+                    text:             band._distance.toFixed(1) + " m"
                 }
             }
         }
