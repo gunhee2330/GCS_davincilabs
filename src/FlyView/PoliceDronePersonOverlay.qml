@@ -30,11 +30,13 @@ Item {
 
     required property VideoOutput videoOutput
 
-    /// How much of a person box, measured from the top, the mosaic covers. Generous on purpose:
-    /// what fraction of a body reads as head depends on the look-down angle, which moves with
-    /// altitude and gimbal pitch, and a mosaic stopping short of the chin leaves a face. Covering
-    /// too much costs picture and nothing else. Field-tune this one number, nowhere else.
-    readonly property real headFraction: 0.35
+    /// How much of a person box, measured from the top, the mosaic covers. Field trials showed
+    /// 0.35 reaching well past the chin onto the torso and legs, which costs picture the operator
+    /// needs to read a scene without covering any more of a face. What fraction of a body reads as
+    /// head still depends on the look-down angle, which moves with altitude and gimbal pitch, so a
+    /// steep near-nadir pass is where this is most likely to want raising again. Field-tune this
+    /// one number, nowhere else.
+    readonly property real headFraction: 0.20
 
     /// Pool size, and so the most mosaics drawn at once. Each is its own render target, so the cap
     /// is a budget on render-target switches rather than on fill rate; a crowd seen from the air
