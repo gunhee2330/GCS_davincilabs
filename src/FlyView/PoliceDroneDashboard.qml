@@ -2699,11 +2699,11 @@ Item {
 
         // Stacked, the card starts exactly where the telemetry bar does: pulling it left to fit a
         // wider card would slide it over the attitude and compass beside them.
-        // Full screen there is no instrument row to line up with, so the corner's x would only
-        // be where the map happened to leave it - a card sitting a little left of centre for no
-        // reason the operator can see. Centred on the screen instead, under the hint above it.
+        // Full screen the bottom edge carries two things - this card and the panel's own tracking
+        // slider - so they take an end each rather than both reaching for the middle, where they
+        // overlapped. The slider holds the left corner, the numbers the right.
         x:      root.expandedPanel.length > 0
-                    ? (root.width - width) / 2
+                    ? root.width - root._bottomInset - width
                     : (_beside ? Math.min(_besideX, _rightEdge - width)
                                : flightInstruments.x + telemetryBar.x)
         // Full screen there is no telemetry bar under it to sit on - the instruments go with the

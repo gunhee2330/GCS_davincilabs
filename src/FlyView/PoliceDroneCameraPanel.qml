@@ -335,23 +335,36 @@ Item {
     }
 
     // Same gesture as takeoff: a deliberate slide, because this one starts pointing the pod.
+    //
+    // Left corner and always on screen rather than appearing under the finger once a press has
+    // landed. Centred it sat on the detection card, which is the other thing the bottom edge
+    // carries full screen, and an operator who has never held a press down has no way to learn
+    // the control exists. Showing it idle costs one strip of picture and teaches the gesture:
+    // the slider reads as unavailable until a press proposes a target, which is the state it is
+    // actually in.
     Row {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom:           parent.bottom
-        anchors.bottomMargin:     ScreenTools.defaultFontPixelHeight
-        spacing:                  ScreenTools.defaultFontPixelWidth
-        visible:                  root._pendingBox !== null || root._pendingPoint !== null
+        anchors.left:         parent.left
+        anchors.bottom:       parent.bottom
+        anchors.leftMargin:   ScreenTools.defaultFontPixelWidth
+        anchors.bottomMargin: ScreenTools.defaultFontPixelHeight
+        spacing:              ScreenTools.defaultFontPixelWidth
+        visible:              root.targetPickEnabled
+
+        readonly property bool _pending: root._pendingBox !== null || root._pendingPoint !== null
 
         SliderSwitch {
             anchors.verticalCenter: parent.verticalCenter
             width:                  Math.min(implicitWidth * 1.2, root.width * 0.6)
-            confirmText:            qsTr("이 대상을 추적")
+            enabled:                parent._pending
+            opacity:                enabled ? 1 : 0.45
+            confirmText:            enabled ? qsTr("이 대상을 추적") : qsTr("화면을 길게 눌러 대상 선택")
             onAccept:               root._commitProposal()
         }
 
         QGCButton {
             anchors.verticalCenter: parent.verticalCenter
             text:                   qsTr("취소")
+            visible:                parent._pending
             onClicked:              root._clearProposal()
         }
     }
