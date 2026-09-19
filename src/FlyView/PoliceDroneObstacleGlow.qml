@@ -49,13 +49,11 @@ Item {
     /// that edge reported anything.
     readonly property var _edgeDistances: {
         const distances = [NaN, NaN, NaN, NaN]
-        const maxDistance = proximityValues.maxDistance
         for (let sector = 0; sector < 8; ++sector) {
             const distance = proximityValues.rgRotationValues[sector]
-            // A sector this airframe does not carry arrives as NaN and leaves its edges dark, and a
-            // reading at the sensor's own ceiling is it reporting a clear path rather than an
-            // obstacle at the limit.
-            if (isNaN(distance) || (distance <= 0) || ((maxDistance > 0) && (distance >= maxDistance))) {
+            // A sector this airframe does not carry arrives as NaN and leaves its edges dark. The
+            // sensor's reported maximum is not consulted, for the reason given on the ring.
+            if (isNaN(distance) || (distance <= 0)) {
                 continue
             }
             const screenAngle = (sector * 45) + root._screenRotation

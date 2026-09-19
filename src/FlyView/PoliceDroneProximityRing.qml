@@ -10,8 +10,9 @@ import QGroundControl.Controls
 /// is already the nose - the video window - the arcs are drawn as they come; over a dial that keeps
 /// north at the top they are turned by the heading instead (northUp).
 ///
-/// Distances are read as a fraction of the sensor's own maxDistance, so a different rangefinder
-/// moves the bands with it rather than needing new numbers here.
+/// The bands are metres, set from how far this airframe needs to stop rather than from a share of
+/// whatever range the fitted rangefinder happens to report. Refit the sensor and these numbers are
+/// the ones to revisit; see _warnMetres.
 Item {
     id:         root
     objectName: "policeDroneProximityRing"
@@ -88,13 +89,13 @@ Item {
         const distance = proximityValues.rgRotationValues[sectorIndex]
         // A sector the aircraft has never reported comes through as NaN and must stay blank: the
         // ring covers eight directions, a given airframe rarely carries eight sensors.
+        // Deliberately not compared against the sensor's reported maximum. maxDistance is one
+        // shared fact that every DISTANCE_SENSOR overwrites whatever its orientation
+        // (VehicleDistanceSensorFactGroup.cc:57-58), so once a second rangefinder is fitted - a
+        // downward lidar, say - it carries that one's ceiling and not this sector's. A TF Mini
+        // reports past its own declared 12 m anyway, out to 20 m in the flight logs, so the
+        // comparison would discard real readings while catching nothing.
         if (isNaN(distance) || (distance <= 0)) {
-            return NaN
-        }
-        // A reading sitting at the sensor's own ceiling is how a rangefinder says it saw nothing,
-        // not an obstacle parked exactly at the limit. Only checked when the ceiling is known.
-        const maxDistance = proximityValues.maxDistance
-        if ((maxDistance > 0) && (distance >= maxDistance)) {
             return NaN
         }
         return distance
