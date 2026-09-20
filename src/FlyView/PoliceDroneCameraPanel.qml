@@ -148,12 +148,14 @@ Item {
         }
     }
 
-    /// A dot and a word for one piece of state. Grey when it is not happening - idle is not a
-    /// fault, and a red resting state reads as one across a whole flight.
+    /// A dot and a word for one piece of state: neon green while it is happening, grey while it
+    /// is not - idle is not a fault, and a red resting state reads as one across a whole flight.
+    /// The word alone says which state; whether it is on is the colour's job.
     component StateChip: Rectangle {
         property bool   lit
-        property color  litColor
         property string label
+
+        readonly property color _litColor: "#39ff14"
 
         width:  chipRow.implicitWidth + 16
         height: chipRow.implicitHeight + 8
@@ -170,12 +172,14 @@ Item {
                 width:                  Math.max(9, ScreenTools.defaultFontPixelHeight * 0.42)
                 height:                 width
                 radius:                 width / 2
-                color:                  lit ? litColor : "#9aa3ab"
+                color:                  lit ? _litColor : "#9aa3ab"
             }
 
             Text {
+                // Read by the chip test, inside one chip's own subtree.
+                objectName:             "policeCameraStateChipText"
                 anchors.verticalCenter: parent.verticalCenter
-                color:                  lit ? litColor : "#9aa3ab"
+                color:                  lit ? _litColor : "#9aa3ab"
                 font.bold:              true
                 font.pixelSize:         Math.max(11, ScreenTools.defaultFontPixelHeight * 0.62)
                 text:                   label
@@ -188,6 +192,7 @@ Item {
     // as well as full screen - this is state, not chrome naming the window.
     Row {
         id:              stateChips
+        objectName:      "policeCameraStateChips"
         anchors.right:   parent.right
         anchors.top:     parent.top
         anchors.margins: 8
@@ -196,17 +201,15 @@ Item {
 
         // Follow leads: it is the one that moves the airframe.
         StateChip {
-            visible:  root.followActive !== null
-            lit:      root.followActive === true
-            litColor: "#1f9fd0"
-            label:    lit ? qsTr("추종 중") : qsTr("추종 대기")
+            visible: root.followActive !== null
+            lit:     root.followActive === true
+            label:   qsTr("추종")
         }
 
         StateChip {
-            visible:  root.trackingActive !== null
-            lit:      root.trackingActive === true
-            litColor: "#42d66b"
-            label:    lit ? qsTr("추적 중") : qsTr("추적 대기")
+            visible: root.trackingActive !== null
+            lit:     root.trackingActive === true
+            label:   qsTr("추적")
         }
     }
 

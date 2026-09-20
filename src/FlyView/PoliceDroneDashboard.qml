@@ -739,16 +739,22 @@ Item {
     // bottom. The size the owner picked off the previews.
     readonly property real _windowScale: 0.6
 
+    // The zoom and thermal pair carry the pod's picture and the detections drawn on it, so they
+    // are read from further away than the fixed forward camera and the owner sized them up on
+    // their own. The forward window keeps _windowScale.
+    readonly property real _stackWindowScale: 0.7
+
     // Height, not width, drives the 16:9 bodies: the band's height is what the map can spare.
     readonly property real _windowWidth: {
         const avail = height - topBar.height
         return avail * 16 / (9 * _windowCount) * _windowScale
     }
 
-    // The three windows sit in one band along the bottom: the forward camera at the left edge of
-    // the instrument row, the zoom and thermal stacked in the bottom right corner. The left edge
-    // of that corner is the right limit of everything inboard of it.
-    readonly property real _cornerStackX: width - _windowWidth
+    readonly property real _stackWindowWidth: _windowWidth * _stackWindowScale / _windowScale
+    readonly property real _stackWindowHeight: _stackWindowWidth * 9 / 16
+
+    // The left edge of the zoom/thermal stack in the bottom right corner.
+    readonly property real _columnX: width - _stackWindowWidth
 
     property bool _userMovedWindows: false
 
@@ -759,8 +765,10 @@ Item {
         // card slide right of it on their own.
         primaryWindow.x   = flightInstruments.x + forwardSpacer.x
         primaryWindow.y   = bottom - primaryWindow.height
-        secondaryWindow.x = _cornerStackX
-        sharedWindow.x    = _cornerStackX
+        // Zoom over thermal in the bottom right corner, thermal on the forward window's own
+        // baseline, so the three windows read as one band along the bottom edge.
+        secondaryWindow.x = _columnX
+        sharedWindow.x    = _columnX
         sharedWindow.y    = bottom - sharedWindow.height
         secondaryWindow.y = sharedWindow.y - secondaryWindow.height
     }
@@ -894,6 +902,8 @@ Item {
     // whether a value was lost or was never there.
     Rectangle {
         id: topBar
+        // Read by the layout test, which holds the camera tool strip below this bar.
+        objectName:    "policeTopBar"
         anchors.left:  parent.left
         anchors.right: parent.right
         anchors.top:   parent.top
@@ -1545,15 +1555,29 @@ Item {
 
     // Obstacle glow over the map. One instance rather than one per map engine: the police layer
     // is built once whichever engine is loaded, and it is the only thing that knows where the map
-    // is still visible - the top bar covers the map's top, and the camera band only its bottom.
+    // is still visible - the top bar covers the map's top. No right margin: the camera stack
+    // covers only the bottom right corner, and a margin that cleared it would leave the
+    // right-hand band floating a window's width inside the map for the whole of the rest.
     // z below every sibling so the tool strips and the instruments keep reading over it.
     PoliceDroneObstacleGlow {
+        id:                  obstacleGlow
         anchors.left:        parent.left
         anchors.right:       parent.right
         anchors.top:         topBar.bottom
         anchors.bottom:      parent.bottom
         z:                   -1
         mapItem:             root.mapItem
+
+        // The forward number sits under the top bar, which is also where the confirm control and
+        // the two banners drop in; all three are above this glow and would bury it. The lowest of
+        // whichever are up, in this item's own coordinates. The confirm host is already anchored
+        // below the banners, so its term covers those as well when it is up.
+        topLabelInset: Math.max(linkLostBanner.visible
+                                    ? linkLostBanner.y + linkLostBanner.height - obstacleGlow.y : 0,
+                                followModeBanner.visible
+                                    ? followModeBanner.y + followModeBanner.height - obstacleGlow.y : 0,
+                                guidedConfirmHost.contentBottom > 0
+                                    ? guidedConfirmHost.y + guidedConfirmHost.contentBottom - obstacleGlow.y : 0)
     }
 
     // QGC's own GPS detail, behind the satellite group.
@@ -1645,9 +1669,11 @@ Item {
         property string detail
         property string panelKey
         property alias slot: contentSlot
+        /// The forward window and the zoom/thermal stack are at two different scales.
+        property real bodyWidth: root._windowWidth
 
-        width:  root._windowWidth
-        height: root._windowWidth * 9 / 16
+        width:  bodyWidth
+        height: bodyWidth * 9 / 16
         // Tapping a camera fills the screen with it. The other two windows go with it: they sit
         // over the picture the operator zoomed in to see. Only the map stays, small, in the
         // corner.
@@ -1673,6 +1699,9 @@ Item {
         }
 
         Rectangle {
+            // Read by the layout test, which holds the state chips clear of this one. Every
+            // window carries the same name; the test looks it up inside one window's subtree.
+            objectName:         "cameraWindowTitleChip"
             anchors.left:       parent.left
             anchors.top:        parent.top
             anchors.margins:    6
@@ -1720,6 +1749,7 @@ Item {
         id:         secondaryWindow
         objectName: "cameraWindowSecondary"
         panelKey:   "secondary"
+        bodyWidth:  root._stackWindowWidth
         // Operator words, not industry ones: zoom / wide / thermal, never EO or IR.
         title:      root._aiStreamActive ? qsTr("AI 인식")
                                          : (root.eoShowsWideAngle ? qsTr("광각") : qsTr("줌"))
@@ -1729,6 +1759,7 @@ Item {
         id:         sharedWindow
         objectName: "cameraWindowShared"
         panelKey:   "shared"
+        bodyWidth:  root._stackWindowWidth
         title:      qsTr("열상")
         // At night thermal and the laser rangefinder work as a pair, so the distance lives
         // on this window's bar once readings arrive. No reading, no text.
@@ -1787,6 +1818,7 @@ Item {
 
     ToolStrip {
         id:                 toolStrip
+        objectName:         "policeGuidedToolStrip"
         anchors.left:       parent.left
         anchors.leftMargin: 8
         anchors.top:        topBar.bottom
@@ -1795,7 +1827,10 @@ Item {
         // ToolStrip's own default, which still clears four Korean characters at the strip's
         // small font. The buttons size themselves to their labels inside it.
         width:              ScreenTools.defaultFontPixelWidth * 7
-        maxHeight:          root.height - root._bottomInset - y - 8
+        // Stops a gap above the forward window rather than at the bottom inset: with every entry
+        // showing, a strip measured to the bottom edge ran straight over that window at tablet
+        // scale. ToolStrip scrolls whatever does not fit inside maxHeight.
+        maxHeight:          root.height - root._bottomInset - (root._windowWidth * 9 / 16) - 8 - y
         model:              policeToolActions.model
     }
 
@@ -1871,21 +1906,27 @@ Item {
                 // recognition setting, and it is the one control here that costs about 100 ms of
                 // tablet CPU per frame, so the operator needs to be able to drop it on its own.
                 //
-                // Labelled with what pressing it does, like 경고방송, rather than made checkable:
-                // ToolStrip clears every other checked button when one is checked, so a second
-                // checkable action in this strip would knock the AI highlight out and take its
-                // binding with it.
+                // One label in every state. A strip label neither wraps nor elides, so 모자이크 불가
+                // came out clipped at both ends; the state is carried by the button instead, the
+                // way the AI entry above carries its own.
                 //
-                // Three labels, not two. The switch being on does not mean anything is being
-                // mosaicked: a model that failed to load leaves active false with enabled true, the
-                // overlay draws nothing, and a label reading only the switch would say the faces
-                // are covered while they are on screen. active is the detector's own answer.
-                text:        !App.PersonDetector.enabled ? qsTr("모자이크")
-                             : App.PersonDetector.active ? qsTr("모자이크끔")
-                                                         : qsTr("모자이크 불가")
+                // Three states, not two. The switch being on does not mean anything is being
+                // mosaicked: a model that failed to load leaves active false with enabled true and
+                // the overlay draws nothing, so that case is greyed out rather than lit. active is
+                // the detector's own answer, enabled only the operator's request.
+                objectName:  "policeMosaicToolAction"
+                text:        qsTr("모자이크")
                 iconSource:  App.PersonDetector.active ? "qrc:/InstrumentValueIcons/view-show.svg"
                                                        : "qrc:/InstrumentValueIcons/view-hide.svg"
-                onTriggered: App.PersonDetector.enabled = !App.PersonDetector.enabled
+                checked:     App.PersonDetector.enabled && App.PersonDetector.active
+                enabled:     !App.PersonDetector.enabled || App.PersonDetector.active
+                onTriggered: {
+                    App.PersonDetector.enabled = !App.PersonDetector.enabled
+                    // The strip button echoes its own checked back into this action, which drops
+                    // the binding above the first time the detector answers; put it back so the
+                    // lit state keeps following the detector, the way the AI entry does.
+                    checked = Qt.binding(() => App.PersonDetector.enabled && App.PersonDetector.active)
+                }
             },
             ToolStripAction {
                 // Aircraft follow. This one flies the aircraft, so it opens a panel to slide for
@@ -1939,7 +1980,9 @@ Item {
     readonly property real _cameraStripRight:
         width - ((_altitudeSlider && _altitudeSlider.visible) ? _altitudeSlider.width : 0) - 8
 
-    ToolStrip {
+    // Two columns rather than the stock strip's one: six entries in a single column ran past
+    // the zoom window at tablet font metrics and the last of them had to be scrolled for.
+    PoliceCameraToolGrid {
         id:                 cameraToolStrip
         objectName:         "policeCameraToolStrip"
         x:                  root._cameraStripRight - width
@@ -1948,18 +1991,22 @@ Item {
         // Under the left strip's click-away layer (its z - 1), so a tap here while the
         // 복귀고도 panel is open closes that panel instead of firing a camera command.
         z:                  toolStrip.z - 2
-        width:              ScreenTools.defaultFontPixelWidth * 7
-        // Folded away by the handle beside it. It is a column of buttons down the middle of the
+        // Folded away by the handle beside it. It is a block of buttons in the middle of the
         // screen and the map beneath it is what the operator reads between camera actions, so it
         // gets out of the way the same way the plan view's mission panel does.
         visible:            root.cameraStripOpen
-        // Stops above the detection card, but only where the card is actually underneath: on a
-        // screen wide enough for the card to sit clear of this column, deferring to it anyway
-        // clipped the top of the strip off.
+        // The strip shares the right edge with the zoom/thermal stack below it, so it stops above
+        // the zoom window's top. It also stops above the detection card where the card is actually
+        // underneath - on a screen wide enough for the card to sit clear of this column, deferring
+        // to it anyway clipped the top of the strip off. The lower of the two floors wins.
+        // Counted off the dock arithmetic, not off the windows, which the operator can drag away.
+        // A safety floor only: at two columns all six entries fit well inside it, and whatever
+        // would not fit scrolls, as it does in the stock strip.
         maxHeight: {
             const clearsCard = (aiPanel.x >= x + width) || (aiPanel.x + aiPanel.width <= x)
-            const floor = clearsCard ? (root.height - root._bottomInset) : (aiPanel.y - 8)
-            return floor - y
+            const cardFloor = clearsCard ? (root.height - root._bottomInset) : (aiPanel.y - 8)
+            const stackFloor = root.height - root._bottomInset - root._stackWindowHeight * 2 - 8
+            return Math.min(cardFloor, stackFloor) - y
         }
         model:              cameraToolActions.model
     }
@@ -2466,20 +2513,6 @@ Item {
     readonly property bool _showSingleVehicleUI: true
     readonly property real _toolsMargin: ScreenTools.defaultFontPixelWidth * 0.75
 
-    // Stacked, the detection card and the telemetry bar share one width (see aiPanel below), and
-    // the bar is the one that sets it: at its own implicit width it has no empty strip down its
-    // right-hand side, and the card's stats spread out to meet it. The clamp is what keeps the
-    // block from running under the zoom and thermal windows in the bottom right corner.
-    // Measured off the instrument panel rather than telemetryBar.x, which is what this decides.
-    readonly property real _cornerLeft:     flightInstruments.x +
-                                            (instrumentPanel.visible
-                                                 ? instrumentPanel.width + flightInstruments.spacing
-                                                 : 0) +
-                                            forwardSpacer.width + flightInstruments.spacing
-    // The zoom/thermal corner is what the block must stop short of. Not the camera tool strip:
-    // that one steps left while the altitude slider is up, and the bar would move with it.
-    readonly property real _cornerMaxWidth: _cornerStackX - 8 - _cornerLeft
-
     // The compass pill is the third thing in that corner and it sizes itself off the window,
     // which left it a good deal shorter than the two storeys beside it. HorizontalCompassAttitude
     // takes width as its only input and derives the rest from it - its _topBottomMargin,
@@ -2488,17 +2521,18 @@ Item {
     // resolved ones run back through the bar's width and into this.
     readonly property real _compassHeightPerWidth: 0.5125
     readonly property real _cornerStackHeight:     aiPanel.implicitHeight + 6 + telemetryBar.implicitHeight
-    // Short of the block beside it on purpose. Matched exactly, the pill was the largest thing
-    // in the corner and the dial inside it far bigger than it needs to be to read a heading off;
-    // the width it gives up here goes to the card and the bar, which have counts to fit.
-    readonly property real _compassOfStack:        0.78
-    // Never at the bar's expense: a pill wide enough to squeeze the values it sits next to has
-    // matched the wrong thing. The room the row has left is what the zoom/thermal corner leaves
-    // it, less the forward window's own slot in the row.
+    // A notch short of the two rows beside it, card top to bar bottom. Matched to them exactly
+    // the pill was the tallest thing on the bottom edge; the height it gives up here is room the
+    // two rows get back at their left end, and the dial still reads.
+    readonly property real _instrumentHeightOfStack: 0.85
+    // How much of the panel's own window colour the pill's background keeps.
+    readonly property real _instrumentBackgroundAlpha: 0.5
+    // The pill takes whatever width that height needs at its own proportions. No clamp against
+    // the room the rows want: clamped to leave the bar its width the pill came out half size on
+    // the tablet with its numbers on top of each other. The instruments win and the rows give
+    // way - what stops short instead is the camera tool strip above them, through its maxHeight.
     readonly property real _instrumentWidth:
-        Math.min((_cornerStackHeight * _compassOfStack) / _compassHeightPerWidth,
-                 _cornerStackX - 16 - (flightInstruments.spacing * 2) - _windowWidth -
-                     telemetryBar.implicitWidth)
+        (_cornerStackHeight * _instrumentHeightOfStack) / _compassHeightPerWidth
 
     // The instrument row along the bottom left: the forward camera's slot at the edge, then
     // attitude and compass, then the telemetry values. QGC's FlyViewBottomRightRowLayout puts
@@ -2549,6 +2583,21 @@ Item {
                 restoreMode: Binding.RestoreBindingOrValue
             }
 
+            // The map reads through the pill's background while everything drawn on it stays
+            // solid. The background is the stock widget's own root Rectangle, so its colour is
+            // overridden here at half alpha; opacity on the pill would take the attitude ball,
+            // the dial, the numbers and the proximity ring down with it. Nothing happens on an
+            // instrument variant that has no colour of its own.
+            Binding {
+                target:      instrumentPanel.innerControl
+                property:    "color"
+                value:       Qt.rgba(qgcPal.window.r, qgcPal.window.g, qgcPal.window.b,
+                                     root._instrumentBackgroundAlpha)
+                when:        (instrumentPanel.innerControl !== null) &&
+                             (instrumentPanel.innerControl.color !== undefined)
+                restoreMode: Binding.RestoreBindingOrValue
+            }
+
             // Around the compass dial, which is the pill's right-hand rounded end: that end's arc
             // centre is the dial's centre, so the pill's own width and height place the ring and
             // the shared compass widget stays untouched. Only for the horizontal instrument, for
@@ -2583,15 +2632,11 @@ Item {
             // Read by the layout test.
             objectName:             "policeTelemetryBar"
             Layout.alignment:       Qt.AlignBottom
-            // When the detection card stacks on top of this bar the two share a width, so the
-            // bottom-left corner reads as one block rather than two ragged strips. -1 leaves the
-            // bar at its own implicit width whenever the card sits beside it instead.
-            // The whole band between the compass and the camera strip. Not conditioned on which
-            // side the card takes: the card reads this width to decide that, and reading it back
-            // here was a binding loop Qt broke whichever way it happened to evaluate first.
-            // Wider than its own content now, so the values inside it centre rather than sitting
-            // against the left edge with the surplus pooled on the right.
-            Layout.preferredWidth:  Math.max(implicitWidth, root._cornerMaxWidth)
+            // The card stacks on this bar and the two share one width, so the bottom band reads
+            // as one block rather than two ragged strips. The wider of the two contents sets it
+            // and nothing else does: stretched to a screen inset instead, the block was wider
+            // than anything in it and the values pooled in the middle of it.
+            Layout.preferredWidth:  Math.max(implicitWidth, aiPanel.implicitWidth)
             settingsGroup:          factValueGrid.telemetryBarSettingsGroup
             specificVehicleForCard: null // Tracks the active vehicle
         }
@@ -2672,35 +2717,35 @@ Item {
         // from the live map item rather than a second map instance, the way the EO window
         // mirrors the main video; the texture is kept at the copy's own size so it costs little.
         Item {
-            id:      mapPip
-            // The 55 percent was picked against the unscaled window width; taken off the
-            // shrunken one as well the map copy is too small to read a position off, so the
-            // band's scale is divided back out here.
-            width:   (root._windowWidth / root._windowScale) * 0.55
+            // Read by the layout test.
+            objectName: "policeFullscreenMapPip"
+            // Off the screen width, not the camera band's: this is the only map on screen while
+            // a camera is full, and a fraction of a window that the owner keeps resizing left it
+            // too small to read a position off.
+            width:   parent.width * 0.27
             height:  width * 9 / 16
             x:       parent.width - width - 8
             y:       parent.height - height - 8
             z:       3
             visible: root.mapItem !== null
 
+            // Only a backdrop for the frame or two before the mirror has a texture: no border,
+            // no inset, and square, since rounding it would need a mask over the mirror that
+            // the software backend does not draw, leaving corners peeking out behind the copy.
             Rectangle {
                 anchors.fill: parent
-                radius:       6
                 color:        root._panelColor
-                border.color: "#526675"
-                border.width: 1
             }
 
             // No title bar here. It is visibly a map, it cannot be dragged (it sits in the
             // swapped window's slot), and the bar only shrank the tap target - the whole
             // point of this thing is to be tapped.
             ShaderEffectSource {
-                id:              mapMirror
-                anchors.fill:    parent
-                anchors.margins: 2
-                sourceItem:      root.mapItem
-                live:            true
-                textureSize:     Qt.size(Math.round(width * 2), Math.round(height * 2))
+                id:           mapMirror
+                anchors.fill: parent
+                sourceItem:   root.mapItem
+                live:         true
+                textureSize:  Qt.size(Math.round(width * 2), Math.round(height * 2))
                 // A centred band of the map with this window's aspect, so the copy is not
                 // squeezed and the vehicle, which the map keeps near its centre, stays in it.
                 sourceRect: {
@@ -2733,6 +2778,8 @@ Item {
         // is not pulled back to it as it goes.
         Rectangle {
             id:                   hintChip
+            // Read by the layout test, which holds the centred detection card clear of it.
+            objectName:           "policeFullscreenHint"
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom:       parent.bottom
             // Above the detection card, which floats over this layer.
@@ -2780,51 +2827,32 @@ Item {
         }
     }
 
-    // Detection strip stacked on the telemetry bar, so the bottom band holds all the numbers
-    // between the forward window and the zoom/thermal corner. Floats above the full screen
-    // layer the way the windows do.
+    // Detection strip stacked on the telemetry bar, so the bottom band is two rows deep right of
+    // the compass. Floats above the full screen layer the way the windows do.
     PoliceDroneAiPanel {
         id: aiPanel
 
         // Read by the layout test.
         objectName: "policeAiPanel"
 
-        // Beside the telemetry bar, same height, so the two read as one instrument row. On a
-        // narrow screen the zoom/thermal corner takes that space, and the card sits above the
-        // bar instead of running under the windows.
-        readonly property real _besideX:  flightInstruments.x + telemetryBar.x + telemetryBar.width + 6
-        readonly property real _rightEdge: root._cornerStackX - 6
-        // Against implicitWidth, not width: beside the bar the card is at its implicit width
-        // anyway, and testing the width this decides made the question depend on its own answer.
-        readonly property bool _beside:   _besideX + implicitWidth <= _rightEdge
-
-        // Stacked, the card starts exactly where the telemetry bar does: pulling it left to fit a
-        // wider card would slide it over the attitude and compass beside them.
-        // Full screen the bottom edge carries two things - this card and the panel's own tracking
-        // slider - so they take an end each rather than both reaching for the middle, where they
-        // overlapped. The slider holds the left corner, the numbers the right.
+        // The card starts exactly where the telemetry bar does: pulling it left to fit a wider
+        // card would slide it over the attitude and compass beside them.
+        // Full screen the map in the right corner takes a quarter of the width, so the counts go
+        // to the middle of the bottom edge instead of into the gap beside it.
         x:      root.expandedPanel.length > 0
-                    ? root.width - root._bottomInset - width
-                    : (_beside ? Math.min(_besideX, _rightEdge - width)
-                               : flightInstruments.x + telemetryBar.x)
+                    ? (root.width - width) / 2
+                    : flightInstruments.x + telemetryBar.x
         // Full screen there is no telemetry bar under it to sit on - the instruments go with the
         // map - so the card was left hanging one bar's height above the bottom edge, over the
         // picture, with the fullscreen hint drawn through it. Against the bottom instead, which
         // is where the hint already expects to find it.
         y:      root.expandedPanel.length > 0
                     ? root.height - root._bottomInset - height
-                    : (_beside ? flightInstruments.y + telemetryBar.y
-                               : flightInstruments.y + telemetryBar.y - 6 - height)
-        // Stacked above the bar the two share exactly one width, so the block reads as one and
-        // the card cannot reach across into the zoom/thermal corner - the stats share the
-        // narrower width out between themselves instead. Beside the bar it keeps its own width.
-        width:  _beside ? implicitWidth : telemetryBar.width
-
-        // The bar's height is configurable down to a single row, which is shorter than this
-        // card's own two lines; matching it is what is wanted, being crushed by it is not. That
-        // only applies side by side - stacked, the card keeps its own height so the two together
-        // stay about as tall as the instruments beside them.
-        height: _beside ? Math.max(implicitHeight, telemetryBar.height) : implicitHeight
+                    : flightInstruments.y + telemetryBar.y - 6 - height
+        // One width with the bar under it, which the bar resolves from the wider of the two.
+        // Full screen there is no bar on screen to match, so the card keeps its own width.
+        width:  root.expandedPanel.length > 0 ? implicitWidth : telemetryBar.width
+        height: implicitHeight
         z:      root.expandedPanel.length > 0 ? 21 : 3
     }
 
@@ -2844,6 +2872,8 @@ Item {
 
     PoliceDroneCameraPanel {
         id:                   secondaryPanel
+        // Read by the chip test, which drives follow and tracking on this panel.
+        objectName:           "policeZoomCameraPanel"
         parent:               root.expandedPanel === "secondary" ? fullscreenLayer : secondaryWindow.slot
         anchors.fill:         parent
         // Named for the sensor on screen, not the pipe it came through: AI pins the main
@@ -2902,6 +2932,7 @@ Item {
     // here, the fullscreen camera at 20 and the track toast at 30 included, so a confirmation
     // the operator asked for is never buried.
     PoliceGuidedConfirmHost {
+        id:                       guidedConfirmHost
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top:              followModeBanner.visible
                                       ? followModeBanner.bottom
