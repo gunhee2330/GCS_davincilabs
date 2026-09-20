@@ -735,28 +735,34 @@ Item {
     /// One window per sensor: the FPV camera, the pod's main stream and the pod's thermal.
     readonly property int _windowCount: 3
 
-    // The windows stack down the right edge, so the width driving their 16:9 bodies is bounded
-    // by the height left between the top bar and the control panel below them — sized on width
-    // alone the last window would run off the bottom.
+    // Fraction of the width the three windows had when they filled the right column top to
+    // bottom. The size the owner picked off the previews.
+    readonly property real _windowScale: 0.6
+
+    // Height, not width, drives the 16:9 bodies: the band's height is what the map can spare.
     readonly property real _windowWidth: {
-        // The three windows fill the whole right column, top bar to bottom edge, flush and
-        // borderless. Height drives width at 16:9, so they stack edge to edge with no gap
-        // above or below. No width cap: filling the column top-to-bottom is what was asked.
         const avail = height - topBar.height
-        return avail * 16 / (9 * _windowCount)
+        return avail * 16 / (9 * _windowCount) * _windowScale
     }
+
+    // The three windows sit in one band along the bottom: the forward camera at the left edge of
+    // the instrument row, the zoom and thermal stacked in the bottom right corner. The left edge
+    // of that corner is the right limit of everything inboard of it.
+    readonly property real _cornerStackX: width - _windowWidth
 
     property bool _userMovedWindows: false
 
     function _dockWindows() {
-        const windows = [primaryWindow, secondaryWindow, sharedWindow]
-        const xDock = width - _windowWidth
-        let y = topBar.height
-        for (let i = 0; i < windows.length; ++i) {
-            windows[i].x = xDock
-            windows[i].y = y
-            y += windows[i].height
-        }
+        const bottom = height - _bottomInset
+        // The instrument row keeps its first slot for the forward window (forwardSpacer), so it
+        // lands on the row's own left inset and the compass, the telemetry bar and the detection
+        // card slide right of it on their own.
+        primaryWindow.x   = flightInstruments.x + forwardSpacer.x
+        primaryWindow.y   = bottom - primaryWindow.height
+        secondaryWindow.x = _cornerStackX
+        sharedWindow.x    = _cornerStackX
+        sharedWindow.y    = bottom - sharedWindow.height
+        secondaryWindow.y = sharedWindow.y - secondaryWindow.height
     }
 
     // Re-dock until the operator moves a window; afterwards positions are theirs. Both
@@ -1539,14 +1545,13 @@ Item {
 
     // Obstacle glow over the map. One instance rather than one per map engine: the police layer
     // is built once whichever engine is loaded, and it is the only thing that knows where the map
-    // is still visible - the top bar covers the map's top and the camera column its right.
+    // is still visible - the top bar covers the map's top, and the camera band only its bottom.
     // z below every sibling so the tool strips and the instruments keep reading over it.
     PoliceDroneObstacleGlow {
         anchors.left:        parent.left
         anchors.right:       parent.right
         anchors.top:         topBar.bottom
         anchors.bottom:      parent.bottom
-        anchors.rightMargin: root._windowWidth
         z:                   -1
         mapItem:             root.mapItem
     }
@@ -1643,9 +1648,9 @@ Item {
 
         width:  root._windowWidth
         height: root._windowWidth * 9 / 16
-        // Tapping a camera fills the screen with it. The column goes with it: on a tablet the
-        // three windows cover a third of the width, which is most of what the operator zoomed
-        // in to see. Only the map stays, small, at the bottom.
+        // Tapping a camera fills the screen with it. The other two windows go with it: they sit
+        // over the picture the operator zoomed in to see. Only the map stays, small, in the
+        // corner.
         visible: root.expandedPanel.length === 0
         z:       10
 
@@ -1701,31 +1706,35 @@ Item {
     }
 
     CameraWindow {
-        id:       primaryWindow
-        panelKey: "primary"
-        title:    qsTr("전방")
+        id:         primaryWindow
+        // Read by the layout test, which checks where the band's three windows landed.
+        objectName: "cameraWindowPrimary"
+        panelKey:   "primary"
+        title:      qsTr("전방")
         // Detail text carries a value or a warning, never wiring trivia the operator
         // cannot act on.
-        detail:   root._fpvConfigured ? "" : qsTr("주소 미설정")
+        detail:     root._fpvConfigured ? "" : qsTr("주소 미설정")
     }
 
     CameraWindow {
-        id:       secondaryWindow
-        panelKey: "secondary"
+        id:         secondaryWindow
+        objectName: "cameraWindowSecondary"
+        panelKey:   "secondary"
         // Operator words, not industry ones: zoom / wide / thermal, never EO or IR.
-        title:    root._aiStreamActive ? qsTr("AI 인식")
-                                       : (root.eoShowsWideAngle ? qsTr("광각") : qsTr("줌"))
+        title:      root._aiStreamActive ? qsTr("AI 인식")
+                                         : (root.eoShowsWideAngle ? qsTr("광각") : qsTr("줌"))
     }
 
     CameraWindow {
-        id:       sharedWindow
-        panelKey: "shared"
-        title:    qsTr("열상")
+        id:         sharedWindow
+        objectName: "cameraWindowShared"
+        panelKey:   "shared"
+        title:      qsTr("열상")
         // At night thermal and the laser rangefinder work as a pair, so the distance lives
         // on this window's bar once readings arrive. No reading, no text.
-        detail:   App.SiyiCameraController.rangefinderAvailable
-                      ? qsTr("LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
-                      : ""
+        detail:     App.SiyiCameraController.rangefinderAvailable
+                        ? qsTr("LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
+                        : ""
     }
 
     // ------------------------------------------------------------------- fly tools
@@ -1792,7 +1801,7 @@ Item {
 
     // The pod's controls: camera panel, EO sensor, zoom, shutter, AI tracking and the
     // loudspeaker. The strip's own drop panel only opens to the right, which here is the
-    // camera column, so the panels are DropPanels opened by hand and told the map is the
+    // screen edge, so the panels are DropPanels opened by hand and told the map is the
     // viewport, which makes them drop to the left.
     ToolStripActionList {
         id: cameraToolActions
@@ -1919,10 +1928,21 @@ Item {
         ]
     }
 
+    // The stock altitude slider takes the whole right edge while a takeoff, land or pause
+    // confirmation is up, and the camera strip lives on that edge. The strip steps inboard of the
+    // slider for as long as it is there rather than being covered by it. Reached off the context
+    // chain, the way PoliceGuidedConfirmHost reaches the same control.
+    readonly property var  _altitudeSlider: globals.guidedControllerFlyView
+                                                ? globals.guidedControllerFlyView.guidedValueSlider
+                                                : null
+    // Right edge the strip and its handle sit against, inboard of the slider while it is up.
+    readonly property real _cameraStripRight:
+        width - ((_altitudeSlider && _altitudeSlider.visible) ? _altitudeSlider.width : 0) - 8
+
     ToolStrip {
         id:                 cameraToolStrip
-        // Against the camera column's dock, not a window: the windows can be dragged.
-        x:                  root.width - root._windowWidth - 8 - width
+        objectName:         "policeCameraToolStrip"
+        x:                  root._cameraStripRight - width
         anchors.top:        topBar.bottom
         anchors.topMargin:  8
         // Under the left strip's click-away layer (its z - 1), so a tap here while the
@@ -1954,7 +1974,7 @@ Item {
         width:  Math.max(ScreenTools.defaultFontPixelWidth * 2.6, ScreenTools.minTouchPixels * 0.55)
         height: Math.max(ScreenTools.minTouchPixels, ScreenTools.defaultFontPixelHeight * 2.2)
         x:      root.cameraStripOpen ? cameraToolStrip.x - width - 4
-                                     : root.width - root._windowWidth - 8 - width
+                                     : root._cameraStripRight - width
         y:      cameraToolStrip.y
         z:      cameraToolStrip.z
         radius: ScreenTools.defaultFontPixelWidth / 2
@@ -2449,14 +2469,16 @@ Item {
     // Stacked, the detection card and the telemetry bar share one width (see aiPanel below), and
     // the bar is the one that sets it: at its own implicit width it has no empty strip down its
     // right-hand side, and the card's stats spread out to meet it. The clamp is what keeps the
-    // block from running under the camera column's tool strip, whose height defers to the card
-    // wherever the card is underneath it - that is what clipped the strip's lower buttons off.
+    // block from running under the zoom and thermal windows in the bottom right corner.
     // Measured off the instrument panel rather than telemetryBar.x, which is what this decides.
     readonly property real _cornerLeft:     flightInstruments.x +
                                             (instrumentPanel.visible
                                                  ? instrumentPanel.width + flightInstruments.spacing
-                                                 : 0)
-    readonly property real _cornerMaxWidth: cameraToolStrip.x - 8 - _cornerLeft
+                                                 : 0) +
+                                            forwardSpacer.width + flightInstruments.spacing
+    // The zoom/thermal corner is what the block must stop short of. Not the camera tool strip:
+    // that one steps left while the altitude slider is up, and the bar would move with it.
+    readonly property real _cornerMaxWidth: _cornerStackX - 8 - _cornerLeft
 
     // The compass pill is the third thing in that corner and it sizes itself off the window,
     // which left it a good deal shorter than the two storeys beside it. HorizontalCompassAttitude
@@ -2471,18 +2493,20 @@ Item {
     // the width it gives up here goes to the card and the bar, which have counts to fit.
     readonly property real _compassOfStack:        0.78
     // Never at the bar's expense: a pill wide enough to squeeze the values it sits next to has
-    // matched the wrong thing.
+    // matched the wrong thing. The room the row has left is what the zoom/thermal corner leaves
+    // it, less the forward window's own slot in the row.
     readonly property real _instrumentWidth:
         Math.min((_cornerStackHeight * _compassOfStack) / _compassHeightPerWidth,
-                 (cameraToolStrip.x - 16 - flightInstruments.spacing) - telemetryBar.implicitWidth)
+                 _cornerStackX - 16 - (flightInstruments.spacing * 2) - _windowWidth -
+                     telemetryBar.implicitWidth)
 
-    // Bottom left: the camera windows own the right edge, and stacking the instruments under
-    // them would leave the compass hidden behind a window. Attitude and compass sit at the
-    // edge with the telemetry values inboard of them. QGC's FlyViewBottomRightRowLayout puts
+    // The instrument row along the bottom left: the forward camera's slot at the edge, then
+    // attitude and compass, then the telemetry values. QGC's FlyViewBottomRightRowLayout puts
     // the values first and slides their background under the instrument pill, a seam that
     // only works in that order, so the row is assembled here rather than reused.
     RowLayout {
         id:                   flightInstruments
+        objectName:           "policeInstrumentRow"
         anchors.left:         parent.left
         anchors.leftMargin:   8
         anchors.bottom:       parent.bottom
@@ -2492,8 +2516,22 @@ Item {
         // instruments instead of disappearing behind them.
         z:                    3
 
+        // The forward window's slot, first in the row so the window stands at the row's own left
+        // inset. It holds the space; the window itself is drawn over it, so the instruments and
+        // everything after them in the row move along on their own. Height 1 so the window's own
+        // height does not push the row up off the bottom edge.
+        Item {
+            id:                     forwardSpacer
+            Layout.preferredWidth:  root._windowWidth
+            Layout.preferredHeight: 1
+            Layout.alignment:       Qt.AlignBottom
+            // The row settles after load, and the forward window is docked off this slot.
+            onXChanged:             root._redockIfPristine()
+        }
+
         FlyViewInstrumentPanel {
             id:               instrumentPanel
+            objectName:       "policeInstrumentPanel"
             Layout.alignment: Qt.AlignBottom
             visible:          QGroundControl.corePlugin.options.flyView.showInstrumentPanel
                               && root._showSingleVehicleUI
@@ -2542,6 +2580,8 @@ Item {
 
         TelemetryValuesBar {
             id:                     telemetryBar
+            // Read by the layout test.
+            objectName:             "policeTelemetryBar"
             Layout.alignment:       Qt.AlignBottom
             // When the detection card stacks on top of this bar the two share a width, so the
             // bottom-left corner reads as one block rather than two ragged strips. -1 leaves the
@@ -2633,7 +2673,10 @@ Item {
         // mirrors the main video; the texture is kept at the copy's own size so it costs little.
         Item {
             id:      mapPip
-            width:   root._windowWidth * 0.55
+            // The 55 percent was picked against the unscaled window width; taken off the
+            // shrunken one as well the map copy is too small to read a position off, so the
+            // band's scale is divided back out here.
+            width:   (root._windowWidth / root._windowScale) * 0.55
             height:  width * 9 / 16
             x:       parent.width - width - 8
             y:       parent.height - height - 8
@@ -2737,17 +2780,20 @@ Item {
         }
     }
 
-    // Detection strip stacked on the telemetry bar, so the bottom-left corner holds all the
-    // numbers and the gap beside the camera column stays free. Floats above the full screen
+    // Detection strip stacked on the telemetry bar, so the bottom band holds all the numbers
+    // between the forward window and the zoom/thermal corner. Floats above the full screen
     // layer the way the windows do.
     PoliceDroneAiPanel {
         id: aiPanel
 
+        // Read by the layout test.
+        objectName: "policeAiPanel"
+
         // Beside the telemetry bar, same height, so the two read as one instrument row. On a
-        // narrow screen the camera column takes that space, and the card sits above the bar
-        // instead of running under the windows.
+        // narrow screen the zoom/thermal corner takes that space, and the card sits above the
+        // bar instead of running under the windows.
         readonly property real _besideX:  flightInstruments.x + telemetryBar.x + telemetryBar.width + 6
-        readonly property real _rightEdge: root.width - root._windowWidth - 6
+        readonly property real _rightEdge: root._cornerStackX - 6
         // Against implicitWidth, not width: beside the bar the card is at its implicit width
         // anyway, and testing the width this decides made the question depend on its own answer.
         readonly property bool _beside:   _besideX + implicitWidth <= _rightEdge
@@ -2769,9 +2815,9 @@ Item {
                     ? root.height - root._bottomInset - height
                     : (_beside ? flightInstruments.y + telemetryBar.y
                                : flightInstruments.y + telemetryBar.y - 6 - height)
-        // Stacked above the bar the two share exactly one width, so the corner reads as one block
-        // and the card cannot reach across into the camera column - the stats share the narrower
-        // width out between themselves instead. Beside the bar it keeps its own width.
+        // Stacked above the bar the two share exactly one width, so the block reads as one and
+        // the card cannot reach across into the zoom/thermal corner - the stats share the
+        // narrower width out between themselves instead. Beside the bar it keeps its own width.
         width:  _beside ? implicitWidth : telemetryBar.width
 
         // The bar's height is configurable down to a single row, which is shorter than this
