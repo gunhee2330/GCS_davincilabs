@@ -12,7 +12,8 @@ import QGroundControl.SiyiCamera
 import QGroundControl.Toolbar
 
 Item {
-    id: root
+    id:         root
+    objectName: "policeDroneDashboard"
 
     required property var guidedController
 
@@ -1746,7 +1747,19 @@ Item {
                 text:        qsTr("점검표")
                 onTriggered: root._showPreFlightChecklist()
             },
-            GuidedActionTakeoff            { text: qsTr("이륙") },
+            // ToolStripHoverButton takes its objectName from the action's, so these two names
+            // reach the strip buttons themselves.
+            GuidedActionTakeoff            { text: qsTr("이륙"); objectName: "policeToolTakeoff" },
+            // Mission start on the strip itself, alongside takeoff. Stock also keeps this action
+            // inside the 동작 drop panel; showStartMission puts it here once a route is aboard and
+            // takes it away again in flight.
+            GuidedToolStripAction {
+                objectName: "policeToolStartMission"
+                text:       qsTr("미션시작")
+                iconSource: "qrc:/qmlimages/Plan.svg"
+                actionID:   _guidedController.actionStartMission
+                visible:    _guidedController.showStartMission
+            },
             GuidedActionLand               { text: qsTr("착륙") },
             GuidedActionRTL                { text: qsTr("복귀") },
             GuidedActionPause              { text: qsTr("일시정지") },
@@ -2836,6 +2849,19 @@ Item {
         // No target picking here any more: this window is always thermal now, and a tap on
         // the thermal frame would hand the module coordinates from a different sensor's view.
         onActivated:          root._toggleExpanded("shared")
+    }
+
+    // The slide-to-confirm control every guided action ends at. Top centre under the bar, and
+    // below a warning banner while one is up rather than over it. z clears every other layer
+    // here, the fullscreen camera at 20 and the track toast at 30 included, so a confirmation
+    // the operator asked for is never buried.
+    PoliceGuidedConfirmHost {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top:              followModeBanner.visible
+                                      ? followModeBanner.bottom
+                                      : (linkLostBanner.visible ? linkLostBanner.bottom : topBar.bottom)
+        anchors.topMargin:        ScreenTools.defaultFontPixelHeight / 2
+        z:                        40
     }
 
 }

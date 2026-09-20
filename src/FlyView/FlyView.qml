@@ -194,7 +194,8 @@ Item {
             anchors.top:        parent.top
             anchors.bottom:     parent.bottom
             anchors.topMargin:  toolbar.height
-            z:                  QGroundControl.zOrderTopMost
+            // Above PoliceDroneDashboard, which is also at zOrderTopMost and declared later.
+            z:                  QGroundControl.zOrderTopMost + 1
             visible:            false
         }
 
