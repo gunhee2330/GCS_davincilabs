@@ -24,6 +24,11 @@ Item {
     // The value FlyView.qml gives the stock toolbar, which lays its message display out with it.
     readonly property real _margins: ScreenTools.defaultFontPixelWidth / 2
 
+    /// Bottom of what this host is showing, in its own coordinate space, or 0 while it shows
+    /// nothing. The message display hangs below this item and carries the same visibility as the
+    /// control, so it is the lowest edge whenever there is one.
+    readonly property real contentBottom: confirm.visible ? messageDisplay.y + messageDisplay.height : 0
+
     QGCPalette { id: qgcPal }
 
     // This instance and the hidden toolbar's both assign themselves to
