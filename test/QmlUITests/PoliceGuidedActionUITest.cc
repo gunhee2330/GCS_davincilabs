@@ -7,6 +7,7 @@
 #include <QtCore/QRegularExpression>
 #include <QtCore/QScopeGuard>
 #include <QtCore/QtMath>
+#include <QtGui/QColor>
 #include <QtGui/QImage>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QQuickWindow>
@@ -41,7 +42,7 @@ const QString kStartMissionButton = QStringLiteral("policeToolStartMission");
 const QString kSlider    = QStringLiteral("guidedValueSlider");
 const QString kDashboard = QStringLiteral("policeDroneDashboard");
 
-/// The camera band and the blocks that share the bottom of the screen with it.
+/// The camera windows and the blocks that share the screen with them.
 const QString kForwardWindow   = QStringLiteral("cameraWindowPrimary");
 const QString kZoomWindow      = QStringLiteral("cameraWindowSecondary");
 const QString kThermalWindow   = QStringLiteral("cameraWindowShared");
@@ -50,6 +51,31 @@ const QString kTelemetryBar    = QStringLiteral("policeTelemetryBar");
 const QString kInstrumentPanel = QStringLiteral("policeInstrumentPanel");
 const QString kInstrumentRow   = QStringLiteral("policeInstrumentRow");
 const QString kCameraStrip     = QStringLiteral("policeCameraToolStrip");
+const QString kGuidedStrip     = QStringLiteral("policeGuidedToolStrip");
+const QString kTopBar          = QStringLiteral("policeTopBar");
+/// Full screen only: the small map in the corner and the way back out.
+const QString kMapPip          = QStringLiteral("policeFullscreenMapPip");
+const QString kHint            = QStringLiteral("policeFullscreenHint");
+/// ToolStripHoverButton takes its objectName from the action it renders.
+const QString kMosaicEntry     = QStringLiteral("policeMosaicToolAction");
+
+/// The camera grid's six entries, in the order they are laid out: two columns, three rows.
+const QStringList kCameraEntries {
+    QStringLiteral("카메라"), QStringLiteral("촬영"),
+    QStringLiteral("AI"),     QStringLiteral("모자이크"),
+    QStringLiteral("추종"),   QStringLiteral("추적해제"),
+};
+
+/// Every camera window carries the same title chip name, and the zoom panel's chips the same
+/// chip names, so these are looked up inside one window's or one chip's own subtree.
+const QString kTitleChip  = QStringLiteral("cameraWindowTitleChip");
+const QString kZoomPanel  = QStringLiteral("policeZoomCameraPanel");
+const QString kStateChips = QStringLiteral("policeCameraStateChips");
+const QString kChipText   = QStringLiteral("policeCameraStateChipText");
+
+/// Lit and unlit chip colours, as PoliceDroneCameraPanel.qml sets them.
+const QColor kChipLit   = QColor(QStringLiteral("#39ff14"));
+const QColor kChipUnlit = QColor(QStringLiteral("#9aa3ab"));
 
 /// QGCDelayButton.defaultDelay is 500 ms. The press must outlast it, with room for the
 /// progress animation to reach 1.0 on the software backend.
@@ -61,17 +87,56 @@ constexpr int kSettleMs = 1500;
 /// The layout assertions are about edges meeting, and the layout resolves in real numbers.
 constexpr qreal kEdgeSlack = 1.0;
 
-/// The camera tool strip keeps a small margin off the screen edge. Doubled here, since what this
-/// tells apart is a strip at the edge from one stepped inboard of a slider tens of pixels wide.
-constexpr qreal kRightEdgeMargin = 16.0;
+/// PoliceDroneDashboard._cameraStripRight: the inset the camera tool strip keeps off the right
+/// screen edge while the altitude slider is not up.
+constexpr qreal kRightInset = 8.0;
 
-/// The size the band was designed against, and the size its assertions are stated at.
-constexpr int kLayoutWidth  = 1280;
-constexpr int kLayoutHeight = 800;
+/// The pill's height is derived from a width derived from the two rows' implicit heights, so it
+/// carries a rounding step more than a single edge comparison does.
+constexpr qreal kPillSlack = 2.0;
+
+/// PoliceDroneDashboard._instrumentHeightOfStack: how much of card top to bar bottom the pill takes.
+constexpr qreal kPillOfStack = 0.85;
+
+/// PoliceDroneDashboard._stackWindowScale / _windowScale: the zoom and thermal windows against
+/// the forward one, which stays at the smaller scale.
+constexpr qreal kStackOfForward = 0.7 / 0.6;
+
+/// The fraction of the screen width the full screen map copy takes.
+constexpr qreal kPipOfWidth = 0.27;
+
+/// A centred item lands on a half pixel either way.
+constexpr qreal kCentreSlack = 2.0;
+
+/// The pill is a rounded rectangle whose height is a fixed fraction of its width; the check is
+/// that it was scaled, not squashed, so the ratio only has to land on its own implicit one.
+constexpr qreal kRatioSlack = 0.01;
+
+/// The delivery tablet's proportions in logical pixels. It is 1920x1200 with a default font
+/// height near 45 px and this host's offscreen default is 18, and 1200/45 equals 480/18, so a
+/// 768x480 logical window puts the layout's geometry at the tablet's own scale. Run it under
+/// QT_SCALE_FACTOR=2.5 and the grabs come out 1920x1200.
+constexpr int kLayoutWidth  = 768;
+constexpr int kLayoutHeight = 480;
 
 QRectF sceneRect(QQuickItem *item)
 {
     return item->mapRectToScene(QRectF(0, 0, item->width(), item->height()));
+}
+
+/// The camera grid's entries. Each one is a ToolStripHoverButton, which takes its objectName
+/// from its action, and only one of the camera actions carries one - so they are collected off
+/// the grid itself by the property the delegate holds rather than by name.
+void collectStripEntries(QQuickItem *item, QList<QQuickItem *> &out)
+{
+    const QList<QQuickItem *> children = item->childItems();
+    for (QQuickItem *const child : children) {
+        if (child->isVisible() && child->property("toolStripAction").isValid()) {
+            out.append(child);
+        } else {
+            collectStripEntries(child, out);
+        }
+    }
 }
 
 /// Same approach ScreenshotTest takes: the mock's own sweep drives every sector off one sine, so
@@ -142,6 +207,15 @@ void PoliceGuidedActionUITest::_ignoreDownloadedMissionFontWarnings()
     ignoreLogMessage("default", QtWarningMsg,
                      QRegularExpression(QStringLiteral(
                          "^QFont::setPointSizeF: Point size <= 0 \\(0\\.000000\\), must be greater than 0$")));
+
+    // The stock plan view's tree while a downloaded mission is drawn. Present at HEAD, and it
+    // also arrives in the first mission run of the process once QT_SCALE_FACTOR is set, which the
+    // tablet-scale captures need. Nothing in the police layout instantiates that file; the
+    // pattern names it, so a warning out of the camera layout cannot be swallowed by it.
+    ignoreLogMessage("default", QtWarningMsg,
+                     QRegularExpression(QStringLiteral(
+                         "^qrc:/qml/QGroundControl/PlanView/PlanViewRightPanel\\.qml:[0-9]+:[0-9]+: "
+                         "QML PlanTreeView: the delegate's implicitHeight needs to be greater than zero$")));
 }
 
 bool PoliceGuidedActionUITest::_holdButton(const QString &objectName)
@@ -443,7 +517,8 @@ void PoliceGuidedActionUITest::_testCameraBandLayout()
 
         QHash<QString, QQuickItem *> items;
         for (const QString &name : { kForwardWindow, kZoomWindow, kThermalWindow, kAiPanel,
-                                     kTelemetryBar, kInstrumentPanel, kInstrumentRow, kCameraStrip }) {
+                                     kTelemetryBar, kInstrumentPanel, kInstrumentRow, kCameraStrip,
+                                     kGuidedStrip, kTopBar }) {
             QQuickItem *const item = findVisibleItem(_rootItem, name, 3000);
             QVERIFY2(item, qPrintable(QStringLiteral("%1 is not on screen").arg(name)));
             items.insert(name, item);
@@ -457,6 +532,9 @@ void PoliceGuidedActionUITest::_testCameraBandLayout()
         const QRectF bar     = sceneRect(items[kTelemetryBar]);
         const QRectF compass = sceneRect(items[kInstrumentPanel]);
         const QRectF row     = sceneRect(items[kInstrumentRow]);
+        const QRectF strip   = sceneRect(items[kCameraStrip]);
+        const QRectF left    = sceneRect(items[kGuidedStrip]);
+        const QRectF topBar  = sceneRect(items[kTopBar]);
 
         // 전방 first in the row: on the row's own left inset, the compass to its right and the
         // detection card right of that again. 전방 stands on the instrument row's bottom line.
@@ -473,10 +551,50 @@ void PoliceGuidedActionUITest::_testCameraBandLayout()
                  qPrintable(QStringLiteral("Forward window bottom %1 is not on the instrument row bottom %2")
                                 .arg(forward.bottom()).arg(row.bottom())));
 
-        // 줌 directly above 열상, the two flush right, 열상 on the same bottom line.
-        QVERIFY2(qAbs(zoom.bottom() - thermal.top()) <= kEdgeSlack,
-                 qPrintable(QStringLiteral("Zoom bottom %1 is not on the thermal top %2")
-                                .arg(zoom.bottom()).arg(thermal.top())));
+        // Two rows: the detection card directly above the telemetry bar, same left edge and the
+        // same width, and the bar on the instrument row's own bottom line.
+        QVERIFY2(card.bottom() <= bar.top() + kEdgeSlack,
+                 qPrintable(QStringLiteral("Detection card bottom %1 is not above the telemetry bar top %2")
+                                .arg(card.bottom()).arg(bar.top())));
+        QVERIFY2(qAbs(card.left() - bar.left()) <= kEdgeSlack,
+                 qPrintable(QStringLiteral("Detection card left %1 is not on the telemetry bar left %2")
+                                .arg(card.left()).arg(bar.left())));
+        QVERIFY2(qAbs(card.width() - bar.width()) <= kEdgeSlack,
+                 qPrintable(QStringLiteral("Detection card width %1 is not the telemetry bar width %2")
+                                .arg(card.width()).arg(bar.width())));
+        QVERIFY2(qAbs(bar.bottom() - row.bottom()) <= kEdgeSlack,
+                 qPrintable(QStringLiteral("Telemetry bar bottom %1 is not on the instrument row bottom %2")
+                                .arg(bar.bottom()).arg(row.bottom())));
+        // The two rows keep their natural width and stop short of the zoom/thermal stack. Same
+        // width and same left edge as the bar under it, both asserted above, so one check covers
+        // the pair.
+        QVERIFY2(card.right() <= zoom.left() - kEdgeSlack,
+                 qPrintable(QStringLiteral("Detection card right %1 runs into the camera stack left edge %2")
+                                .arg(card.right()).arg(zoom.left())));
+
+        // The pill stands a notch short of the two rows beside it, card top to bar bottom, on
+        // the row's own bottom line, and is scaled to that height at its own proportions rather
+        // than squashed into it.
+        const qreal wantedPillHeight = kPillOfStack * (bar.bottom() - card.top());
+        QVERIFY2(qAbs(compass.height() - wantedPillHeight) <= kPillSlack,
+                 qPrintable(QStringLiteral("Instrument pill is %1 tall against a wanted %2 of a two-row block of %3")
+                                .arg(compass.height()).arg(wantedPillHeight).arg(bar.bottom() - card.top())));
+        QVERIFY2(qAbs(compass.bottom() - row.bottom()) <= kEdgeSlack,
+                 qPrintable(QStringLiteral("Instrument pill bottom %1 is not on the instrument row bottom %2")
+                                .arg(compass.bottom()).arg(row.bottom())));
+        const qreal implicitRatio = items[kInstrumentPanel]->implicitHeight() /
+                                    items[kInstrumentPanel]->implicitWidth();
+        QVERIFY2(qAbs((compass.height() / compass.width()) - implicitRatio) <= kRatioSlack,
+                 qPrintable(QStringLiteral("Instrument pill %1 sits at ratio %2 against its implicit ratio %3")
+                                .arg(QDebug::toString(compass)).arg(compass.height() / compass.width())
+                                .arg(implicitRatio)));
+
+
+        // 줌 directly above 열상 in the bottom right corner, the two flush right, and 열상 on the
+        // same baseline the forward window stands on.
+        QVERIFY2(qAbs(thermal.top() - zoom.bottom()) <= kEdgeSlack,
+                 qPrintable(QStringLiteral("Thermal top %1 is not on the zoom bottom %2")
+                                .arg(thermal.top()).arg(zoom.bottom())));
         QVERIFY2(qAbs(zoom.left() - thermal.left()) <= kEdgeSlack,
                  qPrintable(QStringLiteral("Zoom left %1 and thermal left %2 are not aligned")
                                 .arg(zoom.left()).arg(thermal.left())));
@@ -489,25 +607,81 @@ void PoliceGuidedActionUITest::_testCameraBandLayout()
         QVERIFY2(qAbs(thermal.bottom() - row.bottom()) <= kEdgeSlack,
                  qPrintable(QStringLiteral("Thermal bottom %1 is not on the instrument row bottom %2")
                                 .arg(thermal.bottom()).arg(row.bottom())));
+        // The pair is one size, and a bigger one than the forward window: the pod's picture is
+        // what gets read, the fixed forward camera is the wide shot beside it.
+        QVERIFY2(qAbs(zoom.width() - thermal.width()) <= kEdgeSlack &&
+                     qAbs(zoom.height() - thermal.height()) <= kEdgeSlack,
+                 qPrintable(QStringLiteral("Zoom %1 and thermal %2 are not the same size")
+                                .arg(QDebug::toString(zoom), QDebug::toString(thermal))));
+        QVERIFY2(qAbs(zoom.width() - forward.width() * kStackOfForward) <= kEdgeSlack,
+                 qPrintable(QStringLiteral("Zoom is %1 wide against a wanted %2 off the forward window's %3")
+                                .arg(zoom.width()).arg(forward.width() * kStackOfForward).arg(forward.width())));
 
-        // Nothing in the band clipped by anything else in it. The two corner windows are one
-        // block here: they are stacked edge to edge, so on their own they always touch.
-        const QList<QPair<QString, QRectF>> band {
+        // The camera tool grid takes the same right edge, at the top bar's own offset, and ends
+        // above the zoom window under it: it scrolls whatever does not fit in its maxHeight, so
+        // the item itself is never taller than the room it was given.
+        QVERIFY2(qAbs(strip.right() - (screen.right() - kRightInset)) <= kEdgeSlack,
+                 qPrintable(QStringLiteral("Camera tool strip right %1 is not at the right inset %2")
+                                .arg(strip.right()).arg(screen.right() - kRightInset)));
+        QVERIFY2(strip.top() >= topBar.bottom() - kEdgeSlack,
+                 qPrintable(QStringLiteral("Camera tool strip top %1 runs under the top bar bottom %2")
+                                .arg(strip.top()).arg(topBar.bottom())));
+        QVERIFY2(strip.bottom() <= zoom.top() + kEdgeSlack,
+                 qPrintable(QStringLiteral("Camera tool strip bottom %1 runs into the zoom window top %2")
+                                .arg(strip.bottom()).arg(zoom.top())));
+        QVERIFY2((strip.top() >= screen.top() - kEdgeSlack) && (strip.bottom() <= screen.bottom() + kEdgeSlack),
+                 qPrintable(QStringLiteral("Camera tool strip %1 runs outside the screen %2")
+                                .arg(QDebug::toString(strip), QDebug::toString(screen))));
+
+        // Two columns by three rows: all six camera entries are on screen at once, each one
+        // inside the grid rather than scrolled below its fold, and none of them on another.
+        QList<QQuickItem *> entries;
+        collectStripEntries(items[kCameraStrip], entries);
+        QStringList entryLabels;
+        for (int i = 0; i < entries.size(); ++i) {
+            entryLabels.append(entries.at(i)->property("text").toString());
+        }
+        for (const QString &wanted : kCameraEntries) {
+            QVERIFY2(entryLabels.contains(wanted),
+                     qPrintable(QStringLiteral("Camera grid entry '%1' is not on screen - it holds %2")
+                                    .arg(wanted, entryLabels.join(QStringLiteral(", ")))));
+        }
+        const QRectF stripBounds = strip.adjusted(-kEdgeSlack, -kEdgeSlack, kEdgeSlack, kEdgeSlack);
+        for (int i = 0; i < entries.size(); ++i) {
+            const QRectF a = sceneRect(entries[i]);
+            QVERIFY2(stripBounds.contains(a),
+                     qPrintable(QStringLiteral("Camera grid entry '%1' %2 is not inside the grid %3")
+                                    .arg(entryLabels[i], QDebug::toString(a), QDebug::toString(strip))));
+            for (int j = i + 1; j < entries.size(); ++j) {
+                const QRectF b = sceneRect(entries[j]);
+                QVERIFY2(!a.adjusted(kEdgeSlack, kEdgeSlack, -kEdgeSlack, -kEdgeSlack).intersects(
+                             b.adjusted(kEdgeSlack, kEdgeSlack, -kEdgeSlack, -kEdgeSlack)),
+                         qPrintable(QStringLiteral("Camera grid entry '%1' %2 overlaps '%3' %4")
+                                        .arg(entryLabels[i], QDebug::toString(a),
+                                             entryLabels[j], QDebug::toString(b))));
+            }
+        }
+
+        // Nothing clipped by anything else. The two column windows are one block here: they are
+        // stacked edge to edge, so on their own they always touch.
+        const QList<QPair<QString, QRectF>> blocks {
             { QStringLiteral("forward window"),     forward },
             { QStringLiteral("detection card"),     card },
             { QStringLiteral("telemetry bar"),      bar },
-            { QStringLiteral("zoom/thermal stack"), zoom.united(thermal) },
+            { QStringLiteral("instrument panel"),   compass },
+            { QStringLiteral("camera tool strip"),  strip },
+            { QStringLiteral("zoom/thermal column"), zoom.united(thermal) },
         };
-        for (int i = 0; i < band.size(); ++i) {
-            for (int j = i + 1; j < band.size(); ++j) {
+        for (int i = 0; i < blocks.size(); ++i) {
+            for (int j = i + 1; j < blocks.size(); ++j) {
                 // Shrunk by the slack the edge checks use, so blocks that merely abut do not
                 // read as overlapping.
-                const QRectF a = band[i].second.adjusted(kEdgeSlack, kEdgeSlack, -kEdgeSlack, -kEdgeSlack);
-                const QRectF b = band[j].second.adjusted(kEdgeSlack, kEdgeSlack, -kEdgeSlack, -kEdgeSlack);
+                const QRectF a = blocks[i].second.adjusted(kEdgeSlack, kEdgeSlack, -kEdgeSlack, -kEdgeSlack);
+                const QRectF b = blocks[j].second.adjusted(kEdgeSlack, kEdgeSlack, -kEdgeSlack, -kEdgeSlack);
                 QVERIFY2(!a.intersects(b),
                          qPrintable(QStringLiteral("%1 %2 overlaps %3 %4")
-                                        .arg(band[i].first, QDebug::toString(band[i].second),
-                                             band[j].first, QDebug::toString(band[j].second))));
+                                        .arg(blocks[i].first, QDebug::toString(blocks[i].second),
+                                             blocks[j].first, QDebug::toString(blocks[j].second))));
             }
         }
 
@@ -517,32 +691,135 @@ void PoliceGuidedActionUITest::_testCameraBandLayout()
                  qPrintable(QStringLiteral("Detection card is %1 wide against an implicit width of %2")
                                 .arg(aiPanelItem->width()).arg(aiPanelItem->implicitWidth())));
 
-        // The camera tool strip lives at the right screen edge, which is also where the stock
-        // altitude slider appears while a takeoff confirmation is up.
-        QQuickItem *const strip = items[kCameraStrip];
-        const qreal stripRightAtEdge = sceneRect(strip).right();
-        QVERIFY2((screen.right() - stripRightAtEdge) <= kRightEdgeMargin,
-                 qPrintable(QStringLiteral("Camera tool strip right %1 does not start at the screen right edge %2")
-                                .arg(stripRightAtEdge).arg(screen.right())));
+        // The zoom window is the narrow one, and it carries both the window's name chip and the
+        // panel's two state chips. On the tablet the chips ran over the name.
+        QQuickItem *const titleChip = findVisibleItem(items[kZoomWindow], kTitleChip, 3000);
+        QVERIFY2(titleChip, "Zoom window title chip is not on screen");
+        QQuickItem *const chipRow = findVisibleItem(items[kZoomWindow], kStateChips, 3000);
+        QVERIFY2(chipRow, "Zoom window state chips are not on screen");
+        QVERIFY2(!sceneRect(titleChip).intersects(sceneRect(chipRow)),
+                 qPrintable(QStringLiteral("Zoom title chip %1 is under the state chips %2")
+                                .arg(QDebug::toString(sceneRect(titleChip)),
+                                     QDebug::toString(sceneRect(chipRow)))));
 
+        // One label in every detector state: the longer ones were clipped at both ends.
+        QQuickItem *const mosaic = findVisibleItem(items[kCameraStrip], kMosaicEntry, 3000);
+        QVERIFY2(mosaic, "Mosaic camera tool strip entry is not on screen");
+        QCOMPARE(mosaic->property("text").toString(), QStringLiteral("모자이크"));
+
+        // The left guided strip grows downward with the aircraft's state and the forward window
+        // stands at the bottom of its column, so the strip has to stop above it.
+        QVERIFY2(left.bottom() <= forward.top() + kEdgeSlack,
+                 qPrintable(QStringLiteral("Left guided tool strip bottom %1 runs into the forward window top %2")
+                                .arg(left.bottom()).arg(forward.top())));
+
+        // Full screen: the map copy is the only map on screen, so it is taken off the screen's
+        // width rather than off a camera window, and the detection card goes to the middle of the
+        // bottom edge instead of into the strip of picture beside it. The hint is found straight
+        // away - it fades in on entry and is gone again three seconds later, but the item stays,
+        // so its rectangle is still readable afterwards.
+        const QRectF dockedCard = card;
+        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
+        QQuickItem *const pip  = findVisibleItem(_rootItem, kMapPip, 1000);
+        QVERIFY2(pip, "Full screen map copy is not on screen");
+        QQuickItem *const hint = findVisibleItem(_rootItem, kHint, 1000);
+        QVERIFY2(hint, "Full screen hint label is not on screen");
+        QTest::qWait(kSettleMs);
+
+        const QRectF pipRect  = sceneRect(pip);
+        const QRectF hintRect = sceneRect(hint);
+        const QRectF fullCard = sceneRect(items[kAiPanel]);
+        QVERIFY2(qAbs(pipRect.width() - screen.width() * kPipOfWidth) <= kEdgeSlack,
+                 qPrintable(QStringLiteral("Full screen map copy is %1 wide against a wanted %2")
+                                .arg(pipRect.width()).arg(screen.width() * kPipOfWidth)));
+        QVERIFY2(qAbs(fullCard.center().x() - screen.center().x()) <= kCentreSlack,
+                 qPrintable(QStringLiteral("Full screen detection card %1 is not centred on the screen %2")
+                                .arg(QDebug::toString(fullCard), QDebug::toString(screen))));
+        QVERIFY2(!fullCard.intersects(pipRect),
+                 qPrintable(QStringLiteral("Full screen detection card %1 runs into the map copy %2")
+                                .arg(QDebug::toString(fullCard), QDebug::toString(pipRect))));
+        QVERIFY2(!fullCard.intersects(hintRect),
+                 qPrintable(QStringLiteral("Full screen detection card %1 runs into the hint label %2")
+                                .arg(QDebug::toString(fullCard), QDebug::toString(hintRect))));
+
+        // Back out: the card returns to the telemetry bar it was stacked on.
+        QVERIFY(dashboard->setProperty("expandedPanel", QString()));
+        QTest::qWait(kSettleMs);
+        QVERIFY2(sceneRect(items[kAiPanel]) == dockedCard,
+                 qPrintable(QStringLiteral("Detection card came back from full screen at %1, not at %2")
+                                .arg(QDebug::toString(sceneRect(items[kAiPanel])),
+                                     QDebug::toString(dockedCard))));
+
+        // The stock altitude slider takes the whole right screen edge while a confirmation is up,
+        // which is the edge this strip stands on: it steps inboard of the slider for as long as
+        // the slider is there and comes back to its own inset afterwards.
         QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
-        QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000),
-                 "Confirm control never appeared after pressing takeoff");
-        QQuickItem *const slider = findVisibleItem(_rootItem, kSlider, 3000);
-        QVERIFY2(slider, "Takeoff altitude slider never became visible");
+        QQuickItem *const slider = findVisibleItem(_rootItem, kSlider, 5000);
+        QVERIFY2(slider, "Altitude slider never appeared");
         QTest::qWait(kSettleMs);
-
-        QVERIFY2(!sceneRect(strip).intersects(sceneRect(slider)),
+        const QRectF sliderRect   = sceneRect(slider);
+        const QRectF shiftedStrip = sceneRect(items[kCameraStrip]);
+        QVERIFY2(!shiftedStrip.intersects(sliderRect),
                  qPrintable(QStringLiteral("Camera tool strip %1 is under the altitude slider %2")
-                                .arg(QDebug::toString(sceneRect(strip)),
-                                     QDebug::toString(sceneRect(slider)))));
+                                .arg(QDebug::toString(shiftedStrip), QDebug::toString(sliderRect))));
+        // It stepped, rather than the slider happening to land clear of where it already was -
+        // which is what a dead reference to the slider would look like from the outside.
+        QVERIFY2(shiftedStrip.right() < strip.right() - kEdgeSlack,
+                 qPrintable(QStringLiteral("Camera tool strip right %1 did not step left of its resting %2")
+                                .arg(shiftedStrip.right()).arg(strip.right())));
 
-        // What GuidedActionConfirm does on cancel and on confirm alike: the slider goes away.
-        slider->setProperty("visible", false);
+        // Hidden the way GuidedActionsController.closeAll() hides it - an assignment, not a
+        // binding - and the strip comes back to its own inset on the next frame.
+        QVERIFY(slider->setProperty("visible", false));
+        QTRY_VERIFY2(qAbs(sceneRect(items[kCameraStrip]).right() - strip.right()) <= kEdgeSlack,
+                     qPrintable(QStringLiteral("Camera tool strip right %1 did not return to %2 once the slider hid")
+                                    .arg(sceneRect(items[kCameraStrip]).right()).arg(strip.right())));
+    });
+}
+
+void PoliceGuidedActionUITest::_testStateChipColours()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
         QTest::qWait(kSettleMs);
-        QVERIFY2(qAbs(sceneRect(strip).right() - stripRightAtEdge) <= kEdgeSlack,
-                 qPrintable(QStringLiteral("Camera tool strip stayed at %1 after the slider hid, was %2 before")
-                                .arg(sceneRect(strip).right()).arg(stripRightAtEdge)));
+
+        QQuickItem *const panel = findVisibleItem(_rootItem, kZoomPanel, 5000);
+        QVERIFY2(panel, "Zoom camera panel not found");
+
+        const QStringList expectedLabels { QStringLiteral("추종"), QStringLiteral("추적") };
+
+        // Driven on the panel itself: the properties behind these chips are a gimbal flag and an
+        // AI module flag, and neither can be made true from a mock link.
+        for (const bool lit : { false, true }) {
+            QVERIFY(panel->setProperty("followActive", lit));
+            QVERIFY(panel->setProperty("trackingActive", lit));
+            QTest::qWait(kSettleMs);
+
+            QQuickItem *const chipRow = findVisibleItem(panel, kStateChips, 3000);
+            QVERIFY2(chipRow, "State chip row is not on screen");
+
+            const QList<QQuickItem *> chips = chipRow->childItems();
+            QCOMPARE(chips.size(), expectedLabels.size());
+
+            const QColor expectedColour = lit ? kChipLit : kChipUnlit;
+            for (int i = 0; i < chips.size(); ++i) {
+                QQuickItem *const label = findVisibleItem(chips.at(i), kChipText, 3000);
+                QVERIFY2(label, qPrintable(QStringLiteral("Chip %1 carries no label").arg(i)));
+                QVERIFY2(label->property("text").toString() == expectedLabels.at(i),
+                         qPrintable(QStringLiteral("Chip %1 reads '%2', expected '%3'")
+                                        .arg(i).arg(label->property("text").toString(),
+                                                    expectedLabels.at(i))));
+                const QColor colour = label->property("color").value<QColor>();
+                QVERIFY2(colour == expectedColour,
+                         qPrintable(QStringLiteral("Chip %1 is %2 with lit=%3, expected %4")
+                                        .arg(i).arg(colour.name(), lit ? QStringLiteral("true")
+                                                                       : QStringLiteral("false"),
+                                                    expectedColour.name())));
+            }
+        }
     });
 }
 
@@ -554,15 +831,6 @@ void PoliceGuidedActionUITest::_captureCameraBand()
 
     _ignorePreexistingQmlWarnings();
     _ignoreDownloadedMissionFontWarnings();
-
-    // Raised by the stock plan view's tree while the second downloaded mission of the process is
-    // drawn, which is this slot's mission run following _captureGuidedScreens'. Nothing in the
-    // police layout instantiates that file. The pattern names it, so a warning out of the camera
-    // band cannot be swallowed by it.
-    ignoreLogMessage("default", QtWarningMsg,
-                     QRegularExpression(QStringLiteral(
-                         "^qrc:/qml/QGroundControl/PlanView/PlanViewRightPanel\\.qml:[0-9]+:[0-9]+: "
-                         "QML PlanTreeView: the delegate's implicitHeight needs to be greater than zero$")));
 
     const int requestedWidth  = qEnvironmentVariableIntValue("QGC_SCREENSHOT_WIDTH");
     const int requestedHeight = qEnvironmentVariableIntValue("QGC_SCREENSHOT_HEIGHT");
@@ -577,17 +845,29 @@ void PoliceGuidedActionUITest::_captureCameraBand()
         QQuickItem *const dashboard = findVisibleItem(_rootItem, kDashboard, 5000);
         QVERIFY2(dashboard, "Police dashboard not found - the layout to capture is not up");
 
-        _grab(QStringLiteral("final_0_idle"));
+        _grab(QStringLiteral("v2_0_idle"));
         if (QTest::currentTestFailed()) return;
+
+        // Both chips lit, which is the state the narrow zoom window has least room for. Driven
+        // on the panel, as in _testStateChipColours; the assignment replaces the binding, and
+        // false is what the binding was reading anyway, so the later frames are unaffected.
+        QQuickItem *const zoomPanel = findVisibleItem(_rootItem, kZoomPanel, 3000);
+        QVERIFY2(zoomPanel, "Zoom camera panel not found");
+        QVERIFY(zoomPanel->setProperty("followActive", true));
+        QVERIFY(zoomPanel->setProperty("trackingActive", true));
+        _grab(QStringLiteral("v2_6_chips_lit"));
+        if (QTest::currentTestFailed()) return;
+        QVERIFY(zoomPanel->setProperty("followActive", false));
+        QVERIFY(zoomPanel->setProperty("trackingActive", false));
 
         // Full screen and back again, which is where the re-dock can go wrong. Set rather than
         // tapped: the property is what the tap handler assigns, and these two frames are about
         // where the windows land, not about the gesture.
         QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
-        _grab(QStringLiteral("final_4_zoom_fullscreen"));
+        _grab(QStringLiteral("v2_7_zoom_fullscreen"));
         if (QTest::currentTestFailed()) return;
         QVERIFY(dashboard->setProperty("expandedPanel", QString()));
-        _grab(QStringLiteral("final_5_after_fullscreen"));
+        _grab(QStringLiteral("v2_8_after_fullscreen"));
         if (QTest::currentTestFailed()) return;
 
         // The ring on the forward window, the compass ring and the map edge glow all read the
@@ -597,17 +877,52 @@ void PoliceGuidedActionUITest::_captureCameraBand()
         QTRY_VERIFY(vehicle->armed());
         const double rgForwardClose[8] = { 4, 11, 11, 11, 11, 11, 11, 11 };
         injectProximity(vehicle, rgForwardClose);
-        _grab(QStringLiteral("final_1_lidar"));
+        _grab(QStringLiteral("v2_1_lidar_front"));
         if (QTest::currentTestFailed()) return;
 
-        // Takeoff wants the vehicle on the ground again. Last, so the confirm control raised
-        // here never has to be dismissed before another frame.
+        // Sector 2 is YAW_90, the aircraft's right side, which is the map's right edge while the
+        // aircraft heads north. That edge is the one the camera column stands on.
+        const double rgRightClose[8] = { 11, 11, 4, 11, 11, 11, 11, 11 };
+        injectProximity(vehicle, rgRightClose);
+        _grab(QStringLiteral("v2_2_lidar_right"));
+        if (QTest::currentTestFailed()) return;
+
+        // Takeoff wants the vehicle on the ground again.
         vehicle->setArmed(false, false);
         QTRY_VERIFY(!vehicle->armed());
         QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
         QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000), "Confirm control never appeared");
         QVERIFY2(findVisibleItem(_rootItem, kSlider, 3000), "Altitude slider never appeared");
-        _grab(QStringLiteral("final_2_takeoff"));
+        _grab(QStringLiteral("v2_3_takeoff"));
+        if (QTest::currentTestFailed()) return;
+
+        // The same forward obstacle with the confirm control up. The glow draws at z -1, so the
+        // top edge's number has to step below the control instead of sitting under it. Takeoff
+        // stays offered while armed, so the control the click above raised is still the one here.
+        vehicle->setArmed(true, false);
+        QTRY_VERIFY(vehicle->armed());
+        injectProximity(vehicle, rgForwardClose);
+        _grab(QStringLiteral("v2_9_lidar_with_confirm"));
+        if (QTest::currentTestFailed()) return;
+
+        // Back to what the flying frames were captured in: no obstacle, on the ground.
+        const double rgAllFar[8] = { 11, 11, 11, 11, 11, 11, 11, 11 };
+        injectProximity(vehicle, rgAllFar);
+        vehicle->setArmed(false, false);
+        QTRY_VERIFY(!vehicle->armed());
+
+        // The mock stops answering while the vehicle climbs, and the flying transition creates
+        // QGCPressure, which warns on hosts without a pressure backend.
+        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
+                         QRegularExpression(QStringLiteral("Failed to connect to pressure backend")));
+        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
+                         QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
+
+        // In flight the left strip carries the most entries the mock can put in it: 착륙, 복귀
+        // and 일시정지 all appear and 이륙 goes away. That is the height T3's cap has to hold.
+        QVERIFY(_holdButton(kConfirmButton));
+        QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
+        _grab(QStringLiteral("v2_5_flying_strip"));
     });
     if (QTest::currentTestFailed()) return;
 
@@ -624,6 +939,6 @@ void PoliceGuidedActionUITest::_captureCameraBand()
         QTest::qWait(kSettleMs);
 
         QVERIFY(verifyVisibility(kStartMissionButton, true, QStringLiteral("with a mission uploaded")));
-        _grab(QStringLiteral("final_3_route_uploaded"));
+        _grab(QStringLiteral("v2_4_route_uploaded"));
     });
 }

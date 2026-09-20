@@ -33,10 +33,16 @@ private slots:
     /// Capture slot. Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureGuidedScreens();
 
-    /// The camera band along the bottom: 전방 left of the compass, 줌 over 열상 in the bottom
-    /// right corner, the detection card and the telemetry bar between them without overlap.
-    /// Also holds the camera tool strip clear of the altitude slider while a confirmation is up.
+    /// The camera layout: 전방 first in the bottom instrument row, 줌 over 열상 down the right
+    /// edge from under the top bar, the detection card stacked on the telemetry bar at one
+    /// width, the instrument pill as tall as those two rows and at its own proportions, the
+    /// camera tool grid two columns by three rows and ending above the card, the zoom window's
+    /// title chip clear of its state chips, and the left guided strip above the forward window.
     void _testCameraBandLayout();
+
+    /// The two state chips: 추종 and 추적 in both states, grey when not lit and neon green
+    /// when lit.
+    void _testStateChipColours();
 
     /// Capture slot for the camera band. Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureCameraBand();
