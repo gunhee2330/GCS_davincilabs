@@ -27,6 +27,9 @@ class TakeoffCounter : public QObject
     QML_SINGLETON
 
     Q_PROPERTY(int takeoffCount READ takeoffCount NOTIFY takeoffCountChanged)
+    /// Duration of the last completed flight in seconds, -1 before this airframe has flown one
+    /// under this station. Written on the landing edge of the same arm cycle the count uses.
+    Q_PROPERTY(int lastFlightSeconds READ lastFlightSeconds NOTIFY lastFlightSecondsChanged)
 
 public:
     /// No default argument: a default-constructible QML_SINGLETON is default-constructed by the
@@ -42,9 +45,11 @@ public:
     void init();
 
     [[nodiscard]] int takeoffCount() const { return _count; }
+    [[nodiscard]] int lastFlightSeconds() const { return _lastFlightSeconds; }
 
 signals:
     void takeoffCountChanged();
+    void lastFlightSecondsChanged();
 
 private slots:
     void _activeVehicleChanged(Vehicle* vehicle);
@@ -56,13 +61,21 @@ private slots:
 private:
     void _follow(Vehicle* vehicle);
     void _markAirborne();
+    /// Closes the airborne cycle and records how long it lasted. Landing and disarming both
+    /// end a flight, so both call it.
+    void _markLanded();
     void _load();
     void _store() const;
     [[nodiscard]] QString _settingsKey() const;
 
     QPointer<Vehicle> _vehicle;
     int _count = 0;
+    int _lastFlightSeconds = -1;
     /// Latched per arm cycle so a landed state that flickers, or an altitude that hovers
     /// around the threshold, still counts one takeoff.
     bool _airborneThisCycle = false;
+    /// Wall clock at the takeoff this cycle, 0 when not airborne. The station's own clock
+    /// rather than a vehicle fact, for the same lifetime reason the dashboard times flights
+    /// off its own: a Fact handed out by getFact() is destructible from QML.
+    qint64 _airborneSinceMs = 0;
 };

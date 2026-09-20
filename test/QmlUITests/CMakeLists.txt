@@ -38,6 +38,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         ${CMAKE_CURRENT_SOURCE_DIR}/FlyViewGeoUITest.h
         ${CMAKE_CURRENT_SOURCE_DIR}/PoliceGuidedActionUITest.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/PoliceGuidedActionUITest.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/PoliceTopBarUITest.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/PoliceTopBarUITest.h
         # Manual perf benchmark: standalone-registered, deliberately NOT added
         # via add_qgc_test so no ctest/CI sweep ever runs it
         ${CMAKE_CURRENT_SOURCE_DIR}/GeoMapPerfUITest.cc
@@ -76,6 +78,7 @@ add_qgc_test(FlyViewProximityRadarUITest LABELS Integration NoSanitizer TIMEOUT 
 add_qgc_test(FlyViewROIUITest LABELS Integration NoSanitizer TIMEOUT 120)
 add_qgc_test(FlyViewROIAPMUITest LABELS Integration NoSanitizer TIMEOUT 120)
 add_qgc_test(PoliceGuidedActionUITest LABELS Integration NoSanitizer TIMEOUT 180)
+add_qgc_test(PoliceTopBarUITest LABELS Integration NoSanitizer TIMEOUT 180)
 add_qgc_test(NTRIPSettingsUITest LABELS Integration NoSanitizer TIMEOUT 120)
 add_qgc_test(OnboardLogUITest LABELS Integration NoSanitizer TIMEOUT 180)
 add_qgc_test(ParameterDiffDialogUITest LABELS Integration NoSanitizer TIMEOUT 180)

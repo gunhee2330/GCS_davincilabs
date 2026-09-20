@@ -1,6 +1,7 @@
 #include "TakeoffCounter.h"
 
 #include <QtCore/QApplicationStatic>
+#include <QtCore/QDateTime>
 #include <QtCore/QSettings>
 #include <QtQml/QJSEngine>
 
@@ -14,6 +15,11 @@ QGC_LOGGING_CATEGORY(TakeoffCounterLog, "PoliceDrone.TakeoffCounter")
 namespace {
 
 constexpr const char* kSettingsGroup = "PoliceDrone/TakeoffCount";
+
+/// Suffix on the airframe's own key, so the duration sits beside the count in the same group.
+/// A suffix rather than a child key: QSettings would then have to hold "uid-abc" as both a
+/// value and a group, which not every backend keeps.
+constexpr const char* kLastFlightSuffix = "-lastFlightSeconds";
 
 /// Relative altitude that counts as airborne when the autopilot never sends a landed state.
 /// Two metres clears barometric drift on the pad without waiting for cruise height.
@@ -67,6 +73,10 @@ void TakeoffCounter::_follow(Vehicle* vehicle)
             _count = 0;
             emit takeoffCountChanged();
         }
+        if (_lastFlightSeconds != -1) {
+            _lastFlightSeconds = -1;
+            emit lastFlightSecondsChanged();
+        }
         return;
     }
 
@@ -77,21 +87,26 @@ void TakeoffCounter::_follow(Vehicle* vehicle)
 
     // Joining a vehicle already in the air is not a takeoff this station saw.
     _airborneThisCycle = _vehicle->flying();
+    // Nor is its duration known: the liftoff instant is behind us. Timing it from here would
+    // report a flight far shorter than the one actually flown.
+    _airborneSinceMs = 0;
     _load();
 }
 
 void TakeoffCounter::_armedChanged(bool armed)
 {
     // Arming opens a cycle and disarming closes one; the latch drops either way so the next
-    // liftoff counts.
+    // liftoff counts. Disarming is also a landing for an airframe that never sent one.
     Q_UNUSED(armed);
-    _airborneThisCycle = false;
+    _markLanded();
 }
 
 void TakeoffCounter::_flyingChanged(bool flying)
 {
     if (flying) {
         _markAirborne();
+    } else {
+        _markLanded();
     }
 }
 
@@ -109,10 +124,30 @@ void TakeoffCounter::_markAirborne()
     }
 
     _airborneThisCycle = true;
+    _airborneSinceMs = QDateTime::currentMSecsSinceEpoch();
     ++_count;
     _store();
     emit takeoffCountChanged();
     qCDebug(TakeoffCounterLog) << "takeoff" << _count << "for" << _settingsKey();
+}
+
+void TakeoffCounter::_markLanded()
+{
+    const bool wasAirborne = _airborneThisCycle;
+    const qint64 sinceMs = _airborneSinceMs;
+    _airborneThisCycle = false;
+    _airborneSinceMs = 0;
+
+    // Nothing to time for a cycle that never left the ground, or for a vehicle this station
+    // joined mid-flight.
+    if (!wasAirborne || (sinceMs == 0)) {
+        return;
+    }
+
+    _lastFlightSeconds = static_cast<int>((QDateTime::currentMSecsSinceEpoch() - sinceMs) / 1000);
+    _store();
+    emit lastFlightSecondsChanged();
+    qCDebug(TakeoffCounterLog) << "flight of" << _lastFlightSeconds << "s for" << _settingsKey();
 }
 
 void TakeoffCounter::_uidChanged()
@@ -147,6 +182,11 @@ void TakeoffCounter::_load()
         _count = count;
         emit takeoffCountChanged();
     }
+    const int lastFlight = settings.value(key + QLatin1String(kLastFlightSuffix), -1).toInt();
+    if (lastFlight != _lastFlightSeconds) {
+        _lastFlightSeconds = lastFlight;
+        emit lastFlightSecondsChanged();
+    }
 }
 
 void TakeoffCounter::_store() const
@@ -159,4 +199,7 @@ void TakeoffCounter::_store() const
     QSettings settings;
     settings.beginGroup(QLatin1String(kSettingsGroup));
     settings.setValue(key, _count);
+    if (_lastFlightSeconds >= 0) {
+        settings.setValue(key + QLatin1String(kLastFlightSuffix), _lastFlightSeconds);
+    }
 }
