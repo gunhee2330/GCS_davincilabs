@@ -33,6 +33,14 @@ private slots:
     /// Capture slot. Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureGuidedScreens();
 
+    /// The camera band along the bottom: 전방 left of the compass, 줌 over 열상 in the bottom
+    /// right corner, the detection card and the telemetry bar between them without overlap.
+    /// Also holds the camera tool strip clear of the altitude slider while a confirmation is up.
+    void _testCameraBandLayout();
+
+    /// Capture slot for the camera band. Skipped unless QGC_SCREENSHOT_DIR is set.
+    void _captureCameraBand();
+
 private:
     /// Pre-existing QML warnings that the strict log check would otherwise fail on.
     void _ignorePreexistingQmlWarnings();
