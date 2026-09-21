@@ -363,25 +363,57 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing:                bar._itemGap
 
-                // What the aircraft is doing. Display only: mode changes are on the physical
-                // controller for this delivery, so a tap here opens nothing.
-                Row {
-                    Layout.alignment: Qt.AlignVCenter
-                    spacing:          bar._innerGap
-                    visible:          bar.vehicle
+                // What the aircraft is doing, and where it is changed. The tap is taken by a
+                // stock FlightModeIndicator laid over this item rather than by a MouseArea of
+                // our own: the mode list it drops is an inline Component inside that file, so
+                // the only way to open the one the rest of QGC opens - on PX4 and on ArduPilot
+                // alike - is to let the stock indicator's own MouseArea take the press. It is
+                // drawn at zero opacity and not hidden, since a hidden item takes no input, and
+                // it is anchored to this item so the drawer it positions lands under what the
+                // operator actually tapped.
+                Item {
+                    id:         flightModeItem
+                    objectName: "policeFlightModeItem"
 
-                    BarIcon {
-                        source: "/qmlimages/Quad.svg"
+                    Layout.alignment:       Qt.AlignVCenter
+                    Layout.preferredWidth:  flightModeRow.implicitWidth
+                    Layout.preferredHeight: bar._touchHeight
+                    visible:                bar.vehicle
+
+                    Row {
+                        id:               flightModeRow
+                        anchors.centerIn: parent
+                        spacing:          bar._innerGap
+
+                        BarIcon {
+                            source: "/qmlimages/Quad.svg"
+                        }
+
+                        BarText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width:                  Math.min(implicitWidth, ScreenTools.defaultFontPixelWidth * 12)
+                            elide:                  Text.ElideRight
+                            color:                  "white"
+                            font.weight:            Font.DemiBold
+                            font.pixelSize:         bar.valueSize
+                            text:                   bar.vehicle ? bar.vehicle.flightMode : ""
+                        }
                     }
 
-                    BarText {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width:                  Math.min(implicitWidth, ScreenTools.defaultFontPixelWidth * 12)
-                        elide:                  Text.ElideRight
-                        color:                  "white"
-                        font.weight:            Font.DemiBold
-                        font.pixelSize:         bar.valueSize
-                        text:                   bar.vehicle ? bar.vehicle.flightMode : ""
+                    // The stock indicator's own MouseArea is anchored to the stock row, not to
+                    // the indicator, so it comes out wider than this item - the stock label is
+                    // set at a larger size than ours. Holding it in an item that clips keeps the
+                    // tap on this item: a clipping item drops pointer events that fall outside
+                    // it, so the gap and the satellites beside us stay theirs. Our own row is
+                    // outside this item and so is not clipped.
+                    Item {
+                        anchors.fill: parent
+                        clip:         true
+
+                        FlightModeIndicator {
+                            anchors.fill: parent
+                            opacity:      0
+                        }
                     }
                 }
 

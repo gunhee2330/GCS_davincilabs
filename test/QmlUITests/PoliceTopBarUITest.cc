@@ -26,6 +26,7 @@ const QString kGpsItem     = QStringLiteral("policeGpsItem");
 const QString kRfItem      = QStringLiteral("policeRfItem");
 const QString kBatteryItem = QStringLiteral("policeBatteryItem");
 const QString kDateTime    = QStringLiteral("policeDateTime");
+const QString kModeItem    = QStringLiteral("policeFlightModeItem");
 
 const QString kChevron     = QStringLiteral("policeStatusChevron");
 
@@ -92,6 +93,26 @@ bool subtreeHasText(QQuickItem *item, const QString &needle)
         }
     }
     return false;
+}
+
+/// The first visible item under \a root whose "text" reads exactly \a text. The mode buttons in
+/// the stock selector carry no objectName, and the search hits the button before the label inside
+/// it because the item itself is checked before its children.
+QQuickItem *findVisibleItemWithExactText(QQuickItem *root, const QString &text)
+{
+    if (!root) {
+        return nullptr;
+    }
+    if (root->isVisible() && (root->property("text").toString() == text)) {
+        return root;
+    }
+    const QList<QQuickItem *> children = root->childItems();
+    for (QQuickItem *const child : children) {
+        if (QQuickItem *const found = findVisibleItemWithExactText(child, text)) {
+            return found;
+        }
+    }
+    return nullptr;
 }
 
 /// A clock face somewhere under \a item: hh:mm:ss, which is what the drawer prints for a flight
@@ -215,7 +236,7 @@ void PoliceTopBarUITest::_testBarItemsExist()
         QTest::qWait(kSettleMs);
 
         for (const QString &name : { kTopBar, kBanner, kMessageItem, kRfItem, kBatteryItem,
-                                     kDateTime, kGpsItem }) {
+                                     kDateTime, kGpsItem, kModeItem }) {
             QQuickItem *const item = findVisibleItem(_rootItem, name, 5000);
             QVERIFY2(item, qPrintable(QStringLiteral("%1 is not on the bar").arg(name)));
             QVERIFY2((item->width() > 0) && (item->height() > 0),
@@ -237,7 +258,7 @@ void PoliceTopBarUITest::_testDrawersOpenUnderTheirItem()
         QVERIFY2(topBar, "The top bar is not on screen");
         const QRectF barRect = sceneRect(topBar);
 
-        for (const QString &name : { kMessageItem, kBanner, kGpsItem, kRfItem, kBatteryItem }) {
+        for (const QString &name : { kMessageItem, kBanner, kModeItem, kGpsItem, kRfItem, kBatteryItem }) {
             QQuickItem *const item = findVisibleItem(_rootItem, name, 5000);
             QVERIFY2(item, qPrintable(QStringLiteral("%1 is not on the bar").arg(name)));
             const QRectF itemRect = sceneRect(item);
@@ -354,6 +375,131 @@ void PoliceTopBarUITest::_testRfItemOpensConnectedLinks()
 
         QVERIFY2(_closeDrawer(), "The link drawer would not close");
     });
+}
+
+void PoliceTopBarUITest::_testFlightModeItemOpensStockSelector()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const topBar = findVisibleItem(_rootItem, kTopBar, 5000);
+        QVERIFY2(topBar, "The top bar is not on screen");
+        QQuickItem *const item = findVisibleItem(_rootItem, kModeItem, 5000);
+        QVERIFY2(item, "The flight mode item is not on the bar");
+        _grabIfCapturing(QStringLiteral("t_10_bar"));
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+
+        // The stock indicator sizes its own hit area, so what has to be checked is that the area
+        // covers this item rather than only its middle: the far corner opens the same drawer.
+        QVERIFY2(clickItemFraction(kModeItem, 0.98, 0.95), "Could not tap the corner of the flight mode item");
+        QVERIFY2(findVisibleItem(_rootItem, kDrawerLoader, 5000),
+                 "A tap in the corner of the flight mode item opened nothing");
+        QVERIFY2(_closeDrawer(), "The corner drawer would not close");
+
+        QQuickItem *const loader = _openDrawerFrom(kModeItem);
+        if (!loader) {
+            return;
+        }
+
+        // The stock page, which is the mode list: every mode on it is one the aircraft offers.
+        const QStringList modes = vehicle->property("flightModes").toStringList();
+        QVERIFY2(!modes.isEmpty(), "The mock aircraft offers no flight modes");
+        const QString current = vehicle->property("flightMode").toString();
+
+        // A mode the aircraft is not already in, drawn inside the window so it can be pressed.
+        // The list is not scrollable, so one that fell off the bottom would never be reachable.
+        QQuickItem *button = nullptr;
+        QString wanted;
+        for (const QString &mode : modes) {
+            if (mode == current) {
+                continue;
+            }
+            QQuickItem *const candidate = findVisibleItemWithExactText(loader, mode);
+            if (!candidate) {
+                continue;
+            }
+            const QRectF rect = sceneRect(candidate);
+            if ((rect.bottom() <= _window->height()) && (rect.right() <= _window->width())) {
+                button = candidate;
+                wanted = mode;
+                break;
+            }
+        }
+        QVERIFY2(button, qPrintable(QStringLiteral(
+                     "The drawer lists no reachable mode other than %1; it is not the mode selector")
+                         .arg(current)));
+        _grabIfCapturing(QStringLiteral("t_11_flightmode_drawer"));
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+
+        // The mode buttons are QGCDelayButtons and requireModeChangeConfirmation defaults on, so
+        // the press has to outlast the delay the same way the takeoff confirm does.
+        const QPoint press = button->mapToScene(QPointF(button->width() / 2, button->height() / 2)).toPoint();
+        QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, press);
+        QTest::qWait(kHoldMs);
+        QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, press);
+
+        QVERIFY_TRUE_WAIT(vehicle->flightMode() == wanted, TestTimeout::longMs());
+
+        // The stock page closes its own drawer once a mode is taken.
+        QVERIFY2(waitForCondition([&] { return findVisibleItem(_rootItem, kDrawerLoader, 0) == nullptr; },
+                                  3000, QStringLiteral("mode drawer closed")),
+                 "The mode drawer stayed open after a mode was picked");
+
+        // The overlay takes this item's tap and no more than this item's tap. The stock
+        // indicator sizes its own hit area off its own label, which comes out wider than ours,
+        // so what is checked here is the ground it would otherwise have taken: the gap between
+        // the two items, which belongs to neither and must open nothing at all.
+        QQuickItem *const gpsItem = findVisibleItem(_rootItem, kGpsItem, 5000);
+        QVERIFY2(gpsItem, "The satellites are not on the bar");
+        const QRectF modeRect = sceneRect(item);
+        const QRectF gpsRect  = sceneRect(gpsItem);
+        QVERIFY2(gpsRect.left() > modeRect.right(), "The two items overlap, so there is no gap to tap");
+        const QPoint gap(qRound((modeRect.right() + gpsRect.left()) / 2), qRound(modeRect.center().y()));
+        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, gap);
+        QVERIFY2(!findVisibleItem(_rootItem, kDrawerLoader, 1000),
+                 "A tap in the gap beside the flight mode item opened a drawer");
+
+        // And the item beside us still answers its own left edge, the strip the stock hit area
+        // reached over before it was clipped.
+        QVERIFY2(clickItemFraction(kGpsItem, 0.03, 0.5), "Could not tap the left edge of the satellites");
+        QQuickItem *const gpsLoader = findVisibleItem(_rootItem, kDrawerLoader, 5000);
+        QVERIFY2(gpsLoader, "The left edge of the satellites opened no drawer at all");
+        QTest::qWait(kSettleMs);
+        QVERIFY2(!findVisibleItemWithExactText(gpsLoader, wanted),
+                 "The left edge of the satellites opened the flight mode list");
+        QVERIFY2(subtreeHasText(gpsLoader, QStringLiteral("HDOP")),
+                 "The left edge of the satellites opened something other than the GPS page");
+        QVERIFY2(_closeDrawer(), "The GPS drawer would not close");
+    });
+}
+
+void PoliceTopBarUITest::_testFlightModeDoesNothingWithNoVehicle()
+{
+    _ignorePreexistingQmlWarnings();
+
+    startUI();
+    if (QTest::currentTestFailed()) {
+        return;
+    }
+
+    _window->resize(kLayoutWidth, kLayoutHeight);
+    QTest::qWait(kSettleMs);
+
+    QVERIFY2(findVisibleItem(_rootItem, kTopBar, 5000), "The top bar is not on screen");
+    QVERIFY2(verifyVisibility(kModeItem, false, QStringLiteral("no aircraft")),
+             "The flight mode item is on the bar with no aircraft attached");
+    QVERIFY2(!clickButton(kModeItem), "The flight mode item took a tap with no aircraft attached");
+    QVERIFY2(!findVisibleItem(_rootItem, kDrawerLoader, 1000), "A drawer opened with no aircraft attached");
+
+    stopUI();
 }
 
 void PoliceTopBarUITest::_testBannerShowsFlightTimeWhenFlying()

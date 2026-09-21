@@ -36,6 +36,15 @@ private slots:
     /// links that are up.
     void _testRfItemOpensConnectedLinks();
 
+    /// The flight mode item drops the stock mode selector, and a mode picked out of it reaches
+    /// the aircraft. The tap belongs to this item alone: the item beside it still opens its own
+    /// drawer. Also the two captures, when a capture directory is set.
+    void _testFlightModeItemOpensStockSelector();
+
+    /// With no aircraft there is no mode to pick, so the item is off the bar and a tap where it
+    /// would have been opens nothing.
+    void _testFlightModeDoesNothingWithNoVehicle();
+
     /// Once the aircraft is armed the banner counts the flight, beside the state and not inside
     /// a drawer.
     void _testBannerShowsFlightTimeWhenFlying();
