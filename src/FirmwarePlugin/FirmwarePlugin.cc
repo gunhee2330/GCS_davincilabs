@@ -477,8 +477,17 @@ Autotune *FirmwarePlugin::createAutotune(Vehicle *vehicle) const
 void FirmwarePlugin::_updateFlightModeList(FlightModeList &flightModeList)
 {
     _flightModeList.clear();
-    _modeEnumToString.clear();
 
+    // The name lookup is added to, never emptied. What arrives here is the vehicle's own list,
+    // and a vehicle that answers short - the AVAILABLE_MODES walk is one request per mode, and
+    // any of them can go missing on a lossy link - used to take the firmware's built-in names
+    // down with it. A PX4 airframe flipped to Position then read "Unknown 81:196608" on the
+    // flight bar for a mode this plugin has known the name of since it was constructed. Letting
+    // the vehicle override a name it does have, and leaving the rest alone, means an incomplete
+    // walk costs nothing instead of costing every mode it did not mention.
+    //
+    // The selectable list above is still replaced outright: that one is about what this vehicle
+    // will accept, which only the vehicle can say.
     for (FirmwareFlightMode &flightMode : flightModeList) {
         _modeEnumToString[flightMode.custom_mode] = flightMode.mode_name;
         _addNewFlightMode(flightMode);
