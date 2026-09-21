@@ -1,5 +1,8 @@
 #pragma once
 
+#include <QtCore/QList>
+#include <QtCore/QPointF>
+
 #include "QmlUITestBase.h"
 
 /// The police layout hides FlyViewToolBar, which in stock QGC is the only place
@@ -47,6 +50,13 @@ private slots:
     /// Capture slot for the camera band. Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureCameraBand();
 
+    /// Dragging across the zoom panel must hand the AI module exactly one box, in the frame
+    /// coordinates the drag covered, without also toggling fullscreen. A drag that ends where it
+    /// started, one whose panel stops taking picks with the finger still down, and any drag on a
+    /// panel that does not take target picks must hand it nothing. A short tap still goes
+    /// full screen.
+    void _testTargetDragPicksBox();
+
 private:
     /// Pre-existing QML warnings that the strict log check would otherwise fail on.
     void _ignorePreexistingQmlWarnings();
@@ -59,4 +69,11 @@ private:
 
     /// Grab the window to <QGC_SCREENSHOT_DIR>/<name>.png.
     void _grab(const QString &name);
+
+    /// Press at the first point of \a path, walk the pointer through the rest of it in steps,
+    /// release at the last one. \a midDrag runs at the last point with the pointer still down,
+    /// and with \a grabName set and QGC_SCREENSHOT_DIR pointing somewhere the window is grabbed
+    /// under that name there too.
+    void _dragPointer(const QList<QPointF> &path, const QString &grabName = QString(),
+                      const std::function<void()> &midDrag = {});
 };

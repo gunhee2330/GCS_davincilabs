@@ -971,7 +971,7 @@ Item {
     //
     // The flight map underneath stays full screen. Each camera lives in a small movable
     // window: the grip bar drags the window around, the video area keeps the
-    // drag-to-gimbal gesture, and a short tap on the video toggles fullscreen.
+    // drag-to-track gesture, and a short tap on the video toggles fullscreen.
 
     component CameraWindow : Item {
         id: win
@@ -996,7 +996,7 @@ Item {
             radius:       0
             color:        root._panelColor
 
-            // Stops a tap or gimbal drag on the window from also reaching the map underneath,
+            // Stops a tap or drag on the window from also reaching the map underneath,
             // which otherwise opened the goto-location popup on every camera switch. Same
             // guard the top bar uses. The panel's handlers sit above and still fire.
             MouseArea { anchors.fill: parent }
@@ -2168,7 +2168,7 @@ Item {
     }
 
     // The forward-looking camera on the air unit's second LAN port. It is fixed to the
-    // airframe, so it takes neither gimbal drag nor AI target picking.
+    // airframe, so it takes no AI target picking.
     PoliceDroneCameraPanel {
         id:                   primaryPanel
         parent:               root.expandedPanel === "primary" ? fullscreenLayer : primaryWindow.slot
@@ -2176,7 +2176,6 @@ Item {
         panelTitle:           qsTr("전방")
         showChrome:           root.expandedPanel === "primary"
         streamObjectName:     "fpvVideo"
-        gimbalControlEnabled: false
         proximityRingEnabled: true
         onActivated:          root._toggleExpanded("primary")
     }
@@ -2193,7 +2192,6 @@ Item {
                                                     : (root.eoShowsWideAngle ? qsTr("광각") : qsTr("줌"))
         showChrome:           root.expandedPanel === "secondary"
         streamObjectName:     "videoContent"
-        gimbalControlEnabled: true
         personDetectionEnabled: true
         aiTargetVisible:      root.aiTargetVisible
         aiTargetX:            root.aiTargetX
@@ -2212,7 +2210,6 @@ Item {
                               !App.SiyiCameraController.aiFollowStale
         targetPickEnabled:    root._aiPickEnabled
         onActivated:          root._toggleExpanded("secondary")
-        onTargetPicked:       (nx, ny) => App.SiyiAiController.trackPoint(nx, ny)
         onTargetBoxPicked:    (l, t, r, b) => App.SiyiAiController.trackBox(l, t, r, b)
         // The module reads selections in the stream's own resolution and never reports what
         // that is; left at its 1280x720 default a tap on a 1080p stream lands a third in.

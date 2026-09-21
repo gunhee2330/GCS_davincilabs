@@ -47,6 +47,41 @@ TestCase {
         compare(pick([persons, vehicles], crop, 2560, 1600, 2, 810).width, 0.2)
     }
 
+    function test_dragBoxIsDirectionFreeAndNormalisedThroughContentRect() {
+        const a = Qt.point(400, 270)
+        const b = Qt.point(1200, 720)
+        const forward  = HitTest.dragBox(a, b, fit, 1600, 900, touch)
+        const backward = HitTest.dragBox(b, a, fit, 1600, 900, touch)
+        fuzzyCompare(forward.left,   0.25, 1e-6)
+        fuzzyCompare(forward.top,    0.30, 1e-6)
+        fuzzyCompare(forward.right,  0.75, 1e-6)
+        fuzzyCompare(forward.bottom, 0.80, 1e-6)
+        compare(JSON.stringify(backward), JSON.stringify(forward))
+    }
+
+    function test_dragBoxIsClampedToTheVisiblePartOfTheFrame() {
+        // 16:9 frame filling a 16:10 screen with PreserveAspectCrop: 142 px cropped each side.
+        const crop = Qt.rect(-142, 0, 2844, 1600)
+        // Dragged off both edges: the box stops at the panel, and the panel edges are 142 px into
+        // the frame on the left and 142 px short of its right edge.
+        const box = HitTest.dragBox(Qt.point(-500, -500), Qt.point(3000, 2000), crop, 2560, 1600, touch)
+        fuzzyCompare(box.left,   142 / 2844, 1e-6)
+        fuzzyCompare(box.top,    0.0,        1e-6)
+        fuzzyCompare(box.right,  (142 + 2560) / 2844, 1e-6)
+        fuzzyCompare(box.bottom, 1.0,        1e-6)
+    }
+
+    function test_dragBoxRejectsTooSmallAndOffPictureDrags() {
+        // A side under the minimum, in either axis.
+        compare(HitTest.dragBox(Qt.point(400, 270), Qt.point(400 + touch - 1, 600), fit, 1600, 900, touch), null)
+        compare(HitTest.dragBox(Qt.point(400, 270), Qt.point(900, 270 + touch - 1), fit, 1600, 900, touch), null)
+        // On the minimum exactly is a selection.
+        verify(HitTest.dragBox(Qt.point(400, 270), Qt.point(400 + touch, 270 + touch), fit, 1600, 900, touch) !== null)
+        // Entirely outside the panel, and no picture at all - the state before the first frame.
+        compare(HitTest.dragBox(Qt.point(2000, 270), Qt.point(2400, 700), fit, 1600, 900, touch), null)
+        compare(HitTest.dragBox(Qt.point(400, 270), Qt.point(900, 700), Qt.rect(0, 0, 0, 0), 1600, 900, 0), null)
+    }
+
     function test_onlyDrawnBoxesArePickable() {
         const boxes = []
         for (let i = 0; i < 17; ++i) {

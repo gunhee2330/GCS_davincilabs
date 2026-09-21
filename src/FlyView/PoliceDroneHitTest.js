@@ -33,3 +33,34 @@ function boxAt(groups, maxBoxes, content, width, height, touch, x, y) {
     }
     return null
 }
+
+/// The box a drag on the picture selected, as the tracker takes it: normalised in the frame, as
+/// {left, top, right, bottom}. from and to are the press and the release point in panel pixels,
+/// in either order, so a drag in any direction gives the same box. content is the VideoOutput's
+/// contentRect, and the box is clamped to the part of it the panel actually shows, since
+/// fullscreen on a non-16:9 screen crops the frame. Null when the picture is not on screen yet or
+/// when a side of the box came out under minSide panel pixels: a flick is not a selection.
+function dragBox(from, to, content, width, height, minSide) {
+    const visLeft   = Math.max(content.x, 0)
+    const visTop    = Math.max(content.y, 0)
+    const visRight  = Math.min(content.x + content.width, width)
+    const visBottom = Math.min(content.y + content.height, height)
+    if ((visRight <= visLeft) || (visBottom <= visTop)) {
+        return null
+    }
+
+    const left   = Math.max(visLeft,   Math.min(from.x, to.x))
+    const top    = Math.max(visTop,    Math.min(from.y, to.y))
+    const right  = Math.min(visRight,  Math.max(from.x, to.x))
+    const bottom = Math.min(visBottom, Math.max(from.y, to.y))
+    if ((right - left < minSide) || (bottom - top < minSide)) {
+        return null
+    }
+
+    return {
+        left:   (left   - content.x) / content.width,
+        top:    (top    - content.y) / content.height,
+        right:  (right  - content.x) / content.width,
+        bottom: (bottom - content.y) / content.height
+    }
+}

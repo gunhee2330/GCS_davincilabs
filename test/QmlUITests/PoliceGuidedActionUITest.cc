@@ -3,6 +3,7 @@
 #include <QtCore/QDebug>
 #include <QtCore/QDir>
 #include <QtCore/QHash>
+#include <QtCore/QMetaMethod>
 #include <QtCore/QRect>
 #include <QtCore/QRegularExpression>
 #include <QtCore/QScopeGuard>
@@ -11,6 +12,7 @@
 #include <QtGui/QImage>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QQuickWindow>
+#include <QtTest/QSignalSpy>
 #include <QtTest/QTest>
 
 #include "Fact.h"
@@ -72,6 +74,32 @@ const QString kTitleChip  = QStringLiteral("cameraWindowTitleChip");
 const QString kZoomPanel  = QStringLiteral("policeZoomCameraPanel");
 const QString kStateChips = QStringLiteral("policeCameraStateChips");
 const QString kChipText   = QStringLiteral("policeCameraStateChipText");
+
+/// Drag-to-track on the zoom panel: the VideoOutput whose contentRect the box is normalised
+/// through, and the box drawn while the finger is down.
+const QString kZoomStream  = QStringLiteral("videoContent");
+const QString kDragBox     = QStringLiteral("policeTargetDragBox");
+
+/// The drag is walked in this many steps, each one well past the handler's drag threshold in
+/// total, so the handler activates and reports a moving centroid rather than one jump.
+constexpr int kDragSteps = 8;
+
+/// Frames land on whole device pixels and the drag points are floored to integers, so the box
+/// that comes back is compared in panel pixels with a couple to spare.
+constexpr qreal kDragSlack = 3.0;
+
+/// A signal of \a obj by name, whatever its parameter spelling in the metaobject.
+QMetaMethod signalByName(const QObject *obj, const char *name)
+{
+    const QMetaObject *const mo = obj->metaObject();
+    for (int i = 0; i < mo->methodCount(); ++i) {
+        const QMetaMethod method = mo->method(i);
+        if ((method.methodType() == QMetaMethod::Signal) && (method.name() == name)) {
+            return method;
+        }
+    }
+    return QMetaMethod();
+}
 
 /// Lit and unlit chip colours, as PoliceDroneCameraPanel.qml sets them.
 const QColor kChipLit   = QColor(QStringLiteral("#39ff14"));
@@ -262,6 +290,138 @@ void PoliceGuidedActionUITest::_grab(const QString &name)
 
     const QString path = QDir(dir).filePath(name + QStringLiteral(".png"));
     QVERIFY2(image.save(path), qPrintable(QStringLiteral("Cannot write %1").arg(path)));
+}
+
+void PoliceGuidedActionUITest::_dragPointer(const QList<QPointF> &path, const QString &grabName,
+                                            const std::function<void()> &midDrag)
+{
+    QPoint at(qFloor(path.first().x()), qFloor(path.first().y()));
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, at);
+
+    for (int leg = 1; leg < path.size(); ++leg) {
+        const QPoint corner(qFloor(path.at(leg).x()), qFloor(path.at(leg).y()));
+        const QPoint start = at;
+        for (int step = 1; step <= kDragSteps; ++step) {
+            at = QPoint(start.x() + ((corner.x() - start.x()) * step / kDragSteps),
+                        start.y() + ((corner.y() - start.y()) * step / kDragSteps));
+            QTest::mouseMove(_window, at);
+            QTest::qWait(16);
+        }
+    }
+
+    // Everything below here happens with the pointer still down, which is the only time the box
+    // is on screen and the only time the panel can be caught changing its mind mid-drag.
+    if (midDrag) {
+        midDrag();
+    }
+
+    if (!grabName.isEmpty() && !qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+        _grab(grabName);
+    }
+
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, at);
+    QTest::qWait(kSettleMs);
+}
+
+void PoliceGuidedActionUITest::_testTargetDragPicksBox()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const dashboard = findVisibleItem(_rootItem, kDashboard, 5000);
+        QVERIFY2(dashboard, "Police dashboard not found - the layout under test is not up");
+        QQuickItem *const panel = findVisibleItem(_rootItem, kZoomPanel, 5000);
+        QVERIFY2(panel, "Zoom camera panel not found");
+
+        // targetPickEnabled tracks the AI module's own connection, which no mock link can make
+        // true, so it is driven on the panel - the same way the chip test drives the chips.
+        QVERIFY(panel->setProperty("targetPickEnabled", true));
+        QTest::qWait(kSettleMs);
+
+        // Target picking on and nothing dragged yet: no control on the picture, the drag is the
+        // whole gesture.
+        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+            _grab(QStringLiteral("drag_0_at_rest"));
+        }
+
+        // The box is normalised through the video item's contentRect, so the expected numbers are
+        // taken from the same rectangle rather than from the panel.
+        QQuickItem *const video = findVisibleItem(panel, kZoomStream, 3000);
+        QVERIFY2(video, "Zoom panel video item not found");
+        const QRectF content = video->property("contentRect").toRectF();
+        QVERIFY2(!content.isEmpty(), "Video content rect is empty - there is nothing to normalise against");
+
+        const QMetaMethod picked = signalByName(panel, "targetBoxPicked");
+        QVERIFY2(picked.isValid(), "Panel has no targetBoxPicked signal");
+        QSignalSpy spy(panel, picked);
+        QVERIFY(spy.isValid());
+
+        const QRectF panelRect = sceneRect(panel);
+        const QPointF from = panelRect.topLeft() + QPointF(panelRect.width() * 0.2, panelRect.height() * 0.2);
+        const QPointF to   = panelRect.topLeft() + QPointF(panelRect.width() * 0.8, panelRect.height() * 0.75);
+
+        // Mid-drag the box is on screen; the grab inside _dragPointer is taken while it is.
+        _dragPointer({ from, to }, QStringLiteral("drag_1_box"), [panel] {
+            QVERIFY2(findVisibleItem(panel, kDragBox, 0), "No box was drawn while the drag was under way");
+        });
+        if (QTest::currentTestFailed()) return;
+
+        QCOMPARE(spy.count(), 1);
+        const QList<QVariant> box = spy.takeFirst();
+        QCOMPARE(box.size(), 4);
+
+        // Back out of frame coordinates into the panel's own, which is where the drag was aimed.
+        const QPointF localFrom = panel->mapFromScene(QPointF(qFloor(from.x()), qFloor(from.y())));
+        const QPointF localTo   = panel->mapFromScene(QPointF(qFloor(to.x()), qFloor(to.y())));
+        const QRectF wanted = QRectF(localFrom, localTo).normalized();
+        const QRectF got(content.x() + (box.at(0).toDouble() * content.width()),
+                         content.y() + (box.at(1).toDouble() * content.height()),
+                         (box.at(2).toDouble() - box.at(0).toDouble()) * content.width(),
+                         (box.at(3).toDouble() - box.at(1).toDouble()) * content.height());
+        QVERIFY2((qAbs(got.left()   - wanted.left())   <= kDragSlack) &&
+                     (qAbs(got.top()    - wanted.top())    <= kDragSlack) &&
+                     (qAbs(got.right()  - wanted.right())  <= kDragSlack) &&
+                     (qAbs(got.bottom() - wanted.bottom()) <= kDragSlack),
+                 qPrintable(QStringLiteral("Drag sent the box %1, expected %2 in panel pixels")
+                                .arg(QDebug::toString(got), QDebug::toString(wanted))));
+
+        // A drag is not a tap: the panel must not have gone full screen under it.
+        QCOMPARE(dashboard->property("expandedPanel").toString(), QString());
+
+        // Out and back: the pointer moved far enough for the handler to activate, so the box it
+        // ends on being too small is the only thing that can turn this down.
+        _dragPointer({ from, to, from + QPointF(2, 2) });
+        if (QTest::currentTestFailed()) return;
+        QVERIFY2(spy.isEmpty(), "A drag that came back to its press point still sent a box");
+
+        // The AI link dropping, or the operator switching AI off, takes target picking away with
+        // the finger still down. The half-drawn box must not go out as the handler falls over.
+        _dragPointer({ from, to }, QString(), [panel] {
+            QVERIFY(panel->setProperty("targetPickEnabled", false));
+        });
+        if (QTest::currentTestFailed()) return;
+        QVERIFY2(spy.isEmpty(), "A drag whose panel stopped taking target picks still sent a box");
+
+        // And a panel that does not take target picks - which is what the fixed forward camera is
+        // left at - must ignore the gesture outright. targetPickEnabled is already false above.
+        _dragPointer({ from, to });
+        if (QTest::currentTestFailed()) return;
+        QVERIFY2(spy.isEmpty(), "A drag on a panel with target picking off sent a box");
+        QCOMPARE(dashboard->property("expandedPanel").toString(), QString());
+
+        // The gesture the drag sits beside: a short tap on the picture still goes full screen,
+        // through the window's own MouseArea, which is what stops the tap reaching the map.
+        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier,
+                          QPoint(qFloor(panelRect.center().x()), qFloor(panelRect.center().y())));
+        QTest::qWait(kSettleMs);
+        QCOMPARE(dashboard->property("expandedPanel").toString(), QStringLiteral("secondary"));
+        QVERIFY(dashboard->setProperty("expandedPanel", QString()));
+        QTest::qWait(kSettleMs);
+    });
 }
 
 void PoliceGuidedActionUITest::_testTakeoffRaisesConfirmControl()
