@@ -2209,8 +2209,12 @@ Item {
         followActive:         App.SiyiCameraController.aiFollowEnabled &&
                               !App.SiyiCameraController.aiFollowStale
         targetPickEnabled:    root._aiPickEnabled
+        // The camera rail's 추적해제 is behind the picture full screen, which is where the
+        // operator is drawing boxes; this panel carries its own.
+        trackCancelEnabled:   App.SiyiAiController.hasTarget
         onActivated:          root._toggleExpanded("secondary")
         onTargetBoxPicked:    (l, t, r, b) => App.SiyiAiController.trackBox(l, t, r, b)
+        onTrackCancelRequested: App.SiyiAiController.cancelTracking()
         // The module reads selections in the stream's own resolution and never reports what
         // that is; left at its 1280x720 default a tap on a 1080p stream lands a third in.
         // Assigned through the properties: the setters are not callable from QML.

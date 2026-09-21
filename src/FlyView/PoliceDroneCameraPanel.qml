@@ -27,6 +27,10 @@ Item {
 
     /// Enables AI target selection on this panel: a drag on the picture boxes a target.
     property bool targetPickEnabled: false
+
+    /// Whether there is a target to let go of, which is all the release button below reacts to.
+    property bool trackCancelEnabled: false
+
     property bool aiTargetVisible:      false
     property real aiTargetX:            0
     property real aiTargetY:            0
@@ -59,6 +63,9 @@ Item {
     /// are normalised 0..1 across the video frame, which the controller scales into the stream's
     /// own resolution.
     signal targetBoxPicked(real left, real top, real right, real bottom)
+
+    /// The operator letting the tracked target go, from the button on the picture.
+    signal trackCancelRequested()
 
     Rectangle {
         anchors.fill: parent
@@ -237,6 +244,34 @@ Item {
         }
     }
 
+    // Letting the target go, on the picture the operator is watching it on. The camera rail
+    // carries the same command, but the rail sits at z 2 and a full screen camera at 20, so full
+    // screen - which is where boxes get drawn - the rail's button is behind the picture.
+    // Greyed rather than hidden, for the rail button's reason: the module drops hasTarget on a
+    // 1.5 s gap in the target stream, and a button that comes and goes is one the operator
+    // reaches for and misses.
+    QGCButton {
+        id:                   trackCancelButton
+        objectName:           "policeTrackCancelButton"
+        anchors.left:         parent.left
+        anchors.bottom:       parent.bottom
+        anchors.leftMargin:   ScreenTools.defaultFontPixelWidth
+        anchors.bottomMargin: ScreenTools.defaultFontPixelHeight
+        height:               Math.max(implicitHeight, ScreenTools.minTouchPixels)
+        text:                 qsTr("추적해제")
+        visible:              root.targetPickEnabled
+        enabled:              root.trackCancelEnabled
+        onClicked:            root.trackCancelRequested()
+    }
+
+    /// Whether \a pos, in panel pixels, is on the release button. A gesture that starts there is
+    /// the button's: the drag handler is allowed to take a grab off an item and the tap handler
+    /// holds a passive grab throughout, so neither leaves the button alone on its own.
+    function _onTrackCancel(pos) {
+        return trackCancelButton.visible &&
+               trackCancelButton.contains(trackCancelButton.mapFromItem(root, pos))
+    }
+
     // The box being dragged out, in the colour it keeps once the module is following it. No
     // resting border on the panel - it was the grey hairline boxing every camera in.
     Rectangle {
@@ -259,12 +294,18 @@ Item {
 
     /// The box under the finger while it is down, normalised in the frame, or null. No minimum
     /// side: it is drawn from the first pixel, and the minimum is what decides on release.
-    readonly property var _dragBox: targetDrag.active
+    readonly property var _dragBox: (targetDrag.active && !root._onTrackCancel(root._dragFrom))
                                         ? HitTest.dragBox(root._dragFrom, root._dragTo,
                                                           videoOutput.contentRect, width, height, 0)
                                         : null
 
     function _commitDrag() {
+        // Measured: the handler is allowed to take the grab off an item, so a drag that started
+        // on the release button reached here as a box. The press point is what says whose gesture
+        // this is - it is still the one the button was pressed at.
+        if (root._onTrackCancel(root._dragFrom)) {
+            return
+        }
         const box = HitTest.dragBox(root._dragFrom, root._dragTo, videoOutput.contentRect,
                                     width, height, ScreenTools.minTouchPixels * 0.5)
         // targetPickEnabled follows the AI module's own state, so it can go false with the finger
@@ -312,6 +353,13 @@ Item {
     TapHandler {
         acceptedButtons: Qt.LeftButton
         gesturePolicy:   TapHandler.DragThreshold
-        onTapped:        root.activated()
+        // Measured: this policy holds a passive grab, which the button taking the exclusive grab
+        // does not take away, so a press on the release button arrived here as a tap as well and
+        // took the panel full screen under the operator's finger.
+        onTapped:        (point) => {
+            if (!root._onTrackCancel(point.position)) {
+                root.activated()
+            }
+        }
     }
 }

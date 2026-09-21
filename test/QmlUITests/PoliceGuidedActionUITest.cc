@@ -10,6 +10,8 @@
 #include <QtCore/QtMath>
 #include <QtGui/QColor>
 #include <QtGui/QImage>
+#include <QtQml/QQmlContext>
+#include <QtQml/QQmlExpression>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QQuickWindow>
 #include <QtTest/QSignalSpy>
@@ -79,6 +81,9 @@ const QString kChipText   = QStringLiteral("policeCameraStateChipText");
 /// through, and the box drawn while the finger is down.
 const QString kZoomStream  = QStringLiteral("videoContent");
 const QString kDragBox     = QStringLiteral("policeTargetDragBox");
+
+/// The release button on the picture, the only 추적해제 reachable while a camera is full screen.
+const QString kTrackCancel = QStringLiteral("policeTrackCancelButton");
 
 /// The drag is walked in this many steps, each one well past the handler's drag threshold in
 /// total, so the handler activates and reports a moving centroid rather than one jump.
@@ -421,6 +426,101 @@ void PoliceGuidedActionUITest::_testTargetDragPicksBox()
         QCOMPARE(dashboard->property("expandedPanel").toString(), QStringLiteral("secondary"));
         QVERIFY(dashboard->setProperty("expandedPanel", QString()));
         QTest::qWait(kSettleMs);
+    });
+}
+
+void PoliceGuidedActionUITest::_testTrackCancelButton()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const dashboard = findVisibleItem(_rootItem, kDashboard, 5000);
+        QVERIFY2(dashboard, "Police dashboard not found - the layout under test is not up");
+        QQuickItem *const panel = findVisibleItem(_rootItem, kZoomPanel, 5000);
+        QVERIFY2(panel, "Zoom camera panel not found");
+
+        // Both properties follow the AI module's own state, which no mock link can drive, so they
+        // are set on the panel - the same way the chip test drives the chips.
+        QVERIFY(panel->setProperty("targetPickEnabled", true));
+        QVERIFY(panel->setProperty("trackCancelEnabled", true));
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const button = findVisibleItem(panel, kTrackCancel, 3000);
+        QVERIFY2(button, "The release button is not on the panel");
+
+        // It has to be hittable with a glove, and it has to be on the picture it belongs to. The
+        // floor is read out of the same singleton the panel sizes itself from rather than pinned
+        // to a number here, which would only pin this host's font metrics.
+        QQmlExpression touchFloor(qmlContext(panel), panel, QStringLiteral("ScreenTools.minTouchPixels"));
+        const QVariant floorValue = touchFloor.evaluate();
+        QVERIFY2(!touchFloor.hasError(), qPrintable(touchFloor.error().toString()));
+        QVERIFY2(button->height() >= floorValue.toReal(),
+                 qPrintable(QStringLiteral("The release button is %1 px high, under the %2 px touch floor")
+                                .arg(button->height())
+                                .arg(floorValue.toReal())));
+        const QRectF panelRect  = sceneRect(panel);
+        const QRectF buttonRect = sceneRect(button);
+        QVERIFY2(panelRect.contains(buttonRect),
+                 qPrintable(QStringLiteral("The release button %1 hangs outside its panel %2")
+                                .arg(QDebug::toString(buttonRect), QDebug::toString(panelRect))));
+
+        const QMetaMethod cancelled = signalByName(panel, "trackCancelRequested");
+        QVERIFY2(cancelled.isValid(), "Panel has no trackCancelRequested signal");
+        QSignalSpy cancelSpy(panel, cancelled);
+        QVERIFY(cancelSpy.isValid());
+
+        const QMetaMethod picked = signalByName(panel, "targetBoxPicked");
+        QVERIFY2(picked.isValid(), "Panel has no targetBoxPicked signal");
+        QSignalSpy boxSpy(panel, picked);
+        QVERIFY(boxSpy.isValid());
+
+        const QPoint on(qFloor(buttonRect.center().x()), qFloor(buttonRect.center().y()));
+        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, on);
+        QTest::qWait(kSettleMs);
+        QCOMPARE(cancelSpy.count(), 1);
+        QVERIFY2(boxSpy.isEmpty(), "Clicking the release button also handed the module a box");
+        // The tap that fills the screen with this camera runs on the same panel, off a passive
+        // grab that the button's own grab does not take away.
+        QCOMPARE(dashboard->property("expandedPanel").toString(), QString());
+
+        // Greyed, which is what no target looks like: the click has to do nothing at all.
+        QVERIFY(panel->setProperty("trackCancelEnabled", false));
+        QTest::qWait(kSettleMs);
+        cancelSpy.clear();
+        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, on);
+        QTest::qWait(kSettleMs);
+        QVERIFY2(cancelSpy.isEmpty(), "A click on the greyed release button still asked for a cancel");
+        QVERIFY2(boxSpy.isEmpty(), "A click on the greyed release button handed the module a box");
+        QCOMPARE(dashboard->property("expandedPanel").toString(), QString());
+
+        // A drag off the button is the button being pressed, not a box being drawn. The drag
+        // handler is allowed to take the grab off an item, so this is not free.
+        QVERIFY(panel->setProperty("trackCancelEnabled", true));
+        QTest::qWait(kSettleMs);
+        cancelSpy.clear();
+        const QPointF to = panelRect.topLeft() + QPointF(panelRect.width() * 0.8, panelRect.height() * 0.3);
+        _dragPointer({ buttonRect.center(), to });
+        if (QTest::currentTestFailed()) return;
+        QVERIFY2(boxSpy.isEmpty(), "A drag that started on the release button handed the module a box");
+        QCOMPARE(dashboard->property("expandedPanel").toString(), QString());
+
+        // Full screen is the case the button exists for: the camera rail that carries the same
+        // command is at z 2, under the fullscreen layer at 20. Set rather than tapped - this
+        // frame is about what is reachable, not about the gesture.
+        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+            QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
+            QTest::qWait(kSettleMs);
+            QQuickItem *const fullButton = findVisibleItem(panel, kTrackCancel, 3000);
+            QVERIFY2(fullButton, "The release button went away full screen");
+            _grab(QStringLiteral("drag_2_fullscreen_cancel"));
+            if (QTest::currentTestFailed()) return;
+            QVERIFY(dashboard->setProperty("expandedPanel", QString()));
+            QTest::qWait(kSettleMs);
+        }
     });
 }
 

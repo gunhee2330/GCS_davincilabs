@@ -57,6 +57,11 @@ private slots:
     /// full screen.
     void _testTargetDragPicksBox();
 
+    /// The release button on the picture: a click must ask for exactly one cancel, must not send
+    /// a box and must not take the panel full screen; greyed it must do nothing at all; and a
+    /// drag that starts on it must not send a box either.
+    void _testTrackCancelButton();
+
 private:
     /// Pre-existing QML warnings that the strict log check would otherwise fail on.
     void _ignorePreexistingQmlWarnings();
