@@ -11,6 +11,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         ControllerBattery.h
         PoliceGimbalJoystick.cc
         PoliceGimbalJoystick.h
+        PoliceLidarMonitor.cc
+        PoliceLidarMonitor.h
         PoliceLinkDefaults.cc
         PoliceLinkDefaults.h
         PoliceVideoDefaults.cc

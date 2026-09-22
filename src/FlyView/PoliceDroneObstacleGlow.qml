@@ -1,5 +1,6 @@
 import QtQuick
 
+import QGC as App
 import QGroundControl
 import QGroundControl.Controls
 
@@ -28,9 +29,11 @@ Item {
     /// glow, which sits at z -1, so the number steps below it rather than under it.
     property real topLabelInset: 0
 
-    // Nothing to draw before the aircraft reports an obstacle, and nothing worth drawing on the
-    // ground: a parked airframe reads close on every side and would cry wolf before every flight.
-    visible: proximityValues.telemetryAvailable && _vehicle && _vehicle.armed
+    // Up for as long as the sensor is talking, on the ground as well: one forward lidar cannot
+    // surround a parked airframe the way a full ring would, and seeing it alive before takeoff is
+    // wanted. Down again as soon as the readings stop, which is what the monitor's staleness is
+    // for. The bands inside still only light for something inside the warn band.
+    visible: lidar.fresh
 
     readonly property var _vehicle: QGroundControl.multiVehicleManager.activeVehicle
 
@@ -55,9 +58,10 @@ Item {
     readonly property var _edgeDistances: {
         const distances = [NaN, NaN, NaN, NaN]
         for (let sector = 0; sector < 8; ++sector) {
-            const distance = proximityValues.rgRotationValues[sector]
-            // A sector this airframe does not carry arrives as NaN and leaves its edges dark. The
-            // sensor's reported maximum is not consulted, for the reason given on the ring.
+            // Raw metres, as on the ring, and for the same reason: these thresholds are metres.
+            const distance = lidar.sectorDistances[sector]
+            // A sector this airframe does not carry, or one gone quiet, arrives as NaN and leaves
+            // its edges dark. The sensor's reported maximum is not consulted, as on the ring.
             if (isNaN(distance) || (distance <= 0)) {
                 continue
             }
@@ -74,8 +78,8 @@ Item {
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
-    ProximityRadarValues {
-        id:      proximityValues
+    App.PoliceLidarMonitor {
+        id:      lidar
         vehicle: root._vehicle
     }
 
@@ -157,8 +161,8 @@ Item {
                     font.pointSize: ScreenTools.largeFontPointSize
                     style:          Text.Outline
                     styleColor:     Qt.rgba(0, 0, 0, 0.75)
-                    // One decimal: the fact's own valueString carries two, more precision than a
-                    // proximity sensor earns and a wider number for no gain.
+                    // One decimal: more is precision a proximity sensor has not earned and a
+                    // wider number for no gain. Metres, which is what the monitor holds.
                     text:           band._distance.toFixed(1)
                 }
 

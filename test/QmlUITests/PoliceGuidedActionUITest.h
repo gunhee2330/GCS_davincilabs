@@ -47,6 +47,12 @@ private slots:
     /// when lit.
     void _testStateChipColours();
 
+    /// The forward lidar drives the compass ring, the map edge glow and the forward number on
+    /// the ground as well as in the air: a frame at 3.3 m must raise all three while disarmed,
+    /// the same distance repeated must keep them up, and silence past the monitor's timeout must
+    /// take all three away rather than leave a dead sensor's last reading on screen.
+    void _testLidarDisplaysFollowTheSensor();
+
     /// Capture slot for the camera band. Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureCameraBand();
 

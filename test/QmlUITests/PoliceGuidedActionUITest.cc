@@ -18,7 +18,6 @@
 #include <QtTest/QTest>
 
 #include "Fact.h"
-#include "FactGroup.h"
 #include "FactMetaData.h"
 #include "FlyViewSettings.h"
 #include "MAVLinkLib.h"
@@ -45,6 +44,13 @@ const QString kStartMissionButton = QStringLiteral("policeToolStartMission");
 
 const QString kSlider    = QStringLiteral("guidedValueSlider");
 const QString kDashboard = QStringLiteral("policeDroneDashboard");
+
+/// The two proximity displays the forward lidar drives.
+const QString kRing = QStringLiteral("policeDroneProximityRing");
+const QString kGlow = QStringLiteral("policeDroneObstacleGlow");
+
+/// PoliceLidarMonitor::staleTimeoutMs default, which nothing here changes.
+constexpr int kStaleTimeoutMs = 5000;
 
 /// The camera windows and the blocks that share the screen with them.
 const QString kForwardWindow   = QStringLiteral("cameraWindowPrimary");
@@ -173,16 +179,24 @@ void collectStripEntries(QQuickItem *item, QList<QQuickItem *> &out)
 }
 
 /// Same approach ScreenshotTest takes: the mock's own sweep drives every sector off one sine, so
-/// a single close arc can only be had by feeding the fact group crafted DISTANCE_SENSOR messages.
-/// Min 40 cm, max 12 m, a TF Mini's own range.
-void injectProximity(Vehicle *vehicle, const double (&metresPerSector)[8])
+/// a single close arc can only be had by sending crafted DISTANCE_SENSOR messages.
+/// Min 40 cm, max 12 m, a TF Mini's own range. A NaN entry is not sent at all, which is how the
+/// one forward sensor this airframe carries is injected on its own.
+///
+/// Onto the link rather than into the fact group: PoliceLidarMonitor listens to Vehicle's
+/// mavlinkMessageReceived, and handing the fact group a decoded message skips that dispatch
+/// entirely - the displays would stay dark however close the injected obstacle was.
+void injectProximity(MockLink *mockLink, Vehicle *vehicle, const double (&metresPerSector)[8])
 {
-    FactGroup *const group = vehicle->distanceSensorFactGroup();
     for (int sector = 0; sector < 8; sector++) {
+        if (qIsNaN(metresPerSector[sector])) {
+            continue;
+        }
         mavlink_message_t msg{};
         const float quaternion[4]{};
         (void) mavlink_msg_distance_sensor_pack_chan(
-            vehicle->id(), MAV_COMP_ID_AUTOPILOT1, MAVLINK_COMM_0, &msg,
+            static_cast<uint8_t>(vehicle->id()), MAV_COMP_ID_AUTOPILOT1,
+            mockLink->outgoingMavlinkChannel(), &msg,
             0,                                                      // time_boot_ms
             40,                                                     // min_distance cm
             1200,                                                   // max_distance cm
@@ -191,8 +205,37 @@ void injectProximity(Vehicle *vehicle, const double (&metresPerSector)[8])
             static_cast<uint8_t>(sector),                           // id
             static_cast<uint8_t>(sector),                           // orientation: NONE..YAW_315 are 0..7
             255, 0.0f, 0.0f, quaternion, 0);
-        group->handleMessage(vehicle, msg);
+        mockLink->respondWithMavlinkMessage(msg);
     }
+}
+
+/// The first visible item in \a root's subtree whose text property reads \a text. The proximity
+/// displays give their labels no objectName, so the number on screen is found by what it says.
+QQuickItem *findVisibleTextItem(QQuickItem *root, const QString &text)
+{
+    if (root->isVisible() && (root->property("text").toString() == text)) {
+        return root;
+    }
+    const QList<QQuickItem *> children = root->childItems();
+    for (QQuickItem *const child : children) {
+        if (QQuickItem *const found = findVisibleTextItem(child, text)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+
+/// Evaluates \a expression against \a item's own QML scope, so the item's internal readings can
+/// be asserted without giving them an objectName of their own.
+QVariant evaluateOn(QQuickItem *item, const QString &expression)
+{
+    QQmlExpression qmlExpression(qmlContext(item), item, expression);
+    const QVariant value = qmlExpression.evaluate();
+    if (qmlExpression.hasError()) {
+        QTest::qFail(qPrintable(qmlExpression.error().toString()), __FILE__, __LINE__);
+        return QVariant();
+    }
+    return value;
 }
 
 bool hasAncestorNamed(QQuickItem *item, const QString &objectName)
@@ -224,11 +267,13 @@ void PoliceGuidedActionUITest::_ignorePreexistingQmlWarnings()
 
     // The stock plan view's map visuals are sometimes torn down mid-creation when the previous
     // slot's engine goes away, and the message lands in whichever slot is running by then. Seen
-    // in the guided slots as well as the layout ones, none of which instantiate that file. The
-    // sentence is localised, so the pattern matches the file rather than the words.
+    // in the guided slots as well as the layout ones, none of which instantiate those files, and
+    // from the mission item visuals as well as the home position one - which slot catches it
+    // moves with how long the slots before it took. The sentence is localised, so the pattern
+    // matches the files rather than the words.
     ignoreLogMessage("default", QtInfoMsg,
                      QRegularExpression(QStringLiteral(
-                         "^qrc:/qml/QGroundControl/PlanView/HomePositionMapVisual\\.qml: ")));
+                         "^qrc:/qml/QGroundControl/PlanView/[A-Za-z]+MapVisual\\.qml: ")));
 }
 
 void PoliceGuidedActionUITest::_ignoreDownloadedMissionFontWarnings()
@@ -1083,6 +1128,90 @@ void PoliceGuidedActionUITest::_testStateChipColours()
     });
 }
 
+void PoliceGuidedActionUITest::_testLidarDisplaysFollowTheSensor()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> mockLink, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const dashboard = findVisibleItem(_rootItem, kDashboard, 5000);
+        QVERIFY2(dashboard, "Police dashboard not found - the layout under test is not up");
+
+        // Disarmed throughout: seeing the lidar work before takeoff is the point of dropping the
+        // arming gate, and a display that only came up armed would pass none of this.
+        QVERIFY2(!vehicle->armed(), "The mock vehicle came up armed");
+        QVERIFY2(!findVisibleItem(_rootItem, kRing, 1000),
+                 "A proximity ring was up before any reading had arrived");
+        QVERIFY2(!findVisibleItem(_rootItem, kGlow, 1000),
+                 "The obstacle glow was up before any reading had arrived");
+
+        // The one forward sensor this airframe carries, at 3.3 m, inside the 7 m close band.
+        const double rgForwardOnly[8] = { 3.3, qQNaN(), qQNaN(), qQNaN(),
+                                          qQNaN(), qQNaN(), qQNaN(), qQNaN() };
+        injectProximity(mockLink, vehicle, rgForwardOnly);
+
+        QQuickItem *const ring = findVisibleItem(_rootItem, kRing, 5000);
+        QVERIFY2(ring, "No proximity ring became visible while the lidar reported 3.3 m");
+        QCOMPARE(evaluateOn(ring, QStringLiteral("_sectorDistance(0)")).toDouble(), 3.3);
+        QVERIFY2(evaluateOn(ring, QStringLiteral("_sectorStroke(0)")).toDouble() > 0,
+                 "The ring is up but its nose arc has no width, so nothing is drawn");
+
+        QQuickItem *const glow = findVisibleItem(_rootItem, kGlow, 3000);
+        QVERIFY2(glow, "The obstacle glow never became visible");
+        // Sector 0 folds onto the top edge while the aircraft heads north, which is where the
+        // number sits under the top bar.
+        QCOMPARE(evaluateOn(glow, QStringLiteral("_edgeDistances[0]")).toDouble(), 3.3);
+        QVERIFY2(findVisibleTextItem(glow, QStringLiteral("3.3")),
+                 "The forward distance is not on screen");
+        QVERIFY2(findVisibleTextItem(glow, QStringLiteral("m")),
+                 "The forward distance is on screen without its unit");
+
+        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+            // Fed again right here: the assertions above take an unbudgeted while and _grab waits
+            // another 1.5 s, which without a fresh frame could hand the file the cleared state
+            // while every assertion had already passed. Re-fed, the grab lands 1.5 s into a 5 s
+            // window.
+            injectProximity(mockLink, vehicle, rgForwardOnly);
+            _grab(QStringLiteral("l_0_disarmed_3m3"));
+            if (QTest::currentTestFailed()) return;
+        }
+
+        // The same distance, once a second, for 6 s - longer than the 5 s timeout, so a frame
+        // carrying a value already held has to be what keeps the displays up. An equal Fact value
+        // signals nothing, which is what made a steady sensor indistinguishable from a dead one;
+        // here the frames themselves are the receipt.
+        for (int second = 0; second < 6; ++second) {
+            QTest::qWait(1000);
+            injectProximity(mockLink, vehicle, rgForwardOnly);
+        }
+        QVERIFY2(findVisibleItem(_rootItem, kRing, 1000),
+                 "The ring went away while the same reading kept arriving");
+        QVERIFY2(findVisibleItem(_rootItem, kGlow, 1000),
+                 "The glow went away while the same reading kept arriving");
+        QVERIFY2(findVisibleTextItem(glow, QStringLiteral("3.3")),
+                 "The forward distance went away while the same reading kept arriving");
+
+        // Then the sensor stops, for the monitor's own timeout and a margin. The number is
+        // PoliceLidarMonitor's default, which PoliceLidarMonitorTest pins; the displays leave it
+        // alone, and its QML id is not reachable from here.
+        QTest::qWait(kStaleTimeoutMs + 500);
+
+        QVERIFY2(!findVisibleItem(_rootItem, kRing, 0),
+                 "A proximity ring stayed up after the readings stopped");
+        QVERIFY2(!findVisibleItem(_rootItem, kGlow, 0),
+                 "The obstacle glow stayed up after the readings stopped");
+        QVERIFY2(!findVisibleTextItem(glow, QStringLiteral("3.3")),
+                 "The forward distance stayed on screen after the readings stopped");
+
+        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+            _grab(QStringLiteral("l_1_after_silence"));
+        }
+    });
+}
+
 void PoliceGuidedActionUITest::_captureCameraBand()
 {
     if (qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
@@ -1098,7 +1227,7 @@ void PoliceGuidedActionUITest::_captureCameraBand()
     const int height = requestedHeight > 0 ? requestedHeight : kLayoutHeight;
 
     runWithMockLink([] { return MockLink::startPX4MockLink(); },
-                    [this, width, height](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+                    [this, width, height](QPointer<MockLink> mockLink, Vehicle *vehicle) {
         _window->resize(width, height);
         QTest::qWait(kSettleMs);
 
@@ -1131,19 +1260,21 @@ void PoliceGuidedActionUITest::_captureCameraBand()
         if (QTest::currentTestFailed()) return;
 
         // The ring on the forward window, the compass ring and the map edge glow all read the
-        // same fact group and only while armed. The mock's own sweep is off under OptionNone,
-        // so the injected frame stays put.
+        // injected frames. The mock's own sweep is off under OptionNone, so an injected reading
+        // stands until the monitor's staleness drops it. Armed for the rest of what the frame
+        // shows - the bar and the strip - rather than for the displays, which no longer wait
+        // for it.
         vehicle->setArmed(true, false);
         QTRY_VERIFY(vehicle->armed());
         const double rgForwardClose[8] = { 4, 11, 11, 11, 11, 11, 11, 11 };
-        injectProximity(vehicle, rgForwardClose);
+        injectProximity(mockLink, vehicle, rgForwardClose);
         _grab(QStringLiteral("v2_1_lidar_front"));
         if (QTest::currentTestFailed()) return;
 
         // Sector 2 is YAW_90, the aircraft's right side, which is the map's right edge while the
         // aircraft heads north. That edge is the one the camera column stands on.
         const double rgRightClose[8] = { 11, 11, 4, 11, 11, 11, 11, 11 };
-        injectProximity(vehicle, rgRightClose);
+        injectProximity(mockLink, vehicle, rgRightClose);
         _grab(QStringLiteral("v2_2_lidar_right"));
         if (QTest::currentTestFailed()) return;
 
@@ -1161,13 +1292,13 @@ void PoliceGuidedActionUITest::_captureCameraBand()
         // stays offered while armed, so the control the click above raised is still the one here.
         vehicle->setArmed(true, false);
         QTRY_VERIFY(vehicle->armed());
-        injectProximity(vehicle, rgForwardClose);
+        injectProximity(mockLink, vehicle, rgForwardClose);
         _grab(QStringLiteral("v2_9_lidar_with_confirm"));
         if (QTest::currentTestFailed()) return;
 
         // Back to what the flying frames were captured in: no obstacle, on the ground.
         const double rgAllFar[8] = { 11, 11, 11, 11, 11, 11, 11, 11 };
-        injectProximity(vehicle, rgAllFar);
+        injectProximity(mockLink, vehicle, rgAllFar);
         vehicle->setArmed(false, false);
         QTRY_VERIFY(!vehicle->armed());
 

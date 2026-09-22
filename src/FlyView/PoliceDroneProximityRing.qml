@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Shapes
 
+import QGC as App
 import QGroundControl
 import QGroundControl.Controls
 
@@ -52,9 +53,11 @@ Item {
     width:  (ringRadius + boldStroke) * 2
     height: width
 
-    // Nothing to draw before the aircraft reports an obstacle, and nothing worth drawing on the
-    // ground: a parked airframe reads close on every side and would cry wolf before every flight.
-    visible: active && proximityValues.telemetryAvailable && _vehicle && _vehicle.armed
+    // Up for as long as the sensor is talking, on the ground as well: one forward lidar cannot
+    // surround a parked airframe the way a full ring would, and the gauge being alive before
+    // takeoff is how the operator knows the sensor is there at all. Down again as soon as the
+    // readings stop, which is what the monitor's staleness is for.
+    visible: active && lidar.fresh
 
     readonly property var _vehicle: QGroundControl.multiVehicleManager.activeVehicle
 
@@ -86,15 +89,14 @@ Item {
         (northUp && _vehicle && !isNaN(_vehicle.heading.rawValue)) ? _vehicle.heading.rawValue : 0
 
     function _sectorDistance(sectorIndex) {
-        const distance = proximityValues.rgRotationValues[sectorIndex]
-        // A sector the aircraft has never reported comes through as NaN and must stay blank: the
-        // ring covers eight directions, a given airframe rarely carries eight sensors.
-        // Deliberately not compared against the sensor's reported maximum. maxDistance is one
-        // shared fact that every DISTANCE_SENSOR overwrites whatever its orientation
-        // (VehicleDistanceSensorFactGroup.cc:57-58), so once a second rangefinder is fitted - a
-        // downward lidar, say - it carries that one's ceiling and not this sector's. A TF Mini
-        // reports past its own declared 12 m anyway, out to 20 m in the flight logs, so the
-        // comparison would discard real readings while catching nothing.
+        // Raw metres from the monitor, never a Fact value: a Fact hands QML the number already
+        // converted to the app's horizontal distance unit, and the bands below are metres.
+        const distance = lidar.sectorDistances[sectorIndex]
+        // A sector the aircraft has never reported, or one that has gone quiet, comes through as
+        // NaN and must stay blank: the ring covers eight directions, a given airframe rarely
+        // carries eight sensors. The sensor's own declared maximum is not consulted either - a
+        // TF Mini reports past its 12 m, out to 20 m in the flight logs, so the comparison would
+        // discard real readings while catching nothing.
         if (isNaN(distance) || (distance <= 0)) {
             return NaN
         }
@@ -125,8 +127,8 @@ Item {
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
-    ProximityRadarValues {
-        id:      proximityValues
+    App.PoliceLidarMonitor {
+        id:      lidar
         vehicle: root._vehicle
     }
 
@@ -144,7 +146,7 @@ Item {
     }
 
     // Shape rather than Canvas, as on the map: scene graph geometry with no backing store, and
-    // the sensor values only change at the fact group's 1 Hz.
+    // the sensor values only change as fast as the aircraft sends them.
     Shape {
         id:           arcs
         anchors.fill: parent
@@ -216,9 +218,9 @@ Item {
                 anchors.centerIn: parent
                 color:            qgcPal.colorRed
                 font.bold:        true
-                // One decimal: the fact's own valueString carries two, which is more precision
-                // than a proximity sensor earns and a wider pill for no gain.
-                text:             proximityValues.rgRotationValues[index].toFixed(1) + " m"
+                // One decimal: more than that is precision a proximity sensor has not earned and
+                // a wider pill for no gain. Metres, which is what the monitor holds.
+                text:             lidar.sectorDistances[index].toFixed(1) + " m"
             }
         }
     }

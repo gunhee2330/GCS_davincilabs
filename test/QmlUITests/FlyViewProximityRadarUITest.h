@@ -12,4 +12,9 @@ class FlyViewProximityRadarUITest : public QmlUITestBase
 private slots:
     void _testRadarVisibleWithProximity();
     void _testRadarHiddenWithoutProximity();
+
+private:
+    /// Pre-existing QML warnings that the strict log check would otherwise fail on. Same two
+    /// the other fly view UI tests register.
+    void _ignorePreexistingQmlWarnings();
 };
