@@ -4,6 +4,7 @@
 
 #include "MAVLinkLib.h"
 #include "Vehicle.h"
+#include "VehicleLinkManager.h"
 
 namespace {
 
@@ -14,6 +15,18 @@ constexpr uint8_t kLastYawOrientation = MAV_SENSOR_ROTATION_YAW_315;
 /// Staleness re-check interval. Well inside the shortest timeout worth setting, and cheap: it
 /// walks eight numbers.
 constexpr int kStaleCheckMs = 250;
+
+/// PX4's radio profile sends DISTANCE_SENSOR at 0.5 Hz; this is what the monitor asks for instead.
+constexpr int32_t kFastRateHz = 5;
+
+/// Ten frames at kFastRateHz.
+constexpr int kFastStaleTimeoutMs = 2000;
+
+/// Kept on the Vehicle itself rather than in a static set, so they go when it does and a new
+/// Vehicle at a recycled address starts clean. The first says the request went out, the second
+/// that the vehicle came back with the fast rate.
+constexpr char kRateRequestedProperty[] = "policeLidarRateRequested";
+constexpr char kRateConfirmedProperty[] = "policeLidarRateConfirmed";
 
 /// NaN never compares equal to itself, so a plain != would report a change on every stale
 /// sector, every tick.
@@ -50,14 +63,29 @@ void PoliceLidarMonitor::setVehicle(Vehicle* vehicle)
     }
 
     if (_vehicle) {
-        (void) disconnect(_vehicle, &Vehicle::mavlinkMessageReceived,
-                          this, &PoliceLidarMonitor::_mavlinkMessageReceived);
+        (void) disconnect(_vehicle, nullptr, this, nullptr);
+        (void) disconnect(_vehicle->vehicleLinkManager(), nullptr, this, nullptr);
     }
     _vehicle = vehicle;
     if (_vehicle) {
         (void) connect(_vehicle, &Vehicle::mavlinkMessageReceived,
                        this, &PoliceLidarMonitor::_mavlinkMessageReceived);
+        (void) connect(_vehicle->vehicleLinkManager(), &VehicleLinkManager::communicationLostChanged,
+                       this, &PoliceLidarMonitor::_communicationLostChanged);
+        if (_vehicle->isInitialConnectComplete()) {
+            _requestFastRate();
+        } else {
+            (void) connect(_vehicle, &Vehicle::initialConnectComplete,
+                           this, &PoliceLidarMonitor::_requestFastRate);
+        }
     }
+
+    // The timeout is the vehicle's confirmed rate, not whatever this monitor last watched: a
+    // display that turns up after the confirmation gets the short one, and one that moves to a
+    // vehicle that has not confirmed goes back to the long one.
+    setStaleTimeoutMs((_vehicle && _vehicle->property(kRateConfirmedProperty).toBool())
+                          ? kFastStaleTimeoutMs
+                          : kSlowStaleTimeoutMs);
 
     // Another airframe's readings are not this one's, and a link that went away leaves no sensor
     // behind: everything goes back to unseen rather than standing as the new vehicle's numbers.
@@ -92,8 +120,49 @@ void PoliceLidarMonitor::setStaleTimeoutMs(int timeoutMs)
     _dropStaleSectors();
 }
 
+void PoliceLidarMonitor::_requestFastRate()
+{
+    // A request sent into a lost link is lost with it, and would still mark this vehicle done.
+    if (!_vehicle || _vehicle->property(kRateRequestedProperty).toBool()
+        || _vehicle->vehicleLinkManager()->communicationLost()) {
+        return;
+    }
+    _vehicle->setProperty(kRateRequestedProperty, true);
+    _vehicle->setMessageRate(MAV_COMP_ID_AUTOPILOT1, MAVLINK_MSG_ID_DISTANCE_SENSOR, kFastRateHz);
+}
+
+void PoliceLidarMonitor::_communicationLostChanged(bool lost)
+{
+    // A link that goes quiet may be the autopilot rebooting, as on a battery swap, and PX4 does not
+    // keep a SET_MESSAGE_INTERVAL across that. So the request and its confirmation go with the
+    // link, the long timeout stands again, and the request is made anew once the vehicle is back.
+    if (lost) {
+        _vehicle->setProperty(kRateRequestedProperty, false);
+        _vehicle->setProperty(kRateConfirmedProperty, false);
+        setStaleTimeoutMs(kSlowStaleTimeoutMs);
+    } else if (_vehicle->isInitialConnectComplete()) {
+        _requestFastRate();
+    }
+}
+
 void PoliceLidarMonitor::_mavlinkMessageReceived(const mavlink_message_t& message)
 {
+    // The ack itself goes only to MessageIntervalManager's private handler. This is the vehicle's
+    // own MESSAGE_INTERVAL report, which the manager asks for after an ACCEPTED ack, so a vehicle
+    // still on the slow rate never shortens the timeout. It is read raw rather than through
+    // mavlinkMsgIntervalsChanged because the manager signals only a rate it has not cached: the
+    // same 5 Hz confirmed again after a lost link would never arrive.
+    if (message.msgid == MAVLINK_MSG_ID_MESSAGE_INTERVAL) {
+        mavlink_message_interval_t interval{};
+        mavlink_msg_message_interval_decode(&message, &interval);
+        if ((message.compid == MAV_COMP_ID_AUTOPILOT1) && (interval.message_id == MAVLINK_MSG_ID_DISTANCE_SENSOR)
+            && (interval.interval_us > 0) && (interval.interval_us <= (1000000 / kFastRateHz))) {
+            _vehicle->setProperty(kRateConfirmedProperty, true);
+            setStaleTimeoutMs(kFastStaleTimeoutMs);
+        }
+        return;
+    }
+
     if (message.msgid != MAVLINK_MSG_ID_DISTANCE_SENSOR) {
         return;
     }

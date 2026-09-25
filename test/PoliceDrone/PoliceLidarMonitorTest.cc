@@ -8,6 +8,7 @@
 #include "MockLink.h"
 #include "PoliceLidarMonitor.h"
 #include "Vehicle.h"
+#include "VehicleLinkManager.h"
 
 namespace {
 
@@ -202,6 +203,137 @@ void PoliceLidarMonitorTest::_foreignSysidAndNullVehicleLeaveNothing_test()
     monitor.setVehicle(nullptr);
     QVERIFY2(!monitor.fresh(), "A departed airframe's reading stood after its vehicle went away");
     QVERIFY(qIsNaN(monitor.forwardDistance()));
+}
+
+void PoliceLidarMonitorTest::_fastRateRequestedOncePerVehicle_test()
+{
+    // The vehicle is past its initial connect sequence already, so the request goes out on
+    // setVehicle; nothing from that sequence is counted here.
+    QVERIFY(vehicle()->isInitialConnectComplete());
+    mockLink()->clearReceivedMavCommandCounts();
+    mockLink()->clearReceivedRequestMessageCounts();
+
+    PoliceLidarMonitor ring;
+    PoliceLidarMonitor glow;
+    ring.setVehicle(vehicle());
+    glow.setVehicle(vehicle());
+
+    QTRY_COMPARE_WITH_TIMEOUT(mockLink()->receivedMavCommandCount(MAV_CMD_SET_MESSAGE_INTERVAL, MAV_COMP_ID_AUTOPILOT1), 1, kDispatchMs);
+
+    mavlink_message_t message{};
+    QVERIFY(mockLink()->lastReceivedMavlinkMessage(MAVLINK_MSG_ID_COMMAND_LONG, message));
+    mavlink_command_long_t command{};
+    mavlink_msg_command_long_decode(&message, &command);
+    QCOMPARE(static_cast<int>(command.command), static_cast<int>(MAV_CMD_SET_MESSAGE_INTERVAL));
+    QCOMPARE(static_cast<int>(command.target_component), static_cast<int>(MAV_COMP_ID_AUTOPILOT1));
+    QCOMPARE(command.param1, static_cast<float>(MAVLINK_MSG_ID_DISTANCE_SENSOR));
+    QCOMPARE(command.param2, 200000.0f);
+
+    // MockLink answers UNSUPPORTED for this id, as a firmware that will not stream it faster
+    // would. Once that ack is in, no second request follows, the manager does not go on to ask
+    // for MESSAGE_INTERVAL, and the timeout stays where it was.
+    QTRY_VERIFY_WITH_TIMEOUT(!vehicle()->isMavCommandPending(MAV_COMP_ID_AUTOPILOT1, MAV_CMD_SET_MESSAGE_INTERVAL), kDispatchMs);
+    QTest::qWait(kDispatchMs);
+    QCOMPARE(mockLink()->receivedMavCommandCount(MAV_CMD_SET_MESSAGE_INTERVAL, MAV_COMP_ID_AUTOPILOT1), 1);
+    QCOMPARE(mockLink()->receivedRequestMessageCount(MAV_COMP_ID_AUTOPILOT1, MAVLINK_MSG_ID_MESSAGE_INTERVAL), 0);
+    QCOMPARE(ring.staleTimeoutMs(), 5000);
+    QCOMPARE(glow.staleTimeoutMs(), 5000);
+}
+
+void PoliceLidarMonitorTest::_confirmedFastRateShortensTimeout_test()
+{
+    PoliceLidarMonitor ring;
+    PoliceLidarMonitor glow;
+    ring.setVehicle(vehicle());
+    glow.setVehicle(vehicle());
+
+    // MockLink refuses SET_MESSAGE_INTERVAL for this id, so the vehicle's half of the accepted
+    // path is played here: the MESSAGE_INTERVAL report MessageIntervalManager asks for after an
+    // ACCEPTED ack.
+    const auto sendInterval = [this](int32_t intervalUs) {
+        mavlink_message_t message{};
+        (void) mavlink_msg_message_interval_pack_chan(
+            static_cast<uint8_t>(mockLink()->vehicleId()),
+            MAV_COMP_ID_AUTOPILOT1,
+            mockLink()->outgoingMavlinkChannel(),
+            &message,
+            MAVLINK_MSG_ID_DISTANCE_SENSOR,
+            intervalUs);
+        mockLink()->respondWithMavlinkMessage(message);
+    };
+
+    // Still on the radio profile's 0.5 Hz: nothing changes.
+    sendInterval(2000000);
+    QTest::qWait(kDispatchMs);
+    QCOMPARE(ring.staleTimeoutMs(), 5000);
+    QCOMPARE(glow.staleTimeoutMs(), 5000);
+
+    sendInterval(200000);
+    QTRY_COMPARE_WITH_TIMEOUT(ring.staleTimeoutMs(), 2000, kDispatchMs);
+    QCOMPARE(glow.staleTimeoutMs(), 2000);
+
+    PoliceLidarMonitor camera;
+    camera.setVehicle(vehicle());
+    QCOMPARE(camera.staleTimeoutMs(), 2000);
+
+    // The timeout is the vehicle's, not the monitor's: leaving it goes back to 5 s, and coming
+    // back to it, still confirmed, returns to 2 s.
+    ring.setVehicle(nullptr);
+    QCOMPARE(ring.staleTimeoutMs(), 5000);
+    ring.setVehicle(vehicle());
+    QCOMPARE(ring.staleTimeoutMs(), 2000);
+}
+
+void PoliceLidarMonitorTest::_lostLinkRequestsFastRateAgain_test()
+{
+    mockLink()->clearReceivedMavCommandCounts();
+
+    PoliceLidarMonitor ring;
+    PoliceLidarMonitor glow;
+    ring.setVehicle(vehicle());
+    glow.setVehicle(vehicle());
+    QTRY_COMPARE_WITH_TIMEOUT(mockLink()->receivedMavCommandCount(MAV_CMD_SET_MESSAGE_INTERVAL, MAV_COMP_ID_AUTOPILOT1), 1, kDispatchMs);
+
+    const auto sendFastInterval = [this]() {
+        mavlink_message_t message{};
+        (void) mavlink_msg_message_interval_pack_chan(
+            static_cast<uint8_t>(mockLink()->vehicleId()),
+            MAV_COMP_ID_AUTOPILOT1,
+            mockLink()->outgoingMavlinkChannel(),
+            &message,
+            MAVLINK_MSG_ID_DISTANCE_SENSOR,
+            200000);
+        mockLink()->respondWithMavlinkMessage(message);
+    };
+    sendFastInterval();
+    QTRY_COMPARE_WITH_TIMEOUT(ring.staleTimeoutMs(), 2000, kDispatchMs);
+    QCOMPARE(glow.staleTimeoutMs(), 2000);
+
+    // A rebooting autopilot goes quiet and comes back on its own rate: the confirmation goes with
+    // the link, and a display that turns up meanwhile sends nothing into it.
+    simulateCommLoss(true);
+    QTRY_VERIFY_WITH_TIMEOUT(vehicle()->vehicleLinkManager()->communicationLost(), VehicleLinkManager::kTestCommLostDetectionTimeoutMs);
+    QCOMPARE(ring.staleTimeoutMs(), 5000);
+    QCOMPARE(glow.staleTimeoutMs(), 5000);
+    PoliceLidarMonitor camera;
+    camera.setVehicle(vehicle());
+    QCOMPARE(camera.staleTimeoutMs(), 5000);
+    QTest::qWait(kDispatchMs);
+    QCOMPARE(mockLink()->receivedMavCommandCount(MAV_CMD_SET_MESSAGE_INTERVAL, MAV_COMP_ID_AUTOPILOT1), 1);
+
+    // Back again: one new request for the three displays, and the same 5 Hz confirmed again, a
+    // rate MessageIntervalManager has already cached, shortens them all.
+    simulateCommLoss(false);
+    QTRY_VERIFY_WITH_TIMEOUT(!vehicle()->vehicleLinkManager()->communicationLost(), VehicleLinkManager::kTestCommLostDetectionTimeoutMs);
+    QTRY_COMPARE_WITH_TIMEOUT(mockLink()->receivedMavCommandCount(MAV_CMD_SET_MESSAGE_INTERVAL, MAV_COMP_ID_AUTOPILOT1), 2, kDispatchMs);
+    QTest::qWait(kDispatchMs);
+    QCOMPARE(mockLink()->receivedMavCommandCount(MAV_CMD_SET_MESSAGE_INTERVAL, MAV_COMP_ID_AUTOPILOT1), 2);
+    QCOMPARE(ring.staleTimeoutMs(), 5000);
+
+    sendFastInterval();
+    QTRY_COMPARE_WITH_TIMEOUT(ring.staleTimeoutMs(), 2000, kDispatchMs);
+    QCOMPARE(glow.staleTimeoutMs(), 2000);
+    QCOMPARE(camera.staleTimeoutMs(), 2000);
 }
 
 UT_REGISTER_TEST(PoliceLidarMonitorTest, TestLabel::Integration, TestLabel::Vehicle)
