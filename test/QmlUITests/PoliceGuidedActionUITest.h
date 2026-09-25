@@ -50,9 +50,10 @@ private slots:
     /// The forward lidar drives the compass ring, the map edge glow and the forward number on
     /// the ground as well as in the air: a frame at 3.3 m must raise all three while disarmed,
     /// the same distance repeated must keep them up, and silence past the monitor's timeout must
-    /// take all three away rather than leave a dead sensor's last reading on screen. The glow is
-    /// aircraft-relative: at heading 90 the top edge is still the one lit, and its "전방" number
-    /// stays clear of the camera windows. 8.5 m shows the number in orange, 12.5 m nothing.
+    /// take all three away rather than leave a dead sensor's last reading on screen. The glow and
+    /// the compass ring are aircraft-relative: at heading 90 the top edge is still the one lit, the
+    /// compass arc is still at 12 o'clock, and the "전방" number stays clear of the camera
+    /// windows. 8.5 m shows the number in orange, 12.5 m nothing.
     void _testLidarDisplaysFollowTheSensor();
 
     /// Capture slot for the camera band. Skipped unless QGC_SCREENSHOT_DIR is set.

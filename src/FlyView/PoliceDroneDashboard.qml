@@ -1916,9 +1916,9 @@ Item {
             PoliceDroneProximityRing {
                 active:        QGroundControl.settingsManager.flyViewSettings.instrumentQmlFile2
                                    .rawValue.endsWith("HorizontalCompassAttitude.qml")
-                // The dial only turns under the nose-up setting; by default it is the card that
-                // stays put, so the top of the pill is north and the arcs have to follow heading.
-                northUp:       !QGroundControl.settingsManager.flyViewSettings.lockNoseUpCompass.rawValue
+                // One forward lidar, so every lidar display keeps the nose at the top, like the map
+                // band and the video ring: the arc stays at 12 o'clock whatever the dial does.
+                northUp:       false
                 // The pill's rim is the ring's outer bound and the dial face its inner one. All the
                 // room there is between them is the margin HorizontalCompassAttitude keeps outside
                 // the dial, (width * 0.05) / 2; a band wider than that either buries the dial's

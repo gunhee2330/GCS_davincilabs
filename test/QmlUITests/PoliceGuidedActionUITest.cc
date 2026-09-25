@@ -1200,6 +1200,28 @@ void PoliceGuidedActionUITest::_testLidarDisplaysFollowTheSensor()
                      qPrintable(QStringLiteral("The forward distance is under %1").arg(window)));
         }
 
+        // The compass ring is aircraft-relative as well: one forward lidar, so its arc stays at
+        // 12 o'clock at heading 90 rather than turning to 3 o'clock with the dial. Read off the
+        // rendered frame at the middle of the stroke, at the rim's top and at its right side. The
+        // grab renders without running the event loop, so the mock cannot move the heading first.
+        QQuickItem *const instruments = findVisibleItem(_rootItem, kInstrumentPanel, 0);
+        QQuickItem *const compassRing = instruments ? findVisibleItem(instruments, kRing, 0) : nullptr;
+        QVERIFY2(compassRing, "The compass ring is not up while the lidar reports 3.3 m");
+        const QImage frame = _window->grabWindow();
+        QCOMPARE(vehicle->heading()->rawValue().toDouble(), 90.0);
+        const qreal dpr = qreal(frame.width()) / _window->width();
+        const QColor arcColour = evaluateOn(compassRing, QStringLiteral("_sectorColor(0)")).value<QColor>();
+        const qreal arcRadius = evaluateOn(compassRing, QStringLiteral("_arcRadius")).toDouble();
+        const QPointF centre = compassRing->mapToScene(QPointF(compassRing->width() / 2, compassRing->height() / 2));
+        const auto arcPixel = [&](const QPointF &offset) {
+            const QColor c = frame.pixelColor(qFloor((centre.x() + offset.x()) * dpr),
+                                              qFloor((centre.y() + offset.y()) * dpr));
+            return (qAbs(c.red() - arcColour.red()) + qAbs(c.green() - arcColour.green()) +
+                    qAbs(c.blue() - arcColour.blue())) <= 60;
+        };
+        QVERIFY2(arcPixel(QPointF(0, -arcRadius)), "The compass arc is not at 12 o'clock at heading 90");
+        QVERIFY2(!arcPixel(QPointF(arcRadius, 0)), "The compass arc turned to 3 o'clock at heading 90");
+
         const bool capture = !qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty();
         if (capture) {
             injectProximity(mockLink, vehicle, rgForwardOnly);
