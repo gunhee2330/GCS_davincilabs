@@ -222,7 +222,23 @@ Item {
         Stat {
             label: qsTr("차량")
             value: root._live ? root._display(root._vehicles, root._vehiclesSat) : "–"
+            dot:   "#a78bfa"
+        }
+
+        Divider {}
+
+        Stat {
+            label: qsTr("배")
+            value: root._live ? root._display(root._boats, root._boatsSat) : "–"
             dot:   "#1f9fd0"
+        }
+
+        Divider {}
+
+        Stat {
+            label: qsTr("연기")
+            value: root._live ? root._display(root._smokes, root._smokesSat) : "–"
+            dot:   "#9aa5b1"
         }
 
         Divider {}
@@ -231,22 +247,6 @@ Item {
             label: qsTr("화재")
             value: root._live ? root._display(root._fires, root._firesSat) : "–"
             dot:   "#ff5b3a"
-        }
-
-        Divider {}
-
-        Stat {
-            label: qsTr("연기")
-            value: root._live ? root._display(root._smokes, root._smokesSat) : "–"
-            dot:   "#c8b04a"
-        }
-
-        Divider {}
-
-        Stat {
-            label: qsTr("보트")
-            value: root._live ? root._display(root._boats, root._boatsSat) : "–"
-            dot:   "#2ec4b6"
         }
 
         // Tracking and follow state used to hold two more slots here. They are gone, and this
