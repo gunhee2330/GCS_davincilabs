@@ -1,6 +1,7 @@
 #include "PoliceTopBarUITest.h"
 
 #include <QtCore/QDir>
+#include <QtCore/QElapsedTimer>
 #include <QtCore/QMetaObject>
 #include <QtCore/QRegularExpression>
 #include <QtCore/QScopeGuard>
@@ -134,6 +135,20 @@ bool subtreeHasDuration(QQuickItem *item)
         }
     }
     return false;
+}
+
+/// The counter is started by QGCApplication::_initForNormalAppBoot, which the test harness
+/// does not run - startUI brings up only what the UI itself needs. Without this the counter
+/// follows no aircraft at all and every drawer in this file would read an em dash whatever
+/// was flown. Once per process: init() connects to MultiVehicleManager, which outlives every
+/// slot, and a second call would have every takeoff counted twice.
+void startTakeoffCounter()
+{
+    static bool started = false;
+    if (!started) {
+        TakeoffCounter::instance()->init();
+        started = true;
+    }
 }
 
 }  // namespace
@@ -542,12 +557,7 @@ void PoliceTopBarUITest::_testLastFlightTimeIsStoredPerAirframe()
         return;
     }
 
-    // The counter is started by QGCApplication::_initForNormalAppBoot, which the test harness
-    // does not run - startUI brings up only what the UI itself needs. Without this the counter
-    // follows no aircraft at all and every drawer in this file would read an em dash whatever
-    // was flown. Once, in this slot only: init() connects to MultiVehicleManager, and a second
-    // call would have every takeoff counted twice.
-    TakeoffCounter::instance()->init();
+    startTakeoffCounter();
 
     Vehicle *vehicle = nullptr;
     QPointer<MockLink> mockLink =
@@ -627,6 +637,58 @@ void PoliceTopBarUITest::_testLastFlightTimeIsStoredPerAirframe()
     QVERIFY2(!subtreeHasDuration(page),
              "A second airframe was handed the first one's flight time");
     QVERIFY2(_closeDrawer(), "The status drawer would not close");
+}
+
+void PoliceTopBarUITest::_testLandedFlickerIsOneFlight()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> mockLink, Vehicle *vehicle) {
+        startTakeoffCounter();
+        TakeoffCounter *const counter = TakeoffCounter::instance();
+
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+        const int countBefore = counter->takeoffCount();
+
+        // The counter cannot lift off before the takeoff is asked for, nor later than the vehicle
+        // reads flying: the two bound the duration it may report.
+        QElapsedTimer sinceTakeoffAsked;
+        sinceTakeoffAsked.start();
+        _guidedTakeoff(vehicle);
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+        QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
+        QElapsedTimer sinceFlying;
+        sinceFlying.start();
+        QTest::qWait(kFlightMs);
+
+        // A landed state that drops out in the air. The mock still reports itself in the air, so
+        // its next EXTENDED_SYS_STATE puts the vehicle straight back up: flying, landed, flying.
+        vehicle->_setFlying(false);
+        QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
+        QTest::qWait(kFlightMs);
+
+        // The second landing of the cycle is timed from the first liftoff, not from the flicker.
+        const qint64 flownSeconds = sinceFlying.elapsed() / 1000;
+        vehicle->_setFlying(false);
+        QVERIFY2(counter->lastFlightSeconds() >= flownSeconds,
+                 qPrintable(QStringLiteral("The landing reads a %1 s flight after %2 s in the air")
+                                .arg(counter->lastFlightSeconds()).arg(flownSeconds)));
+        QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
+
+        // The mock never lands, so the cycle closes on a disarm in the air.
+        mockLink->setArmed(false);
+        QVERIFY_TRUE_WAIT(!vehicle->armed(), TestTimeout::longMs());
+        const qint64 ceilingSeconds = sinceTakeoffAsked.elapsed() / 1000;
+
+        QCOMPARE(counter->takeoffCount(), countBefore + 1);
+        QVERIFY2((counter->lastFlightSeconds() >= flownSeconds) && (counter->lastFlightSeconds() <= ceilingSeconds),
+                 qPrintable(QStringLiteral("The flight reads %1 s, outside the %2 to %3 s it was flown")
+                                .arg(counter->lastFlightSeconds()).arg(flownSeconds).arg(ceilingSeconds)));
+    });
 }
 
 void PoliceTopBarUITest::_testArmBlockedBanner()

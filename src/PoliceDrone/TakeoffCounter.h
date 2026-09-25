@@ -28,7 +28,8 @@ class TakeoffCounter : public QObject
 
     Q_PROPERTY(int takeoffCount READ takeoffCount NOTIFY takeoffCountChanged)
     /// Duration of the last completed flight in seconds, -1 before this airframe has flown one
-    /// under this station. Written on the landing edge of the same arm cycle the count uses.
+    /// under this station. Timed from the first liftoff of the arm cycle the count uses to its
+    /// last landing, or to the disarm when that comes in the air.
     Q_PROPERTY(int lastFlightSeconds READ lastFlightSeconds NOTIFY lastFlightSecondsChanged)
 
 public:
@@ -61,8 +62,9 @@ private slots:
 private:
     void _follow(Vehicle* vehicle);
     void _markAirborne();
-    /// Closes the airborne cycle and records how long it lasted. Landing and disarming both
-    /// end a flight, so both call it.
+    /// Records how long the arm cycle has flown, from its first liftoff to now. Landing and
+    /// disarming both call it; a later landing in the same cycle overwrites an earlier one, so a
+    /// landed state that flickers still leaves the whole flight. The latch is left to the arm edge.
     void _markLanded();
     void _load();
     void _store() const;
@@ -74,8 +76,12 @@ private:
     /// Latched per arm cycle so a landed state that flickers, or an altitude that hovers
     /// around the threshold, still counts one takeoff.
     bool _airborneThisCycle = false;
-    /// Wall clock at the takeoff this cycle, 0 when not airborne. The station's own clock
-    /// rather than a vehicle fact, for the same lifetime reason the dashboard times flights
-    /// off its own: a Fact handed out by getFact() is destructible from QML.
+    /// Wall clock at the first takeoff this arm cycle, 0 before it or when joined mid-flight.
+    /// The station's own clock rather than a vehicle fact, for the same lifetime reason the
+    /// dashboard times flights off its own: a Fact handed out by getFact() is destructible from QML.
     qint64 _airborneSinceMs = 0;
+    /// In the air right now: set on the first liftoff and on every flying edge, cleared on landing.
+    /// Not on altitude alone after that, since ground above home reads over 2 m. What keeps a
+    /// disarm after the landing from timing the wait on the pad as flight.
+    bool _inAir = false;
 };

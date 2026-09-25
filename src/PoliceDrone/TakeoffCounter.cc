@@ -96,14 +96,17 @@ void TakeoffCounter::_follow(Vehicle* vehicle)
 void TakeoffCounter::_armedChanged(bool armed)
 {
     // Arming opens a cycle and disarming closes one; the latch drops either way so the next
-    // liftoff counts. Disarming is also a landing for an airframe that never sent one.
+    // liftoff counts. Disarming in the air is also a landing, for an airframe that never sends one.
     Q_UNUSED(armed);
     _markLanded();
+    _airborneThisCycle = false;
+    _airborneSinceMs = 0;
 }
 
 void TakeoffCounter::_flyingChanged(bool flying)
 {
     if (flying) {
+        _inAir = true;
         _markAirborne();
     } else {
         _markLanded();
@@ -123,6 +126,7 @@ void TakeoffCounter::_markAirborne()
         return;
     }
 
+    _inAir = true;
     _airborneThisCycle = true;
     _airborneSinceMs = QDateTime::currentMSecsSinceEpoch();
     ++_count;
@@ -133,18 +137,17 @@ void TakeoffCounter::_markAirborne()
 
 void TakeoffCounter::_markLanded()
 {
-    const bool wasAirborne = _airborneThisCycle;
-    const qint64 sinceMs = _airborneSinceMs;
-    _airborneThisCycle = false;
-    _airborneSinceMs = 0;
+    const bool wasInAir = _inAir;
+    _inAir = false;
 
-    // Nothing to time for a cycle that never left the ground, or for a vehicle this station
-    // joined mid-flight.
-    if (!wasAirborne || (sinceMs == 0)) {
+    // Nothing to time for a vehicle already on the ground, or for one this station joined
+    // mid-flight. The latch and the liftoff time stay: a landing that flickers is not the end
+    // of the cycle, so the next one is timed from the same liftoff.
+    if (!wasInAir || (_airborneSinceMs == 0)) {
         return;
     }
 
-    _lastFlightSeconds = static_cast<int>((QDateTime::currentMSecsSinceEpoch() - sinceMs) / 1000);
+    _lastFlightSeconds = static_cast<int>((QDateTime::currentMSecsSinceEpoch() - _airborneSinceMs) / 1000);
     _store();
     emit lastFlightSecondsChanged();
     qCDebug(TakeoffCounterLog) << "flight of" << _lastFlightSeconds << "s for" << _settingsKey();

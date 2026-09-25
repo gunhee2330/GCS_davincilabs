@@ -54,6 +54,10 @@ private slots:
     /// airframe gets its own log rather than this one's.
     void _testLastFlightTimeIsStoredPerAirframe();
 
+    /// A landed state that drops out in the air is one flight, not several: the arm cycle counts
+    /// one takeoff, and its duration runs from the first liftoff to the last landing.
+    void _testLandedFlickerIsOneFlight();
+
     /// The one state with something to go and read: a refused arm paints the banner red, grows
     /// the chevron beside it and sends the operator to the drawer.
     void _testArmBlockedBanner();
