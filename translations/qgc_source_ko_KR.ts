@@ -3980,7 +3980,7 @@ Please place your vehicle in water, click the button, and wait. Note that the th
     <message>
       <location filename="../src/QmlControls/AppSettings.qml" line="165"/>
       <source>Search settings...</source>
-      <translation type="unfinished">Search settings...</translation>
+      <translation>설정 검색</translation>
     </message>
   </context>
   <context>

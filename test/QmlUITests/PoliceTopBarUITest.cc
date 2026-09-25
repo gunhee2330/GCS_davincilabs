@@ -11,7 +11,11 @@
 #include <QtQuick/QQuickWindow>
 #include <QtTest/QTest>
 
+#include "AppSettings.h"
+#include "Fact.h"
 #include "MockLink.h"
+#include "PoliceCorePlugin.h"
+#include "SettingsManager.h"
 #include "TakeoffCounter.h"
 #include "Vehicle.h"
 
@@ -754,4 +758,61 @@ void PoliceTopBarUITest::_captureOtherViewBars()
     _grab(QStringLiteral("t_10_settings"));
 
     stopUI();
+}
+
+void PoliceTopBarUITest::_captureSettingsDark()
+{
+    if (qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+        QSKIP("QGC_SCREENSHOT_DIR is not set");
+    }
+
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        _grab(QStringLiteral("s_3_fly"));
+        if (QTest::currentTestFailed()) return;
+
+        if (!_openDrawerFrom(kModeItem)) {
+            return;
+        }
+        _grab(QStringLiteral("s_4_fly_drawer"));
+        if (QTest::currentTestFailed()) return;
+        QVERIFY2(_closeDrawer(), "The mode drawer would not close");
+
+        QVERIFY2(QMetaObject::invokeMethod(_window, "showPlanView"), "showPlanView is not invokable");
+        _grab(QStringLiteral("s_5_plan"));
+        if (QTest::currentTestFailed()) return;
+
+        const auto showSettings = [this](const QString &page) {
+            return QMetaObject::invokeMethod(_window, "showSettingsTool", Q_ARG(QVariant, QVariant(page)));
+        };
+        for (const auto &shot : { std::pair<QString, QString>{ QStringLiteral("General"),    QStringLiteral("s_0_general") },
+                                  std::pair<QString, QString>{ QStringLiteral("Comm Links"), QStringLiteral("s_1_links") },
+                                  std::pair<QString, QString>{ QStringLiteral("Video"),      QStringLiteral("s_2_video") } }) {
+            QVERIFY2(showSettings(shot.first), "showSettingsTool is not invokable");
+            _grab(shot.second);
+            if (QTest::currentTestFailed()) return;
+        }
+
+        QVERIFY2(QMetaObject::invokeMethod(_window, "showVehicleConfig"), "showVehicleConfig is not invokable");
+        _grab(QStringLiteral("s_6_vehicle_setup"));
+        if (QTest::currentTestFailed()) return;
+
+        // The palette theme is process-wide, so put it back for whatever slot runs next.
+        Fact *const scheme = SettingsManager::instance()->appSettings()->indoorPalette();
+        scheme->setRawValue(0);
+        const auto restore = qScopeGuard([scheme] { scheme->setRawValue(1); });
+        QVERIFY2(showSettings(QStringLiteral("General")), "showSettingsTool is not invokable");
+        _grab(QStringLiteral("s_7_general_light"));
+    });
+}
+
+void PoliceTopBarUITest::_policeCorePluginIsLive()
+{
+    QVERIFY(qobject_cast<PoliceCorePlugin *>(QGCCorePlugin::instance()));
+    QCOMPARE(SettingsManager::instance()->appSettings()->indoorPalette()->rawDefaultValue().toInt(), 1);
 }

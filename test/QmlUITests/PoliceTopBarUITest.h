@@ -70,6 +70,15 @@ private slots:
     /// QGC_SCREENSHOT_DIR is set.
     void _captureOtherViewBars();
 
+    /// Capture slot for the fork palette across the screens it reaches: settings pages, the fly
+    /// view with and without the mode drawer, plan, vehicle setup, and one settings page in the
+    /// light scheme. Skipped unless QGC_SCREENSHOT_DIR is set.
+    void _captureSettingsDark();
+
+    /// The fork palette and the dark default only exist while custom/ names PoliceCorePlugin to
+    /// QGC's custom-build hook. Without it everything builds and the stock plugin runs instead.
+    void _policeCorePluginIsLive();
+
 private:
     /// Pre-existing QML warnings that the strict log check would otherwise fail on.
     void _ignorePreexistingQmlWarnings();

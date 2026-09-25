@@ -28,11 +28,11 @@ Rectangle {
     /// page it rides on. Kept here rather than in SettingsPages.json because the page generator
     /// rejects any key it does not already know
     readonly property var _groupHeadings: ({
-        "General":      qsTr("Basic"),
-        "Comm Links":   qsTr("Connection"),
-        "Maps":         qsTr("Maps"),
-        "Developer":    qsTr("System"),
-        "App Logging":  qsTr("Advanced")
+        "General":      qsTr("기본"),
+        "Comm Links":   qsTr("연결"),
+        "Maps":         qsTr("지도"),
+        "Developer":    qsTr("시스템"),
+        "App Logging":  qsTr("고급")
     })
 
     /// Name of whatever the right panel is showing. Mirrors the vehicle config header so the two
