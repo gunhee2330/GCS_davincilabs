@@ -12,12 +12,14 @@
 #include <QtTest/QTest>
 
 #include "AppSettings.h"
+#include "AutoPilotPlugin.h"
 #include "Fact.h"
 #include "MockLink.h"
 #include "PoliceCorePlugin.h"
 #include "SettingsManager.h"
 #include "TakeoffCounter.h"
 #include "Vehicle.h"
+#include "VehicleComponent.h"
 
 UT_REGISTER_TEST(PoliceTopBarUITest, TestLabel::Integration)
 
@@ -769,7 +771,7 @@ void PoliceTopBarUITest::_captureSettingsDark()
     _ignorePreexistingQmlWarnings();
 
     runWithMockLink([] { return MockLink::startPX4MockLink(); },
-                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
         _window->resize(kLayoutWidth, kLayoutHeight);
         QTest::qWait(kSettleMs);
 
@@ -792,6 +794,8 @@ void PoliceTopBarUITest::_captureSettingsDark()
         };
         QVERIFY2(showSettings(QStringLiteral("General")), "showSettingsTool is not invokable");
         _grab(QStringLiteral("u_0_general"));
+        if (QTest::currentTestFailed()) return;
+        _grab(QStringLiteral("k_0_settings_general"));
         if (QTest::currentTestFailed()) return;
 
         // The page's own flickable, scrolled so the Units card heads the panel
@@ -826,8 +830,29 @@ void PoliceTopBarUITest::_captureSettingsDark()
             if (QTest::currentTestFailed()) return;
         }
 
+        // The rail at the very bottom of its list
+        QQuickItem *const rail = findVisibleItem(_rootItem, QStringLiteral("settings_buttonList"), 5000);
+        QVERIFY2(rail, "The settings rail is not visible");
+        rail->setProperty("contentY", qMax(0.0, rail->property("contentHeight").toReal() - rail->height()));
+        _grab(QStringLiteral("k_1_settings_rail_bottom"));
+        if (QTest::currentTestFailed()) return;
+
         QVERIFY2(QMetaObject::invokeMethod(_window, "showVehicleConfig"), "showVehicleConfig is not invokable");
         _grab(QStringLiteral("u_7_vehicle_setup"));
+        if (QTest::currentTestFailed()) return;
+        _grab(QStringLiteral("k_2_vehicle_summary"));
+        if (QTest::currentTestFailed()) return;
+
+        // A second page, to show the selected row on the vehicle rail. Radio has no section
+        // sub-rows, so its own row is the one that lights
+        VehicleComponent *const radio =
+            vehicle->autopilotPlugin()->findKnownVehicleComponent(AutoPilotPlugin::KnownRadioVehicleComponent);
+        QVERIFY2(radio, "The PX4 mock vehicle has no radio component");
+        QVERIFY2(clickButtonScrolled(QStringLiteral("vehicleConfig_comp_") + radio->name().remove(QLatin1Char(' ')),
+                                     QStringLiteral("vehicleConfig_sidebarFlickable")),
+                 "Could not tap the radio row");
+        QTest::mouseMove(_window, QPoint(kLayoutWidth * 3 / 4, kLayoutHeight / 2));
+        _grab(QStringLiteral("k_3_vehicle_other_page"));
         if (QTest::currentTestFailed()) return;
 
         // The palette theme is process-wide, so put it back for whatever slot runs next.

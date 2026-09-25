@@ -386,28 +386,6 @@ Rectangle {
             }
         }
     }
-
-        // Pinned under the list: the Flickable above takes all the height it can
-        ColumnLayout {
-            Layout.fillWidth:       true
-            Layout.leftMargin:      ScreenTools.defaultFontPixelHeight * 0.61
-            Layout.bottomMargin:    _verticalMargin
-            spacing:                0
-            opacity:                0.6
-
-            // Kept to one line: a dev build's version ("v0.1.0-9-g725c8e486 64 bit") would wrap to two.
-            // The full string is on the Developer page
-            QGCLabel {
-                Layout.fillWidth:   true
-                text:               "Davinci GCS " + QGroundControl.qgcVersion
-                font.pointSize:     ScreenTools.smallFontPointSize
-                elide:              Text.ElideRight
-            }
-            QGCLabel {
-                text:               qsTr("다빈치랩스")
-                font.pointSize:     ScreenTools.smallFontPointSize
-            }
-        }
     }
 
     // Full height and drawn in the border colour: it is the rail's right edge, not a floating rule

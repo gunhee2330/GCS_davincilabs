@@ -24,6 +24,8 @@ Rectangle {
     readonly property real      _verticalMargin:    _defaultTextHeight / 2
     readonly property real      _buttonWidth:       _defaultTextWidth * 18
     readonly property string    _armedVehicleText:  qsTr("This operation cannot be performed while the vehicle is armed.")
+    // Unselected rail rows, dimmed as on the settings rail
+    readonly property color     _railDimText:       Qt.rgba(qgcPal.buttonText.r, qgcPal.buttonText.g, qgcPal.buttonText.b, 0.6)
 
     /// Name of whatever the right panel is showing. The sidebar selection scrolls out of view on a
     /// short screen, so the header is the only place the operator can read back where they are.
@@ -417,6 +419,8 @@ Rectangle {
                     checked:            vehicleConfigView._selectedSpecial === "summary"
                     text:               qsTr("Summary")
                     Layout.fillWidth:   true
+                    Layout.preferredHeight: Math.max(implicitHeight, ScreenTools.minTouchPixels)
+                    textColor:          checked ? qgcPal.buttonText : _railDimText
                     visible:            vehicleConfigView._searchQuery.trim() === ""
 
                     onClicked: showSummaryPanel()
@@ -461,6 +465,8 @@ Rectangle {
 
                         ConfigButton {
                             Layout.fillWidth:   true
+                            Layout.preferredHeight: Math.max(implicitHeight, ScreenTools.minTouchPixels)
+                            textColor:          compColumn.isSelected ? qgcPal.buttonText : vehicleConfigView._railDimText
                             objectName:         "vehicleConfig_comp_" + compColumn.compName.replace(/ /g, "")
                             icon.source:        compColumn.comp ? compColumn.comp.iconResource : ""
                             setupComplete:      compColumn.comp ? compColumn.comp.setupComplete : true
@@ -585,6 +591,8 @@ Rectangle {
                                         (_activeVehicle ? _activeVehicle.flowImageIndex > 0 : false)
                     text:               qsTr("Optical Flow")
                     Layout.fillWidth:   true
+                    Layout.preferredHeight: Math.max(implicitHeight, ScreenTools.minTouchPixels)
+                    textColor:          checked ? qgcPal.buttonText : _railDimText
                     checked:            vehicleConfigView._selectedSpecial === "opticalflow"
                     onClicked:          showPanel("opticalflow", "qrc:/qml/QGroundControl/VehicleSetup/OpticalFlowSensor.qml")
                 }
@@ -604,6 +612,8 @@ Rectangle {
                                         vehicleConfigView._searchQuery.trim() === ""
                     text:               qsTr("Parameters")
                     Layout.fillWidth:   true
+                    Layout.preferredHeight: Math.max(implicitHeight, ScreenTools.minTouchPixels)
+                    textColor:          checked ? qgcPal.buttonText : _railDimText
                     icon.source:        "/qmlimages/subMenuButtonImage.png"
                     checked:            vehicleConfigView._selectedSpecial === "parameters"
                     onClicked:          showPanel("parameters", "qrc:/qml/QGroundControl/VehicleSetup/SetupParameterEditor.qml")
@@ -622,6 +632,8 @@ Rectangle {
                                         vehicleConfigView._searchQuery.trim() === ""
                     text:               qsTr("Firmware")
                     Layout.fillWidth:   true
+                    Layout.preferredHeight: Math.max(implicitHeight, ScreenTools.minTouchPixels)
+                    textColor:          checked ? qgcPal.buttonText : _railDimText
                     checked:            vehicleConfigView._selectedSpecial === "firmware"
 
                     onClicked: showPanel("firmware", "qrc:/qml/QGroundControl/VehicleSetup/FirmwareUpgrade.qml")
@@ -659,6 +671,8 @@ Rectangle {
             // shorten the title by the pill's width even when disarmed
             anchors.right:          armedPill.visible ? armedPill.left : parent.right
             anchors.verticalCenter: parent.verticalCenter
+            // No rule under the title any more, so the air sits above it instead
+            anchors.verticalCenterOffset: _defaultTextHeight * 0.3
             text:                   _panelTitle
             font.pointSize:         ScreenTools.mediumFontPointSize
             font.bold:              true
@@ -672,6 +686,7 @@ Rectangle {
             anchors.rightMargin:    _defaultTextHeight * 1.1
             anchors.right:          parent.right
             anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenterOffset: panelTitleLabel.anchors.verticalCenterOffset
             width:                  armedPillLabel.implicitWidth + _defaultTextHeight * 1.2
             height:                 armedPillLabel.implicitHeight + _defaultTextHeight * 0.45
             radius:                 height / 2
@@ -687,14 +702,6 @@ Rectangle {
                 font.bold:          true
                 opacity:            0.7
             }
-        }
-
-        Rectangle {
-            anchors.left:   parent.left
-            anchors.right:  parent.right
-            anchors.bottom: parent.bottom
-            height:         2
-            color:          qgcPal.groupBorder
         }
     }
 
