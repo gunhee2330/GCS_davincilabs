@@ -206,9 +206,6 @@ Rectangle {
             objectName:         "settings_searchField"
             Layout.fillWidth:   true
             placeholderText:    qsTr("Search settings...")
-            // The rail lists every page on one screen, so the field is not shown. Kept rather than
-            // deleted so _searchQuery stays "" and the filter logic below stays inert, not rewired
-            visible:            false
 
             onTextChanged: {
                 settingsView._searchQuery = text
