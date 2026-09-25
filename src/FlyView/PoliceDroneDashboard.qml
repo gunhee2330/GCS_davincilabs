@@ -877,7 +877,6 @@ Item {
         anchors.top:         topBar.bottom
         anchors.bottom:      parent.bottom
         z:                   -1
-        mapItem:             root.mapItem
 
         // The forward number sits under the top bar, which is also where the confirm control and
         // the two banners drop in; all three are above this glow and would bury it. The lowest of

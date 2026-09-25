@@ -50,7 +50,9 @@ private slots:
     /// The forward lidar drives the compass ring, the map edge glow and the forward number on
     /// the ground as well as in the air: a frame at 3.3 m must raise all three while disarmed,
     /// the same distance repeated must keep them up, and silence past the monitor's timeout must
-    /// take all three away rather than leave a dead sensor's last reading on screen.
+    /// take all three away rather than leave a dead sensor's last reading on screen. The glow is
+    /// aircraft-relative: at heading 90 the top edge is still the one lit, and its "전방" number
+    /// stays clear of the camera windows. 8.5 m shows the number in orange, 12.5 m nothing.
     void _testLidarDisplaysFollowTheSensor();
 
     /// Capture slot for the camera band. Skipped unless QGC_SCREENSHOT_DIR is set.
@@ -78,8 +80,9 @@ private:
     /// Press the item at \a objectName, hold past the confirm delay, release.
     bool _holdButton(const QString &objectName);
 
-    /// Grab the window to <QGC_SCREENSHOT_DIR>/<name>.png.
-    void _grab(const QString &name);
+    /// Grab the window to <QGC_SCREENSHOT_DIR>/<name>.png. \a beforeGrab runs after the settle
+    /// wait and just before the grab, with no event loop turn in between.
+    void _grab(const QString &name, const std::function<void()> &beforeGrab = {});
 
     /// Press at the first point of \a path, walk the pointer through the rest of it in steps,
     /// release at the last one. \a midDrag runs at the last point with the pointer still down,

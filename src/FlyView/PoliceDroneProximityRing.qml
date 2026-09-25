@@ -32,7 +32,7 @@ Item {
     /// picture, so that caller leaves it off.
     property bool showQuietRing: false
 
-    /// Metres beside the arc, for the close band only. Room for it exists over the video.
+    /// Metres beside the arc, for anything inside the warn band. Room for it exists over the video.
     property bool showDistanceLabels: false
 
     /// Arc thickness, warn band and close band. A share of the radius by default, which is what an
@@ -205,7 +205,7 @@ Item {
             // past the panel's top edge and on top of the toolbar above.
             readonly property real _labelRadius: root._arcRadius - root.boldStroke - (height / 2)
 
-            visible: root.showDistanceLabels && (root._sectorDistance(index) < root._badMetres)
+            visible: root.showDistanceLabels && (root._sectorDistance(index) <= root._warnMetres)
             x:       (root.width  / 2) + (Math.cos(_angle) * _labelRadius) - (width  / 2)
             y:       (root.height / 2) + (Math.sin(_angle) * _labelRadius) - (height / 2)
             width:   distanceLabel.implicitWidth  + ScreenTools.defaultFontPixelWidth
@@ -216,7 +216,7 @@ Item {
             QGCLabel {
                 id:               distanceLabel
                 anchors.centerIn: parent
-                color:            qgcPal.colorRed
+                color:            root._sectorColor(index)
                 font.bold:        true
                 // One decimal: more than that is precision a proximity sensor has not earned and
                 // a wider pill for no gain. Metres, which is what the monitor holds.

@@ -7,22 +7,14 @@ import QGroundControl.Controls
 /// The proximity sensors as a glow on the four edges of the map, for an operator whose eyes are on
 /// the map rather than on the compass.
 ///
-/// The eight sectors fold onto four edges: an edge takes the closest sector pointing within 45
-/// degrees of it. A corner sector therefore lights both of its edges, which is wanted - an obstacle
-/// off the nose-right startles less when both edges answer than when the operator has to work out
-/// which single edge was chosen.
+/// The eight sectors fold onto four edges, exactly one edge each: a corner sector goes to the next
+/// edge clockwise, so a sector never lights two edges.
 ///
-/// The sectors are the airframe's and the map is north-up, so they are turned by the heading before
-/// folding, as PoliceDroneProximityRing does over the compass dial. The GeoMap engine's camera can
-/// be twisted off north on top of that; GeoMapVehicleItem turns the aircraft icon by the same sum,
-/// so glow and icon cannot disagree.
+/// Aircraft-relative, as the forward window's ring is: the top edge is the nose whatever the
+/// heading or the map's own rotation. Only the compass ring turns with the heading.
 Item {
     id:         root
     objectName: "policeDroneObstacleGlow"
-
-    /// The live map engine item, for the GeoMap camera's own rotation. The QtLocation engine has no
-    /// geoMap and is always north-up.
-    property var mapItem: null
 
     /// Extra distance from the map's top edge that the top band's number has to clear, or 0 when
     /// the spot under the top bar is free. Whatever the dashboard parks there draws over this
@@ -48,11 +40,6 @@ Item {
     // desk monitor alike.
     readonly property real _thickness: width * 0.09
 
-    readonly property real _screenRotation: {
-        const heading = (_vehicle && !isNaN(_vehicle.heading.rawValue)) ? _vehicle.heading.rawValue : 0
-        return heading + ((mapItem && mapItem.geoMap) ? mapItem.geoMap.camera.heading : 0)
-    }
-
     /// Closest reading per edge in metres: top, right, bottom, left. NaN where no sector bearing on
     /// that edge reported anything.
     readonly property var _edgeDistances: {
@@ -65,12 +52,10 @@ Item {
             if (isNaN(distance) || (distance <= 0)) {
                 continue
             }
-            const screenAngle = (sector * 45) + root._screenRotation
-            for (let edge = 0; edge < 4; ++edge) {
-                const offset = Math.abs(((screenAngle - (edge * 90)) % 360 + 540) % 360 - 180)
-                if (offset <= 45 && (isNaN(distances[edge]) || distance < distances[edge])) {
-                    distances[edge] = distance
-                }
+            // Sector 0 (nose) top, 2 right, 4 bottom, 6 left.
+            const edge = Math.round(sector / 2) % 4
+            if (isNaN(distances[edge]) || distance < distances[edge]) {
+                distances[edge] = distance
             }
         }
         return distances
@@ -121,10 +106,10 @@ Item {
                 GradientStop { position: 1; color: band._outerFirst ? Qt.alpha(band._glow, 0) : band._glow }
             }
 
-            // Metres for the close band only, in the band's own glow rather than in a pill of its
-            // own: the band has already said red, and a dark box on top of it only adds a second
-            // shape to read. White with a dark outline instead, which holds over the red here and
-            // over a bright satellite tile on the edges the glow leaves pale.
+            // Metres for anything inside the warn band, on the band's own glow rather than in a
+            // pill of its own: a dark box on top of it only adds a second shape to read. In the
+            // band's colour with a dark outline, which holds over the glow and over a bright
+            // satellite tile on the edges the glow leaves pale.
             Row {
                 readonly property real _margin: ScreenTools.defaultFontPixelWidth
 
@@ -145,7 +130,6 @@ Item {
                                         : band.height - (height / 2) - _margin)
                     : band.height / 2
 
-                visible: band._bad
                 x:       _centreX - (width  / 2)
                 y:       _centreY - (height / 2)
                 spacing: _margin * 0.35
@@ -163,11 +147,13 @@ Item {
                     styleColor:     Qt.rgba(0, 0, 0, 0.75)
                     // One decimal: more is precision a proximity sensor has not earned and a
                     // wider number for no gain. Metres, which is what the monitor holds.
-                    text:           band._distance.toFixed(1)
+                    text:           band.index === 0 ? qsTr("전방 %1 m").arg(band._distance.toFixed(1))
+                                                         : band._distance.toFixed(1)
                 }
 
                 QGCLabel {
                     anchors.baseline: distanceLabel.baseline
+                    visible:          band.index !== 0
                     color:            Qt.alpha("white", 0.85)
                     style:            Text.Outline
                     styleColor:       distanceLabel.styleColor

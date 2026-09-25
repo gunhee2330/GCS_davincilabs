@@ -327,13 +327,16 @@ bool PoliceGuidedActionUITest::_holdButton(const QString &objectName)
     return true;
 }
 
-void PoliceGuidedActionUITest::_grab(const QString &name)
+void PoliceGuidedActionUITest::_grab(const QString &name, const std::function<void()> &beforeGrab)
 {
     const QString dir = qEnvironmentVariable("QGC_SCREENSHOT_DIR");
     QVERIFY2(!dir.isEmpty(), "QGC_SCREENSHOT_DIR is not set");
     QVERIFY2(QDir().mkpath(dir), qPrintable(QStringLiteral("Cannot create %1").arg(dir)));
 
     QTest::qWait(kSettleMs);
+    if (beforeGrab) {
+        beforeGrab();
+    }
 
     const QImage image = _window->grabWindow();
     QVERIFY2(!image.isNull(), qPrintable(QStringLiteral("Empty grab for %1").arg(name)));
@@ -1161,13 +1164,81 @@ void PoliceGuidedActionUITest::_testLidarDisplaysFollowTheSensor()
 
         QQuickItem *const glow = findVisibleItem(_rootItem, kGlow, 3000);
         QVERIFY2(glow, "The obstacle glow never became visible");
-        // Sector 0 folds onto the top edge while the aircraft heads north, which is where the
-        // number sits under the top bar.
+        // Sector 0 folds onto the top edge, which is where the number sits under the top bar.
         QCOMPARE(evaluateOn(glow, QStringLiteral("_edgeDistances[0]")).toDouble(), 3.3);
-        QVERIFY2(findVisibleTextItem(glow, QStringLiteral("3.3")),
-                 "The forward distance is not on screen");
-        QVERIFY2(findVisibleTextItem(glow, QStringLiteral("m")),
-                 "The forward distance is on screen without its unit");
+        QQuickItem *const forwardLabel = findVisibleTextItem(glow, QStringLiteral("전방 3.3 m"));
+        QVERIFY2(forwardLabel, "The forward distance is not on screen");
+        const QColor badColour = forwardLabel->property("color").value<QColor>();
+        QVERIFY2(badColour == QColor(Qt::white),
+                 qPrintable(QStringLiteral("The 3.3 m number is %1, not white").arg(badColour.name())));
+
+        // The glow is aircraft-relative: turned to 90 the nose is still the top edge, and the right
+        // edge, where the zoom window stands, stays dark. MockLink cannot hold a heading - its own
+        // ATTITUDE_QUATERNION sweeps yaw within about 17 degrees of north at 10 Hz - so the Fact
+        // is set directly and everything below is read before the event loop runs again.
+        const auto bandAt = [glow](int edge) -> QQuickItem * {
+            const QList<QQuickItem *> children = glow->childItems();
+            for (QQuickItem *const child : children) {
+                if (child->property("_distance").isValid() && (child->property("index").toInt() == edge)) {
+                    return child;
+                }
+            }
+            return nullptr;
+        };
+        QVERIFY(bandAt(0) && bandAt(1));
+        vehicle->heading()->setRawValue(90.0);
+        QCOMPARE(vehicle->heading()->rawValue().toDouble(), 90.0);
+        QVERIFY2(bandAt(0)->isVisible(), "The top band went dark at heading 90");
+        QVERIFY2(!bandAt(1)->isVisible(), "The right band lit at heading 90");
+        QVERIFY2(forwardLabel->isVisible(), "The forward distance went away at heading 90");
+        const QRectF labelRect = sceneRect(forwardLabel);
+        QVERIFY2(QRectF(0, 0, _window->width(), _window->height()).contains(labelRect),
+                 "The forward distance is not wholly inside the window");
+        for (const QString &window : { kForwardWindow, kZoomWindow, kThermalWindow }) {
+            QQuickItem *const camera = findVisibleItem(_rootItem, window, 0);
+            QVERIFY2(!camera || !sceneRect(camera).intersects(labelRect),
+                     qPrintable(QStringLiteral("The forward distance is under %1").arg(window)));
+        }
+
+        const bool capture = !qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty();
+        if (capture) {
+            injectProximity(mockLink, vehicle, rgForwardOnly);
+            _grab(QStringLiteral("f_0_hdg000_3m3"), [vehicle] { vehicle->heading()->setRawValue(0.0); });
+            if (QTest::currentTestFailed()) return;
+            injectProximity(mockLink, vehicle, rgForwardOnly);
+            _grab(QStringLiteral("f_1_hdg090_3m3"), [vehicle] { vehicle->heading()->setRawValue(90.0); });
+            if (QTest::currentTestFailed()) return;
+        }
+
+        // Inside the warn band but past the close one: the number shows too, white on the glow's
+        // orange and on the forward window's ring.
+        const double rgForwardWarn[8] = { 8.5, qQNaN(), qQNaN(), qQNaN(),
+                                          qQNaN(), qQNaN(), qQNaN(), qQNaN() };
+        injectProximity(mockLink, vehicle, rgForwardWarn);
+        QTRY_VERIFY(findVisibleTextItem(glow, QStringLiteral("전방 8.5 m")));
+        const QColor warnColour =
+            findVisibleTextItem(glow, QStringLiteral("전방 8.5 m"))->property("color").value<QColor>();
+        QVERIFY2(warnColour == QColor(Qt::white),
+                 qPrintable(QStringLiteral("The 8.5 m number is %1, not white").arg(warnColour.name())));
+        QVERIFY2(findVisibleTextItem(_rootItem, QStringLiteral("8.5 m")),
+                 "The forward window's ring shows no number at 8.5 m");
+        if (capture) {
+            injectProximity(mockLink, vehicle, rgForwardWarn);
+            _grab(QStringLiteral("f_2_8m5"), [vehicle] { vehicle->heading()->setRawValue(0.0); });
+            if (QTest::currentTestFailed()) return;
+        }
+
+        // Past the warn band nothing is drawn: no band, no number.
+        const double rgForwardFar[8] = { 12.5, qQNaN(), qQNaN(), qQNaN(),
+                                         qQNaN(), qQNaN(), qQNaN(), qQNaN() };
+        injectProximity(mockLink, vehicle, rgForwardFar);
+        QTRY_COMPARE(evaluateOn(glow, QStringLiteral("_edgeDistances[0]")).toDouble(), 12.5);
+        QVERIFY2(!bandAt(0)->isVisible(), "The top band is lit at 12.5 m");
+        QVERIFY2(!findVisibleTextItem(glow, QStringLiteral("전방 12.5 m")), "The glow shows 12.5 m");
+        QVERIFY2(!findVisibleTextItem(_rootItem, QStringLiteral("12.5 m")), "The ring shows 12.5 m");
+
+        injectProximity(mockLink, vehicle, rgForwardOnly);
+        QTRY_VERIFY(findVisibleTextItem(glow, QStringLiteral("전방 3.3 m")));
 
         if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
             // Fed again right here: the assertions above take an unbudgeted while and _grab waits
@@ -1191,7 +1262,7 @@ void PoliceGuidedActionUITest::_testLidarDisplaysFollowTheSensor()
                  "The ring went away while the same reading kept arriving");
         QVERIFY2(findVisibleItem(_rootItem, kGlow, 1000),
                  "The glow went away while the same reading kept arriving");
-        QVERIFY2(findVisibleTextItem(glow, QStringLiteral("3.3")),
+        QVERIFY2(findVisibleTextItem(glow, QStringLiteral("전방 3.3 m")),
                  "The forward distance went away while the same reading kept arriving");
 
         // Then the sensor stops, for the monitor's own timeout and a margin. The number is
@@ -1203,7 +1274,7 @@ void PoliceGuidedActionUITest::_testLidarDisplaysFollowTheSensor()
                  "A proximity ring stayed up after the readings stopped");
         QVERIFY2(!findVisibleItem(_rootItem, kGlow, 0),
                  "The obstacle glow stayed up after the readings stopped");
-        QVERIFY2(!findVisibleTextItem(glow, QStringLiteral("3.3")),
+        QVERIFY2(!findVisibleTextItem(glow, QStringLiteral("전방 3.3 m")),
                  "The forward distance stayed on screen after the readings stopped");
 
         if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
