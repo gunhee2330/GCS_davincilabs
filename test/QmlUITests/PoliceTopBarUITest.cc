@@ -773,7 +773,7 @@ void PoliceTopBarUITest::_captureSettingsDark()
         _window->resize(kLayoutWidth, kLayoutHeight);
         QTest::qWait(kSettleMs);
 
-        _grab(QStringLiteral("s_3_fly"));
+        _grab(QStringLiteral("u_8_fly"));
         if (QTest::currentTestFailed()) return;
 
         if (!_openDrawerFrom(kModeItem)) {
@@ -790,16 +790,44 @@ void PoliceTopBarUITest::_captureSettingsDark()
         const auto showSettings = [this](const QString &page) {
             return QMetaObject::invokeMethod(_window, "showSettingsTool", Q_ARG(QVariant, QVariant(page)));
         };
-        for (const auto &shot : { std::pair<QString, QString>{ QStringLiteral("General"),    QStringLiteral("s_0_general") },
-                                  std::pair<QString, QString>{ QStringLiteral("Comm Links"), QStringLiteral("s_1_links") },
-                                  std::pair<QString, QString>{ QStringLiteral("Video"),      QStringLiteral("s_2_video") } }) {
+        QVERIFY2(showSettings(QStringLiteral("General")), "showSettingsTool is not invokable");
+        _grab(QStringLiteral("u_0_general"));
+        if (QTest::currentTestFailed()) return;
+
+        // The page's own flickable, scrolled so the Units card heads the panel
+        QQuickItem *const pageFlick = findVisibleItem(_rootItem, QStringLiteral("settingsPageFlickable"), 5000);
+        QVERIFY2(pageFlick, "The General page has no flickable");
+        QQuickItem *const units = findVisibleItemWithExactText(pageFlick, QStringLiteral("Units"));
+        QVERIFY2(units, "The General page shows no Units heading");
+        QQuickItem *const content = pageFlick->property("contentItem").value<QQuickItem *>();
+        const qreal maxY = qMax(0.0, pageFlick->property("contentHeight").toReal() - pageFlick->height());
+        pageFlick->setProperty("contentY", qBound(0.0, units->mapToItem(content, QPointF(0, 0)).y(), maxY));
+        _grab(QStringLiteral("u_1_general_scrolled"));
+        if (QTest::currentTestFailed()) return;
+
+        // A tap on a page with sections opens it and drops its sub-rows open
+        QVERIFY2(clickButton(QStringLiteral("settingsButton_Fly View")), "Could not tap the Fly View row");
+        _grab(QStringLiteral("u_2_flyview_sections"));
+        if (QTest::currentTestFailed()) return;
+        // Folded again and the pointer taken off the rail, so the grabs below show only the
+        // selected row lit rather than a hover tint left on this one
+        QVERIFY2(clickButton(QStringLiteral("settingsButton_Fly View")), "Could not tap the Fly View row");
+        QTest::mouseMove(_window, QPoint(kLayoutWidth * 3 / 4, kLayoutHeight / 2));
+
+        for (const auto &shot : { std::pair<QString, QString>{ QStringLiteral("Comm Links"), QStringLiteral("u_3_links") },
+                                  std::pair<QString, QString>{ QStringLiteral("Video"),      QStringLiteral("u_4_video") },
+                                  std::pair<QString, QString>{ QStringLiteral("Maps"),       QStringLiteral("u_5_maps") },
+                                  std::pair<QString, QString>{ QStringLiteral("Developer"),  QStringLiteral("u_6_developer") } }) {
             QVERIFY2(showSettings(shot.first), "showSettingsTool is not invokable");
+            // Rows below the fold stay there on their own, so bring the selected one into view
+            QVERIFY2(findVisibleItemScrolled(QStringLiteral("settingsButton_") + shot.first, QStringLiteral("settings_buttonList")),
+                     qPrintable(QStringLiteral("No rail row for %1").arg(shot.first)));
             _grab(shot.second);
             if (QTest::currentTestFailed()) return;
         }
 
         QVERIFY2(QMetaObject::invokeMethod(_window, "showVehicleConfig"), "showVehicleConfig is not invokable");
-        _grab(QStringLiteral("s_6_vehicle_setup"));
+        _grab(QStringLiteral("u_7_vehicle_setup"));
         if (QTest::currentTestFailed()) return;
 
         // The palette theme is process-wide, so put it back for whatever slot runs next.
@@ -807,7 +835,7 @@ void PoliceTopBarUITest::_captureSettingsDark()
         scheme->setRawValue(0);
         const auto restore = qScopeGuard([scheme] { scheme->setRawValue(1); });
         QVERIFY2(showSettings(QStringLiteral("General")), "showSettingsTool is not invokable");
-        _grab(QStringLiteral("s_7_general_light"));
+        _grab(QStringLiteral("u_9_general_light"));
     });
 }
 

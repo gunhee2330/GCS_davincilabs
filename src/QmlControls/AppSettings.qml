@@ -24,17 +24,6 @@ Rectangle {
     property int  _expandedRevision: 0  // bumped to trigger re-evaluation
     property string _searchQuery: ""
 
-    /// Rail group headings, keyed by the first page of each group so a heading hides with the
-    /// page it rides on. Kept here rather than in SettingsPages.json because the page generator
-    /// rejects any key it does not already know
-    readonly property var _groupHeadings: ({
-        "General":      qsTr("기본"),
-        "Comm Links":   qsTr("연결"),
-        "Maps":         qsTr("지도"),
-        "Developer":    qsTr("시스템"),
-        "App Logging":  qsTr("고급")
-    })
-
     /// Name of whatever the right panel is showing. Mirrors the vehicle config header so the two
     /// setup screens read the same way.
     readonly property string _panelTitle: {
@@ -217,6 +206,9 @@ Rectangle {
             objectName:         "settings_searchField"
             Layout.fillWidth:   true
             placeholderText:    qsTr("Search settings...")
+            // The rail lists every page on one screen, so the field is not shown. Kept rather than
+            // deleted so _searchQuery stays "" and the filter logic below stays inert, not rewired
+            visible:            false
 
             onTextChanged: {
                 settingsView._searchQuery = text
@@ -295,25 +287,13 @@ Rectangle {
                         visible: pageName === "Divider"
                     }
 
-                    // Group heading, in the same quiet small type the config sections label with
-                    QGCLabel {
-                        Layout.fillWidth:   true
-                        Layout.leftMargin:  ScreenTools.defaultFontPixelHeight * 0.61
-                        Layout.topMargin:   index === 0 ? 0 : ScreenTools.defaultFontPixelHeight * 0.8
-                        Layout.bottomMargin: ScreenTools.defaultFontPixelHeight * 0.2
-                        text:               settingsView._groupHeadings[model.nameKey] ?? ""
-                        font.pointSize:     ScreenTools.defaultFontPointSize * 0.85
-                        font.bold:          true
-                        font.letterSpacing: ScreenTools.defaultFontPixelWidth * 0.12
-                        opacity:            0.6
-                        // Search reshuffles which pages survive, which would strand a heading over
-                        // a group whose first page filtered out
-                        visible:            text !== "" && pageAvailable && !isSearching
-                    }
-
                     // Page button
                     SettingsButton {
                         Layout.fillWidth: true
+                        // A full touch target per row, and every row but the open page's dimmed
+                        Layout.preferredHeight: Math.max(implicitHeight, ScreenTools.minTouchPixels)
+                        textColor:     isSelected ? qgcPal.buttonText
+                                                  : Qt.rgba(qgcPal.buttonText.r, qgcPal.buttonText.g, qgcPal.buttonText.b, 0.6)
                         objectName:    "settingsButton_" + (model.nameKey ?? pageName)
                         text:          pageName
                         icon.source:   pageIconUrl
@@ -409,6 +389,28 @@ Rectangle {
             }
         }
     }
+
+        // Pinned under the list: the Flickable above takes all the height it can
+        ColumnLayout {
+            Layout.fillWidth:       true
+            Layout.leftMargin:      ScreenTools.defaultFontPixelHeight * 0.61
+            Layout.bottomMargin:    _verticalMargin
+            spacing:                0
+            opacity:                0.6
+
+            // Kept to one line: a dev build's version ("v0.1.0-9-g725c8e486 64 bit") would wrap to two.
+            // The full string is on the Developer page
+            QGCLabel {
+                Layout.fillWidth:   true
+                text:               "Davinci GCS " + QGroundControl.qgcVersion
+                font.pointSize:     ScreenTools.smallFontPointSize
+                elide:              Text.ElideRight
+            }
+            QGCLabel {
+                text:               qsTr("다빈치랩스")
+                font.pointSize:     ScreenTools.smallFontPointSize
+            }
+        }
     }
 
     // Full height and drawn in the border colour: it is the rail's right edge, not a floating rule
@@ -438,18 +440,12 @@ Rectangle {
             anchors.rightMargin:    _defaultTextHeight * 1.1
             anchors.right:          parent.right
             anchors.verticalCenter: parent.verticalCenter
+            // No rule under the title any more, so the air sits above it instead
+            anchors.verticalCenterOffset: _defaultTextHeight * 0.3
             text:                   _panelTitle
             font.pointSize:         ScreenTools.mediumFontPointSize
             font.bold:              true
             elide:                  Text.ElideRight
-        }
-
-        Rectangle {
-            anchors.left:   parent.left
-            anchors.right:  parent.right
-            anchors.bottom: parent.bottom
-            height:         2
-            color:          qgcPal.groupBorder
         }
     }
 
