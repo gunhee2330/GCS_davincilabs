@@ -65,6 +65,13 @@ private slots:
     /// Capture slot for the camera band. Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureCameraBand();
 
+    /// QGC's map scale is on the full map at tablet scale, idle and with a PX4 aircraft: bottom
+    /// left, a stock margin above the forward window and the detection card and right of the
+    /// tool strip and the lidar glow's left band, drawn, and clear of the camera windows, both
+    /// tool strips, the instruments, the detection card and all four lidar bands. Grabs
+    /// map_scale_0_idle and map_scale_1_connected when QGC_SCREENSHOT_DIR is set.
+    void _testMapScale();
+
     /// Dragging across the zoom panel must hand the AI module exactly one box, in the frame
     /// coordinates the drag covered, without also toggling fullscreen. A drag that ends where it
     /// started, one whose panel stops taking picks with the finger still down, and any drag on a

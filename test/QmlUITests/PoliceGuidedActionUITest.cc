@@ -64,6 +64,9 @@ const QString kInstrumentRow   = QStringLiteral("policeInstrumentRow");
 const QString kCameraStrip     = QStringLiteral("policeCameraToolStrip");
 const QString kGuidedStrip     = QStringLiteral("policeGuidedToolStrip");
 const QString kTopBar          = QStringLiteral("policeTopBar");
+/// QGC's MapScale as the dashboard hosts it, and the map it measures.
+const QString kMapScale        = QStringLiteral("policeMapScale");
+const QString kFlyViewMap      = QStringLiteral("flyViewMap");
 /// Full screen only: the small map in the corner and the way back out.
 const QString kMapPip          = QStringLiteral("policeFullscreenMapPip");
 const QString kHint            = QStringLiteral("policeFullscreenHint");
@@ -1102,6 +1105,141 @@ void PoliceGuidedActionUITest::_testCameraBandLayout()
                      qPrintable(QStringLiteral("Camera tool strip right %1 did not return to %2 once the slider hid")
                                     .arg(sceneRect(items[kCameraStrip]).right()).arg(strip.right())));
     });
+}
+
+void PoliceGuidedActionUITest::_testMapScale()
+{
+    _ignorePreexistingQmlWarnings();
+
+    const auto checkScale = [this](const QString &captureName) {
+        QQuickItem *const dashboard = findVisibleItem(_rootItem, kDashboard, 5000);
+        QVERIFY2(dashboard, "Police dashboard not found - the layout under test is not up");
+        QQuickItem *const scale = findVisibleItem(_rootItem, kMapScale, 5000);
+        QVERIFY2(scale, "The map scale is not on the full map");
+        QQuickItem *const map = findVisibleItem(_rootItem, kFlyViewMap, 5000);
+        QVERIFY2(map, "The fly view map is not on screen");
+
+        QHash<QString, QQuickItem *> items;
+        for (const QString &name : { kForwardWindow, kZoomWindow, kThermalWindow, kAiPanel, kTelemetryBar,
+                                     kInstrumentPanel, kCameraStrip, kGuidedStrip, kTopBar }) {
+            QQuickItem *const item = findVisibleItem(_rootItem, name, 3000);
+            QVERIFY2(item, qPrintable(QStringLiteral("%1 is not on screen").arg(name)));
+            items.insert(name, item);
+        }
+
+        // The glow is up only while the lidar talks, but its four bands are laid out regardless,
+        // and where they would light is where the scale must not be.
+        QQuickItem *const glow = dashboard->findChild<QQuickItem *>(kGlow);
+        QVERIFY2(glow, "The lidar glow is not in the dashboard");
+        QList<QQuickItem *> bands;
+        const QList<QQuickItem *> glowChildren = glow->childItems();
+        for (QQuickItem *const child : glowChildren) {
+            if (child->property("_alongY").isValid()) {
+                bands.append(child);
+            }
+        }
+        QCOMPARE(bands.size(), 4);
+
+        // Stock autohides the full-map scale three seconds after the map last moved and brings
+        // it back on the next change. An operator's zoom, then the grab straight after.
+        QVERIFY(map->setProperty("zoomLevel", map->property("zoomLevel").toReal() - 1));
+        QCOMPARE(scale->opacity(), 1.0);
+        QTest::qWait(300);
+        const QImage grab = _window->grabWindow();
+        QVERIFY(!grab.isNull());
+        const QString dir = qEnvironmentVariable("QGC_SCREENSHOT_DIR");
+        if (!dir.isEmpty()) {
+            QVERIFY(QDir().mkpath(dir));
+            QVERIFY(grab.save(QDir(dir).filePath(captureName + QStringLiteral(".png"))));
+        }
+        QCOMPARE(scale->opacity(), 1.0);
+
+        const QRectF screen  = sceneRect(dashboard);
+        const QRectF rect    = sceneRect(scale);
+        const QRectF forward = sceneRect(items[kForwardWindow]);
+        const QRectF card    = sceneRect(items[kAiPanel]);
+        const QRectF left    = sceneRect(items[kGuidedStrip]);
+        QRectF leftBand;
+        for (QQuickItem *const band : bands) {
+            const QRectF r = sceneRect(band);
+            if (!band->property("_alongY").toBool() && (r.left() <= screen.left() + kEdgeSlack)) {
+                leftBand = r;
+            }
+        }
+        QVERIFY2(!leftBand.isNull(), "The lidar glow has no left band");
+        QVERIFY2(rect.width() > 0 && rect.height() > 0,
+                 qPrintable(QStringLiteral("The map scale is %1").arg(QDebug::toString(rect))));
+
+        // Bottom left: the stock margin right of the tool strip or the lidar band's inner edge,
+        // whichever reaches further in, and the same margin above the forward window or the
+        // detection card, whichever stands taller.
+        const qreal margin = dashboard->property("_toolsMargin").toReal();
+        QVERIFY(margin > 0);
+        const qreal leftEdge = qMax(left.right(), leftBand.right());
+        const qreal floor    = qMin(forward.top(), card.top());
+        QVERIFY2(qAbs(rect.left() - (leftEdge + margin)) <= kEdgeSlack,
+                 qPrintable(QStringLiteral("Map scale left %1 is not a %2 margin right of %3")
+                                .arg(rect.left()).arg(margin).arg(leftEdge)));
+        QVERIFY2(qAbs(rect.bottom() - (floor - margin)) <= kEdgeSlack,
+                 qPrintable(QStringLiteral("Map scale bottom %1 is not a %2 margin above %3")
+                                .arg(rect.bottom()).arg(margin).arg(floor)));
+        QVERIFY2((rect.top() >= sceneRect(items[kTopBar]).bottom()) && screen.contains(rect),
+                 qPrintable(QStringLiteral("Map scale %1 is not on the map below the top bar")
+                                .arg(QDebug::toString(rect))));
+
+        QList<QPair<QString, QRectF>> blocks {
+            { QStringLiteral("forward window"),     forward },
+            { QStringLiteral("zoom window"),        sceneRect(items[kZoomWindow]) },
+            { QStringLiteral("thermal window"),     sceneRect(items[kThermalWindow]) },
+            { QStringLiteral("detection card"),     card },
+            { QStringLiteral("telemetry bar"),      sceneRect(items[kTelemetryBar]) },
+            { QStringLiteral("instrument panel"),   sceneRect(items[kInstrumentPanel]) },
+            { QStringLiteral("guided tool strip"),  left },
+            { QStringLiteral("camera tool strip"),  sceneRect(items[kCameraStrip]) },
+        };
+        for (int i = 0; i < bands.size(); ++i) {
+            blocks.append({ QStringLiteral("lidar band %1").arg(i), sceneRect(bands[i]) });
+        }
+        for (const auto &block : blocks) {
+            QVERIFY2(!rect.intersects(block.second),
+                     qPrintable(QStringLiteral("Map scale %1 overlaps the %2 %3")
+                                    .arg(QDebug::toString(rect), block.first, QDebug::toString(block.second))));
+        }
+
+        // Drawn, not just laid out: the scale's left tick reads its own colour in the grab. The
+        // software backend leaves the grab's devicePixelRatio at 1, so the scale comes from the
+        // grab's size against the window's.
+        QQuickItem *const tick = scale->childItems().value(1);
+        QVERIFY2(tick && tick->property("color").isValid(), "The map scale has no left tick");
+        const QPointF tickCentre = tick->mapToScene(QPointF(tick->width() / 2, tick->height() / 2));
+        const QColor drawn = grab.pixelColor((tickCentre * grab.width() / _window->width()).toPoint());
+        const QColor wanted = tick->property("color").value<QColor>();
+        QVERIFY2(drawn == wanted,
+                 qPrintable(QStringLiteral("The map scale tick at (%1, %2) reads %3, not its own %4")
+                                .arg(tickCentre.x()).arg(tickCentre.y()).arg(drawn.name(), wanted.name())));
+    };
+
+    startUI();
+    if (QTest::currentTestFailed()) {
+        return;
+    }
+    _window->resize(kLayoutWidth, kLayoutHeight);
+    QTest::qWait(kSettleMs);
+    checkScale(QStringLiteral("map_scale_0_idle"));
+    if (QTest::currentTestFailed()) {
+        return;
+    }
+
+    Vehicle *vehicle = nullptr;
+    QPointer<MockLink> mockLink = connectMockLinkAndWaitReady([] { return MockLink::startPX4MockLink(); }, vehicle);
+    QVERIFY2(mockLink, "Could not start the mock aircraft");
+    const auto teardown = qScopeGuard([&] {
+        disconnectMockLink(mockLink);
+        closeUIWindow();
+        destroyUIEngine();
+    });
+    QTest::qWait(kSettleMs);
+    checkScale(QStringLiteral("map_scale_1_connected"));
 }
 
 void PoliceGuidedActionUITest::_testStateChipColours()

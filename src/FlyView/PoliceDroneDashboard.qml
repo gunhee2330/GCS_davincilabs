@@ -8,8 +8,10 @@ import QGroundControl.Controls
 import QGroundControl.FactControls
 import QGroundControl.FlightMap
 import QGroundControl.FlyView
+import QGroundControl.GeoMap
 import QGroundControl.SiyiCamera
 import QGroundControl.Toolbar
+import QGroundControl.Viewer3D
 
 Item {
     id:         root
@@ -1961,6 +1963,25 @@ Item {
             settingsGroup:          factValueGrid.telemetryBarSettingsGroup
             specificVehicleForCard: null // Tracks the active vehicle
         }
+    }
+
+    // ------------------------------------------------------------------ map scale
+    //
+    // QGC's own map scale, which stock hosts in FlyViewWidgetLayer and so went with it; the
+    // picture-in-picture one inside FlyViewMap was never lost. Same visibility rule as stock.
+    // Bottom left, a stock margin above the forward window's dock and the detection card, and
+    // right of the tool strip and the lidar glow's left band. Counted off the dock arithmetic,
+    // not off the forward window, which the operator can drag away.
+    MapScale {
+        // Read by the layout test.
+        objectName: "policeMapScale"
+        x:          Math.max(toolStrip.x + toolStrip.width, obstacleGlow._thickness) + root._toolsMargin
+        y:          Math.min(aiPanel.y, root.height - root._bottomInset - root._windowWidth * 9 / 16)
+                        - height - root._toolsMargin
+        mapControl: root.mapItem
+        autoHide:   true
+        visible:    !ScreenTools.isTinyScreen && QGroundControl.corePlugin.options.flyView.showMapScale && QGCViewer3DManager.displayMode !== QGCViewer3DManager.View3D && !!root.mapItem && root.mapItem.pipState.state === root.mapItem.pipState.fullState &&
+                    (!root.mapItem.geoMap || (root.mapItem.geoMap.camera.mode === GeoMapCamera.Mode2D && root.mapItem.geoMap.camera.isTopDown))
     }
 
     // ------------------------------------------------------------- return altitude
