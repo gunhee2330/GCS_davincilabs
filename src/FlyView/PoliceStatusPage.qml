@@ -47,6 +47,9 @@ ToolIndicatorPage {
     readonly property bool _reasonsAvailable:
         page.activeVehicle && page.activeVehicle.healthAndArmingCheckReport.supported
 
+    readonly property bool _armed:  page.activeVehicle ? page.activeVehicle.armed : false
+    readonly property bool _flying: page.activeVehicle ? page.activeVehicle.flying : false
+
     contentComponent: Component {
         SettingsGroupLayout {
             heading: page.headingText
@@ -73,6 +76,40 @@ ToolIndicatorPage {
                 visible:          page.armBlocked && !page._reasonsAvailable
                 color:            QGroundControl.globalPalette.colorOrange
                 text:             qsTr("시동이 막힌 이유는 기체 메시지에서 확인하십시오")
+            }
+
+            // The stock status drawer's hold button (MainStatusIndicator), whose job follows the
+            // aircraft. In the air it is the emergency stop, which goes through the guided
+            // controller so the confirm control under the bar asks before the motors stop.
+            QGCDelayButton {
+                objectName:       "policeArmButton"
+                Layout.fillWidth: true
+                visible:          page.parametersReady
+                enabled:          page._armed || !page._reasonsAvailable || page.activeVehicle.healthAndArmingCheckReport.canArm
+                text:             page._flying ? qsTr("비상 정지") : (page._armed ? qsTr("시동 끄기") : qsTr("시동"))
+
+                onActivated: {
+                    if (page._flying) {
+                        mainWindow.disarmVehicleRequest()
+                    } else {
+                        page.activeVehicle.armed = !page._armed
+                    }
+                    mainWindow.closeIndicatorDrawer()
+                }
+            }
+
+            // Stock gates Force Arm behind a switch; here the refusal is the gate, and the guided
+            // controller's own Force Arm confirmation asks before the checks are bypassed.
+            QGCDelayButton {
+                objectName:       "policeForceArmButton"
+                Layout.fillWidth: true
+                visible:          page.parametersReady && page.armBlocked && !page._armed
+                text:             qsTr("강제 시동")
+
+                onActivated: {
+                    mainWindow.forceArmVehicleRequest()
+                    mainWindow.closeIndicatorDrawer()
+                }
             }
 
             LabelledLabel {

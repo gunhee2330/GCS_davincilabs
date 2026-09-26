@@ -49,6 +49,11 @@ const QString kDrawerLoader = QStringLiteral("indicatorDrawerLoader");
 /// The guided tool strip entry, reused here to put the mock aircraft in the air.
 const QString kTakeoffButton = QStringLiteral("policeToolTakeoff");
 const QString kConfirmButton = QStringLiteral("guidedActionConfirmButton");
+const QString kConfirmHost   = QStringLiteral("policeGuidedConfirmHost");
+
+/// The status drawer's arming hold buttons.
+const QString kArmButton      = QStringLiteral("policeArmButton");
+const QString kForceArmButton = QStringLiteral("policeForceArmButton");
 
 /// QGCDelayButton.defaultDelay is 500 ms; the press must outlast it with room for the progress
 /// animation to reach 1.0 on the software backend.
@@ -253,6 +258,18 @@ void PoliceTopBarUITest::_guidedTakeoff(Vehicle *vehicle)
     QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, holdPoint);
 
     QVERIFY_TRUE_WAIT(vehicle->armed(), TestTimeout::longMs());
+}
+
+void PoliceTopBarUITest::_hold(const QString &objectName)
+{
+    QQuickItem *const item = findVisibleItem(_rootItem, objectName, 5000);
+    QVERIFY2(item, qPrintable(QStringLiteral("%1 is not on screen to hold").arg(objectName)));
+    QVERIFY2(item->isEnabled(), qPrintable(QStringLiteral("%1 is disabled").arg(objectName)));
+
+    const QPoint holdPoint = item->mapToScene(QPointF(item->width() / 2, item->height() / 2)).toPoint();
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, holdPoint);
+    QTest::qWait(kHoldMs);
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, holdPoint);
 }
 
 QQuickItem *PoliceTopBarUITest::_openDrawerFrom(const QString &objectName)
@@ -771,6 +788,172 @@ void PoliceTopBarUITest::_testArmBlockedBanner()
                  "The drawer does not say where the refusal is written out");
         _grabIfCapturing(QStringLiteral("t_8_arm_blocked_drawer"));
         QVERIFY2(_closeDrawer(), "The status drawer would not close");
+    });
+}
+
+void PoliceTopBarUITest::_testDrawerArmsAndDisarms()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+        QVERIFY2(!vehicle->armed(), "The mock aircraft came up armed");
+
+        if (!_openDrawerFrom(kBanner)) {
+            return;
+        }
+        QQuickItem *const arm = findVisibleItem(_rootItem, kArmButton, 3000);
+        QVERIFY2(arm, "The status drawer carries no arming button");
+        QCOMPARE(arm->property("text").toString(), QStringLiteral("시동"));
+        QVERIFY2(!findVisibleItem(_rootItem, kForceArmButton, 0),
+                 "강제 시동 is offered while the aircraft will arm");
+        _grabIfCapturing(QStringLiteral("arm_0_disarmed"));
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+
+        _hold(kArmButton);
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+        QVERIFY_TRUE_WAIT(vehicle->armed(), TestTimeout::longMs());
+        // As stock, the drawer closes once the hold lands.
+        QVERIFY2(waitForCondition([&] { return findVisibleItem(_rootItem, kDrawerLoader, 0) == nullptr; },
+                                  3000, QStringLiteral("drawer closed after arming")),
+                 "The drawer stayed open after arming");
+
+        if (!_openDrawerFrom(kBanner)) {
+            return;
+        }
+        QQuickItem *const disarm = findVisibleItem(_rootItem, kArmButton, 3000);
+        QVERIFY2(disarm, "The status drawer carries no arming button once armed");
+        QCOMPARE(disarm->property("text").toString(), QStringLiteral("시동 끄기"));
+        _grabIfCapturing(QStringLiteral("arm_1_armed"));
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+
+        _hold(kArmButton);
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+        QVERIFY_TRUE_WAIT(!vehicle->armed(), TestTimeout::longMs());
+    });
+}
+
+void PoliceTopBarUITest::_testDrawerEmergencyStopConfirms()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        _guidedTakeoff(vehicle);
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+        QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
+
+        if (!_openDrawerFrom(kBanner)) {
+            return;
+        }
+        QQuickItem *const stop = findVisibleItem(_rootItem, kArmButton, 3000);
+        QVERIFY2(stop, "The status drawer carries no arming button in the air");
+        QCOMPARE(stop->property("text").toString(), QStringLiteral("비상 정지"));
+        QVERIFY2(!findVisibleItem(_rootItem, kForceArmButton, 0), "강제 시동 is offered in the air");
+        _grabIfCapturing(QStringLiteral("arm_2_flying"));
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+
+        _hold(kArmButton);
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+
+        // The police instance of the confirm control, asking for the emergency stop. Nothing has
+        // reached the aircraft yet.
+        QQuickItem *const host = findVisibleItem(_rootItem, kConfirmHost, 5000);
+        QVERIFY2(host, "The confirm host is not on screen");
+        QQuickItem *const confirm = findVisibleItem(host, kConfirmButton, 5000);
+        QVERIFY2(confirm, "비상 정지 raised no confirmation");
+        QCOMPARE(confirm->property("text").toString(),
+                 QCoreApplication::translate("GuidedActionsController", "EMERGENCY STOP"));
+        QVERIFY2(vehicle->armed(), "The motors stopped before the confirmation was held");
+        _grabIfCapturing(QStringLiteral("arm_3_emergency_stop_confirm"));
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+
+        _hold(kConfirmButton);
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+        QVERIFY_TRUE_WAIT(!vehicle->armed(), TestTimeout::longMs());
+    });
+}
+
+void PoliceTopBarUITest::_testDrawerForceArmWhenBlocked()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const topBar = findVisibleItem(_rootItem, kTopBar, 5000);
+        QVERIFY2(topBar, "The top bar is not on screen");
+
+        // No mock refuses to arm, so the refusal is handed to the bar the way
+        // _testArmBlockedBanner hands it.
+        QVariantMap blocked;
+        blocked[QStringLiteral("text")]    = QStringLiteral("시동 불가");
+        blocked[QStringLiteral("accent")]  = QStringLiteral("#ff5b5b");
+        blocked[QStringLiteral("blocked")] = true;
+        topBar->setProperty("status", blocked);
+        QTest::qWait(kSettleMs);
+
+        if (!_openDrawerFrom(kBanner)) {
+            return;
+        }
+        QQuickItem *const force = findVisibleItem(_rootItem, kForceArmButton, 3000);
+        QVERIFY2(force, "A refused arm offers no 강제 시동");
+        QCOMPARE(force->property("text").toString(), QStringLiteral("강제 시동"));
+        QQuickItem *const arm = findVisibleItem(_rootItem, kArmButton, 0);
+        QVERIFY2(arm, "시동 left the drawer when arming was refused");
+        QCOMPARE(arm->property("text").toString(), QStringLiteral("시동"));
+        _grabIfCapturing(QStringLiteral("arm_4_blocked"));
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+
+        _hold(kForceArmButton);
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+
+        QQuickItem *const host = findVisibleItem(_rootItem, kConfirmHost, 5000);
+        QVERIFY2(host, "The confirm host is not on screen");
+        QQuickItem *const confirm = findVisibleItem(host, kConfirmButton, 5000);
+        QVERIFY2(confirm, "강제 시동 raised no confirmation");
+        QCOMPARE(confirm->property("text").toString(),
+                 QCoreApplication::translate("GuidedActionsController", "Force Arm"));
+        QVERIFY2(!vehicle->armed(), "The aircraft armed before the confirmation was held");
+        _grabIfCapturing(QStringLiteral("arm_5_force_arm_confirm"));
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+
+        _hold(kConfirmButton);
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+        QVERIFY_TRUE_WAIT(vehicle->armed(), TestTimeout::longMs());
     });
 }
 

@@ -62,6 +62,18 @@ private slots:
     /// the chevron beside it and sends the operator to the drawer.
     void _testArmBlockedBanner();
 
+    /// The stock arming hold button in the status drawer: 시동 arms and then reads 시동 끄기,
+    /// which disarms. Also the captures, when a capture directory is set.
+    void _testDrawerArmsAndDisarms();
+
+    /// In the air the same button reads 비상 정지 and raises the guided controller's emergency
+    /// stop confirmation; the motors stop only once that is held.
+    void _testDrawerEmergencyStopConfirms();
+
+    /// A refused arm adds 강제 시동, which raises the guided controller's force arm confirmation
+    /// and arms once that is held.
+    void _testDrawerForceArmWhenBlocked();
+
     /// Capture slot, no aircraft. Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureNoVehicleBar();
 
@@ -112,6 +124,10 @@ private:
     /// wait for it to arm. Fails the test rather than returning a flag; callers check
     /// QTest::currentTestFailed().
     void _guidedTakeoff(Vehicle *vehicle);
+
+    /// Press and hold \a objectName past its hold delay. Fails the test rather than returning a
+    /// flag; callers check QTest::currentTestFailed().
+    void _hold(const QString &objectName);
 
     /// Tap \a objectName and wait for the indicator drawer's loader. Returns the loader, or
     /// null after failing the test.
