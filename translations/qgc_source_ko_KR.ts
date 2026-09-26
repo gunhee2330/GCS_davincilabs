@@ -9107,7 +9107,7 @@ VTOL</translation>
     <message>
       <location filename="../src/FlyView/GuidedActionsController.qml" line="55"/>
       <source>WARNING: This will force arming of the vehicle bypassing any safety checks.</source>
-      <translation type="unfinished">WARNING: This will force arming of the vehicle bypassing any safety checks.</translation>
+      <translation>경고: 안전 점검을 건너뛰고 기체에 강제로 시동을 겁니다.</translation>
     </message>
     <message>
       <location filename="../src/FlyView/GuidedActionsController.qml" line="56"/>

@@ -1143,6 +1143,12 @@ void PoliceTopBarUITest::_testDrawerForceArmWhenBlocked()
         QVERIFY2(confirm, "강제 시동 raised no confirmation");
         QCOMPARE(confirm->property("text").toString(),
                  QCoreApplication::translate("GuidedActionsController", "Force Arm"));
+        // The warning under the control, which the delivery reads in Korean. The button sits in
+        // GuidedActionConfirm's layout, whose parent carries the message.
+        if (QLocale().language() == QLocale::Korean) {
+            QCOMPARE(confirm->parentItem()->parentItem()->property("message").toString(),
+                     QStringLiteral("경고: 안전 점검을 건너뛰고 기체에 강제로 시동을 겁니다."));
+        }
         QVERIFY2(!vehicle->armed(), "The aircraft armed before the confirmation was held");
         _grabIfCapturing(QStringLiteral("arm_5_force_arm_confirm"));
         if (QTest::currentTestFailed()) {
