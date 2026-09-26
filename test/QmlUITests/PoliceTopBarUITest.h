@@ -87,6 +87,12 @@ private slots:
     /// Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureArduPilotRadio();
 
+    /// Out of developer mode the operator gets every vehicle setup page but neither the raw
+    /// Parameters editor nor Firmware, and a value changed on the safety page reaches the
+    /// aircraft. Also the captures, when a capture directory is set.
+    void _testOperatorVehicleSetupPX4();
+    void _testOperatorVehicleSetupAPM();
+
     /// The fork palette and the dark default only exist while custom/ names PoliceCorePlugin to
     /// QGC's custom-build hook. Without it everything builds and the stock plugin runs instead.
     void _policeCorePluginIsLive();
@@ -113,4 +119,9 @@ private:
 
     /// Close the indicator drawer and wait for its loader to go.
     bool _closeDrawer();
+
+    /// The body of the two _testOperatorVehicleSetup slots: \a rtlParam is the return altitude
+    /// parameter the safety page edits, set to \a newValue through its field.
+    void _runOperatorVehicleSetup(const std::function<MockLink *()> &factory, const QString &rtlParam,
+                                  double newValue, const QString &capturePrefix);
 };

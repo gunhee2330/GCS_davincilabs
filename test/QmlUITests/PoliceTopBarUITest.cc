@@ -125,6 +125,28 @@ QQuickItem *findVisibleItemWithExactText(QQuickItem *root, const QString &text)
     return nullptr;
 }
 
+/// The visible text field editing vehicle parameter \a name under \a root. The generated setup
+/// pages give their fields no objectName, so the fact a field edits is what names it.
+QQuickItem *findFactTextField(QQuickItem *root, const QString &name)
+{
+    if (!root || !root->isVisible()) {
+        return nullptr;
+    }
+    if (root->inherits("QQuickTextField")) {
+        const Fact *const fact = qobject_cast<Fact *>(root->property("fact").value<QObject *>());
+        if (fact && (fact->name() == name)) {
+            return root;
+        }
+    }
+    const QList<QQuickItem *> children = root->childItems();
+    for (QQuickItem *const child : children) {
+        if (QQuickItem *const found = findFactTextField(child, name)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+
 /// A clock face somewhere under \a item: hh:mm:ss, which is what the drawer prints for a flight
 /// it has a duration for and an em dash for one it does not.
 bool subtreeHasDuration(QQuickItem *item)
@@ -1060,6 +1082,109 @@ void PoliceTopBarUITest::_captureArduPilotRadio()
                  "Could not tap the radio row");
         QTest::mouseMove(_window, QPoint(kLayoutWidth * 3 / 4, kLayoutHeight / 2));
         _grab(QStringLiteral("k_5_apm_radio"));
+    });
+}
+
+void PoliceTopBarUITest::_testOperatorVehicleSetupPX4()
+{
+    _runOperatorVehicleSetup([] { return MockLink::startPX4MockLink(); },
+                             QStringLiteral("RTL_RETURN_ALT"), 45, QStringLiteral("setup_px4"));
+}
+
+void PoliceTopBarUITest::_testOperatorVehicleSetupAPM()
+{
+    if (!apmFirmwareSupported()) {
+        QSKIP("ArduPilot support not registered in this build");
+    }
+    _runOperatorVehicleSetup([] { return MockLink::startAPMArduCopterMockLink(); },
+                             QStringLiteral("RTL_ALT_M"), 25, QStringLiteral("setup_apm"));
+}
+
+void PoliceTopBarUITest::_runOperatorVehicleSetup(const std::function<MockLink *()> &factory, const QString &rtlParam,
+                                                  double newValue, const QString &capturePrefix)
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink(factory, [&](QPointer<MockLink> mockLink, Vehicle *vehicle) {
+        const QString railName = QStringLiteral("vehicleConfig_sidebarFlickable");
+        const QString parametersButton = QStringLiteral("vehicleConfig_parametersButton");
+        const QString firmware = QCoreApplication::translate("VehicleConfigView", "Firmware");
+
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QVERIFY2(QMetaObject::invokeMethod(_window, "showVehicleConfig"), "showVehicleConfig is not invokable");
+        QQuickItem *const rail = findVisibleItem(_rootItem, railName, 5000);
+        QVERIFY2(rail, "The vehicle setup rail is not visible");
+
+        // Developer mode first, so the two absences below are of buttons that do exist
+        QVERIFY2(findVisibleItem(rail, parametersButton, 2000), "Developer mode shows no Parameters button");
+        QVERIFY2(findVisibleItemWithExactText(rail, firmware), "Developer mode shows no Firmware button");
+
+        QGCCorePlugin::instance()->setProperty("showAdvancedUI", false);
+        const auto restore = qScopeGuard([] { QGCCorePlugin::instance()->setProperty("showAdvancedUI", true); });
+        QVERIFY2(waitForCondition([&] { return !findVisibleItem(rail, parametersButton, 0); }, 2000,
+                                  QStringLiteral("Parameters button hidden")),
+                 "The operator sees the Parameters button");
+        QVERIFY2(!findVisibleItemWithExactText(rail, firmware), "The operator sees the Firmware button");
+
+        // Every page the firmware offers is on the operator's rail
+        for (const QVariant &entry : vehicle->autopilotPlugin()->vehicleComponents()) {
+            VehicleComponent *const comp = entry.value<VehicleComponent *>();
+            if (!comp || comp->setupSource().isEmpty()) {
+                continue;
+            }
+            QVERIFY2(findVisibleItemScrolled(QStringLiteral("vehicleConfig_comp_") + comp->name().remove(QLatin1Char(' ')), railName),
+                     qPrintable(QStringLiteral("The operator's rail has no %1 row").arg(comp->name())));
+        }
+
+        QTest::mouseMove(_window, QPoint(kLayoutWidth * 3 / 4, kLayoutHeight / 2));
+        rail->setProperty("contentY", 0);
+        _grabIfCapturing(capturePrefix + QStringLiteral("_0_rail_top"));
+        if (QTest::currentTestFailed()) return;
+        rail->setProperty("contentY", qMax(0.0, rail->property("contentHeight").toReal() - rail->height()));
+        _grabIfCapturing(capturePrefix + QStringLiteral("_1_rail_bottom"));
+        if (QTest::currentTestFailed()) return;
+
+        VehicleComponent *const safety =
+            vehicle->autopilotPlugin()->findKnownVehicleComponent(AutoPilotPlugin::KnownSafetyVehicleComponent);
+        QVERIFY2(safety, "The mock vehicle has no safety component");
+        QVERIFY2(clickButtonScrolled(QStringLiteral("vehicleConfig_comp_") + safety->name().remove(QLatin1Char(' ')), railName),
+                 "Could not tap the safety row");
+        QTest::mouseMove(_window, QPoint(kLayoutWidth * 3 / 4, kLayoutHeight / 2));
+
+        QQuickItem *const panel = findVisibleItem(_rootItem, QStringLiteral("vehicleConfig_panelLoader"), 5000);
+        QVERIFY2(panel, "The safety page did not load");
+        QQuickItem *field = nullptr;
+        QVERIFY2(waitForCondition([&] { return (field = findFactTextField(panel, rtlParam)) != nullptr; }, 5000,
+                                  QStringLiteral("return altitude field")),
+                 qPrintable(QStringLiteral("The safety page shows no %1 field").arg(rtlParam)));
+
+        // The page's own flickable, scrolled so the field sits a third of the way down
+        for (QQuickItem *flick = field->parentItem(); flick; flick = flick->parentItem()) {
+            if (flick->inherits("QQuickFlickable")) {
+                QQuickItem *const content = flick->property("contentItem").value<QQuickItem *>();
+                const qreal maxY = qMax(0.0, flick->property("contentHeight").toReal() - flick->height());
+                flick->setProperty("contentY", qBound(0.0, field->mapToItem(content, QPointF(0, 0)).y() - flick->height() / 3, maxY));
+                break;
+            }
+        }
+        QTest::qWait(kSettleMs);
+
+        // The operator's gesture: tap the field, type the new altitude, press Enter
+        const QPoint tap = field->mapToScene(QPointF(field->width() / 2, field->height() / 2)).toPoint();
+        QVERIFY2(QRect(QPoint(0, 0), _window->size()).contains(tap), "The return altitude field is off screen");
+        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, tap);
+        QVERIFY2(waitForCondition([&] { return field->hasActiveFocus(); }, 2000, QStringLiteral("field focused")),
+                 "A tap did not focus the return altitude field");
+        QVERIFY(QMetaObject::invokeMethod(field, "selectAll"));
+        for (const QChar c : QString::number(newValue)) {
+            QTest::keyClick(_window, c.toLatin1());
+        }
+        QTest::keyClick(_window, Qt::Key_Return);
+
+        QTRY_COMPARE_WITH_TIMEOUT(mockLink->paramValue(MAV_COMP_ID_AUTOPILOT1, rtlParam).toDouble(), newValue, 5000);
+        _grabIfCapturing(capturePrefix + QStringLiteral("_2_safety"));
     });
 }
 

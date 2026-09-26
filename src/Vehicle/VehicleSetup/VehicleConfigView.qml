@@ -72,16 +72,12 @@ Rectangle {
         return !!_expandedComponents[compIndex]
     }
 
-    /// True if a vehicle component may be shown to an operator. Developer mode shows everything.
-    /// Keyed on KnownVehicleComponent rather than name, since VehicleComponent::name() is tr()'d.
-    /// Only sensor calibration is left to the operator. Power edits battery parameters inline, which
-    /// bypasses the read only guard in ParameterEditorDialog, so it moved behind developer mode.
-    /// Sensors is gated by APMAutoPilotPlugin.cc:201 on Airframe setup being complete. The Airframe page
-    /// is hidden here, so FRAME_CLASS must be non-zero at shipping time for the sensor page to open.
+    /// True if a vehicle component may be shown to an operator. The RFP gives the operator every
+    /// vehicle and flight setting, so every component is open. What stays behind developer mode is
+    /// outside the components: the raw Parameters editor and Firmware buttons below, and the items
+    /// inside individual pages that carry their own gate (CompassMot, sensor orientation).
     function _componentAllowed(comp) {
-        if (_corePlugin.showAdvancedUI) return true
-        if (!comp) return false
-        return comp.KnownVehicleComponent === AutoPilotPlugin.KnownSensorsVehicleComponent
+        return !!comp
     }
 
     /// Translated display name for a section ID. JSON-driven components translate via the JSON
