@@ -45,9 +45,17 @@ private slots:
     /// would have been opens nothing.
     void _testFlightModeDoesNothingWithNoVehicle();
 
-    /// Once the aircraft is armed the banner counts the flight, beside the state and not inside
-    /// a drawer.
+    /// Once the aircraft is armed the banner counts the flight and the distance flown, beside
+    /// the state and not inside a drawer, without pushing the right cluster into its clip. The
+    /// drawer adds the takeoff's date and time. Also the two captures, when a capture directory
+    /// is set.
     void _testBannerShowsFlightTimeWhenFlying();
+
+    /// An empty log reads 기록 없음; after two flights the drawer lists both, newest first, each
+    /// with its date and time, duration and distance. A thirty flight log scrolls inside the list
+    /// and leaves the drawer inside the window. Also the captures, when a capture directory is
+    /// set.
+    void _testFlightLogListsFlightsNewestFirst();
 
     /// A flight flown and landed leaves its duration in the drawer and in the settings file
     /// under the airframe's own key, which is what the next start of the app reads. A second

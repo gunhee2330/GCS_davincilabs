@@ -31,6 +31,10 @@ class TakeoffCounter : public QObject
     /// under this station. Timed from the first liftoff of the arm cycle the count uses to its
     /// last landing, or to the disarm when that comes in the air.
     Q_PROPERTY(int lastFlightSeconds READ lastFlightSeconds NOTIFY lastFlightSecondsChanged)
+    /// Completed flights of this airframe under this station, newest first, at most kMaxFlights.
+    /// Each is a map: takeoff (local ISO 8601 date and time of the first liftoff), seconds (as
+    /// lastFlightSeconds) and metres (the vehicle's flightDistance when the flight was timed).
+    Q_PROPERTY(QVariantList flights READ flights NOTIFY flightsChanged)
 
 public:
     /// No default argument: a default-constructible QML_SINGLETON is default-constructed by the
@@ -47,10 +51,14 @@ public:
 
     [[nodiscard]] int takeoffCount() const { return _count; }
     [[nodiscard]] int lastFlightSeconds() const { return _lastFlightSeconds; }
+    [[nodiscard]] QVariantList flights() const { return _flights; }
+
+    static constexpr int kMaxFlights = 100;
 
 signals:
     void takeoffCountChanged();
     void lastFlightSecondsChanged();
+    void flightsChanged();
 
 private slots:
     void _activeVehicleChanged(Vehicle* vehicle);
@@ -62,9 +70,10 @@ private slots:
 private:
     void _follow(Vehicle* vehicle);
     void _markAirborne();
-    /// Records how long the arm cycle has flown, from its first liftoff to now. Landing and
-    /// disarming both call it; a later landing in the same cycle overwrites an earlier one, so a
-    /// landed state that flickers still leaves the whole flight. The latch is left to the arm edge.
+    /// Records how long and how far the arm cycle has flown, from its first liftoff to now. Landing
+    /// and disarming both call it; a later landing in the same cycle overwrites an earlier one, in
+    /// lastFlightSeconds and in the cycle's flight record alike, so a landed state that flickers
+    /// still leaves the whole flight as one record. The latch is left to the arm edge.
     void _markLanded();
     void _load();
     void _store() const;
@@ -73,6 +82,9 @@ private:
     QPointer<Vehicle> _vehicle;
     int _count = 0;
     int _lastFlightSeconds = -1;
+    QVariantList _flights;
+    /// This arm cycle's flight is already the first record, so a later landing replaces it.
+    bool _recordedThisCycle = false;
     /// Latched per arm cycle so a landed state that flickers, or an altitude that hovers
     /// around the threshold, still counts one takeoff.
     bool _airborneThisCycle = false;

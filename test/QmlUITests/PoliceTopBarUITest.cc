@@ -1,8 +1,12 @@
 #include "PoliceTopBarUITest.h"
 
+#include <algorithm>
+
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
 #include <QtCore/QElapsedTimer>
+#include <QtCore/QJsonArray>
+#include <QtCore/QJsonDocument>
 #include <QtCore/QLocale>
 #include <QtCore/QMetaObject>
 #include <QtCore/QRegularExpression>
@@ -52,6 +56,9 @@ const QString kModeItem    = QStringLiteral("policeFlightModeItem");
 const QString kParamProgress = QStringLiteral("policeParamProgress");
 
 const QString kChevron     = QStringLiteral("policeStatusChevron");
+
+/// The status drawer's list of past flights.
+const QString kFlightList  = QStringLiteral("policeFlightList");
 
 const QString kStatusPage  = QStringLiteral("policeStatusPage");
 const QString kBatteryPage = QStringLiteral("policeBatteryPage");
@@ -178,6 +185,19 @@ bool subtreeHasDuration(QQuickItem *item)
         }
     }
     return false;
+}
+
+/// The banner's own line: the one text under it that starts with the state.
+QString bannerText(QQuickItem *banner, const QString &state)
+{
+    QStringList texts;
+    collectTexts(banner, texts);
+    for (const QString &text : texts) {
+        if (text.startsWith(state)) {
+            return text;
+        }
+    }
+    return QString();
 }
 
 /// The counter is started by QGCApplication::_initForNormalAppBoot, which the test harness
@@ -593,6 +613,8 @@ void PoliceTopBarUITest::_testBannerShowsFlightTimeWhenFlying()
 
     runWithMockLink([] { return MockLink::startPX4MockLink(); },
                     [this](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+        startTakeoffCounter();
+
         _window->resize(kLayoutWidth, kLayoutHeight);
         QTest::qWait(kSettleMs);
 
@@ -609,6 +631,171 @@ void PoliceTopBarUITest::_testBannerShowsFlightTimeWhenFlying()
             QQuickItem *const item = findVisibleItem(_rootItem, kBanner, 0);
             return item && subtreeHasText(item, QStringLiteral("비행 중"));
         })(), TestTimeout::longMs());
+
+        // Then the distance flown since the arm, a space after the time: whole metres, and from
+        // 1 km kilometres to one place. The mock has already climbed, so the distance is moved to
+        // each figure from wherever the climb left it.
+        const auto setDistance = [vehicle](double metres) {
+            vehicle->updateFlightDistance(metres - vehicle->flightDistance()->rawValue().toDouble());
+        };
+        const QRegularExpression metres(QStringLiteral("^비행 중 \\d\\d:\\d\\d 850 m$"));
+        setDistance(850.0);
+        QVERIFY_TRUE_WAIT(metres.match(bannerText(banner, QStringLiteral("비행 중"))).hasMatch(),
+                          TestTimeout::mediumMs());
+        const QRegularExpression kilometres(QStringLiteral("^비행 중 \\d\\d:\\d\\d 1\\.2 km$"));
+        setDistance(1234.0);
+        QVERIFY_TRUE_WAIT(kilometres.match(bannerText(banner, QStringLiteral("비행 중"))).hasMatch(),
+                          TestTimeout::mediumMs());
+
+        // The wider line must not push the right cluster into its clip: the flight mode, its
+        // leftmost item, still starts right of the message pictogram beside the banner.
+        QQuickItem *const messages = findVisibleItem(_rootItem, kMessageItem, 3000);
+        QQuickItem *const mode = findVisibleItem(_rootItem, kModeItem, 3000);
+        QVERIFY2(messages && mode, "The message pictogram or the flight mode left the bar");
+        QVERIFY2(sceneRect(mode).left() >= sceneRect(messages).right(),
+                 qPrintable(QStringLiteral("The banner \"%1\" pushed the flight mode under it: mode at %2, messages end at %3")
+                                .arg(bannerText(banner, QStringLiteral("비행 중")))
+                                .arg(sceneRect(mode).left()).arg(sceneRect(messages).right())));
+        _grabIfCapturing(QStringLiteral("flightlog_0_banner_flying"));
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+
+        // The drawer names when this flight took off, to the second.
+        if (!_openDrawerFrom(kBanner)) {
+            return;
+        }
+        QQuickItem *const page = findVisibleItem(_rootItem, kStatusPage, 3000);
+        QVERIFY2(page, "The banner opened something other than the status page");
+        QVERIFY2(subtreeHasText(page, QStringLiteral("이륙 일시")), "The drawer does not say when the flight took off");
+        QStringList texts;
+        collectTexts(page, texts);
+        const QRegularExpression takeoff(QStringLiteral("^\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d$"));
+        QVERIFY2(std::any_of(texts.cbegin(), texts.cend(), [&](const QString &text) { return takeoff.match(text).hasMatch(); }),
+                 qPrintable(QStringLiteral("No MM-dd HH:mm:ss takeoff time in the drawer: %1").arg(texts.join(QStringLiteral(" | ")))));
+        _grabIfCapturing(QStringLiteral("flightlog_1_drawer_flying"));
+        QVERIFY2(_closeDrawer(), "The status drawer would not close");
+    });
+}
+
+void PoliceTopBarUITest::_testFlightLogListsFlightsNewestFirst()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> mockLink, Vehicle *vehicle) {
+        startTakeoffCounter();
+
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        // A new airframe has no log yet, and says so.
+        if (!_openDrawerFrom(kBanner)) {
+            return;
+        }
+        QQuickItem *page = findVisibleItem(_rootItem, kStatusPage, 3000);
+        QVERIFY2(page, "The banner opened something other than the status page");
+        QVERIFY2(subtreeHasText(page, QStringLiteral("기록 없음")), "An empty log does not say 기록 없음");
+        QVERIFY2(!findVisibleItem(_rootItem, kFlightList, 0), "An empty log drew a list");
+        QVERIFY2(_closeDrawer(), "The status drawer would not close");
+
+        // The flying transition creates QGCPressure, which warns on hosts without a backend.
+        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
+                         QRegularExpression(QStringLiteral("Failed to connect to pressure backend")));
+        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
+                         QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
+
+        // MockLink has no landing: its takeoff handler arms and puts the aircraft at home plus
+        // param7, and reports itself in the air whenever it is above home. So 1.5 m is a liftoff
+        // and 0 a landing - and 1.5 m is under the 2 m TrajectoryPoints needs to count a move,
+        // so every metre flown is the one put there.
+        const auto fly = [&](double metres) {
+            mockLink->setArmed(true);
+            QVERIFY_TRUE_WAIT(vehicle->armed(), TestTimeout::mediumMs());
+            vehicle->sendMavCommand(vehicle->defaultComponentId(), MAV_CMD_NAV_TAKEOFF, false, 0, 0, 0, 0, 0, 0, 1.5f);
+            QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::mediumMs());
+            vehicle->updateFlightDistance(metres);
+            QTest::qWait(kFlightMs);
+            vehicle->sendMavCommand(vehicle->defaultComponentId(), MAV_CMD_NAV_TAKEOFF, false, 0, 0, 0, 0, 0, 0, 0.0f);
+            QVERIFY_TRUE_WAIT(!vehicle->flying(), TestTimeout::mediumMs());
+            mockLink->setArmed(false);
+            QVERIFY_TRUE_WAIT(!vehicle->armed(), TestTimeout::mediumMs());
+        };
+        fly(850.0);
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+        fly(1234.0);
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+
+        if (!_openDrawerFrom(kBanner)) {
+            return;
+        }
+        page = findVisibleItem(_rootItem, kStatusPage, 3000);
+        QVERIFY2(page, "The banner opened something other than the status page");
+        QVERIFY2(!subtreeHasText(page, QStringLiteral("기록 없음")), "A log with two flights still says 기록 없음");
+        QQuickItem *const list = findVisibleItem(_rootItem, kFlightList, 3000);
+        QVERIFY2(list, "The drawer shows no flight list after two flights");
+        QCOMPARE(list->property("count").toInt(), 2);
+
+        // Newest first: the 1.2 km flight, then the 850 m one. Each row is the takeoff's date and
+        // time, the duration and the distance.
+        const QRegularExpression date(QStringLiteral("^\\d\\d-\\d\\d \\d\\d:\\d\\d$"));
+        const QRegularExpression duration(QStringLiteral("^\\d\\d:\\d\\d:\\d\\d$"));
+        const QStringList distances{ QStringLiteral("1.2 km"), QStringLiteral("850 m") };
+        for (int i = 0; i < distances.size(); ++i) {
+            QQuickItem *row = nullptr;
+            QVERIFY(QMetaObject::invokeMethod(list, "itemAtIndex", Q_RETURN_ARG(QQuickItem *, row), Q_ARG(int, i)));
+            QVERIFY2(row, qPrintable(QStringLiteral("Row %1 was not created").arg(i)));
+            QStringList texts;
+            collectTexts(row, texts);
+            QCOMPARE(texts.size(), 3);
+            QVERIFY2(date.match(texts.at(0)).hasMatch(), qPrintable(QStringLiteral("Row %1 date reads %2").arg(i).arg(texts.at(0))));
+            QVERIFY2(duration.match(texts.at(1)).hasMatch(), qPrintable(QStringLiteral("Row %1 duration reads %2").arg(i).arg(texts.at(1))));
+            QCOMPARE(texts.at(2), distances.at(i));
+            QVERIFY2(sceneRect(row).right() <= sceneRect(list).right() + 1,
+                     qPrintable(QStringLiteral("Row %1 runs past the list's edge").arg(i)));
+        }
+        _grabIfCapturing(QStringLiteral("flightlog_2_drawer_records"));
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+        QVERIFY2(_closeDrawer(), "The status drawer would not close");
+
+        // A long log scrolls inside its list rather than growing the drawer. Thirty flights are
+        // put on disk under this airframe's key and read back the way a log already on disk
+        // comes in, on the airframe's UID arriving.
+        QJsonArray longLog = QJsonArray::fromVariantList(TakeoffCounter::instance()->flights());
+        while (longLog.size() < 30) {
+            longLog.append(longLog.last());
+        }
+        {
+            QSettings settings;
+            settings.beginGroup(QStringLiteral("PoliceDrone/TakeoffCount"));
+            settings.setValue(QStringLiteral("sysid-%1-flights").arg(vehicle->id()),
+                              QString::fromUtf8(QJsonDocument(longLog).toJson(QJsonDocument::Compact)));
+        }
+        QCOMPARE(vehicle->vehicleUID(), quint64(0));
+        emit vehicle->vehicleUIDChanged();
+        QCOMPARE(TakeoffCounter::instance()->flights().size(), 30);
+
+        QQuickItem *const loader = _openDrawerFrom(kBanner);
+        if (!loader) {
+            return;
+        }
+        QQuickItem *const longList = findVisibleItem(_rootItem, kFlightList, 3000);
+        QVERIFY2(longList, "The drawer shows no flight list for a long log");
+        QCOMPARE(longList->property("count").toInt(), 30);
+        QVERIFY2(longList->height() < longList->property("contentHeight").toReal() / 2,
+                 qPrintable(QStringLiteral("Thirty rows drew the list %1 tall of their %2")
+                                .arg(longList->height()).arg(longList->property("contentHeight").toReal())));
+        QVERIFY2(sceneRect(loader).bottom() <= _window->height(),
+                 qPrintable(QStringLiteral("The drawer runs to %1, past the window's %2")
+                                .arg(sceneRect(loader).bottom()).arg(_window->height())));
+        _grabIfCapturing(QStringLiteral("flightlog_3_drawer_long_log"));
+        QVERIFY2(_closeDrawer(), "The status drawer would not close");
     });
 }
 

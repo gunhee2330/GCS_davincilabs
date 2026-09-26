@@ -2,6 +2,8 @@
 
 #include <QtCore/QApplicationStatic>
 #include <QtCore/QDateTime>
+#include <QtCore/QJsonArray>
+#include <QtCore/QJsonDocument>
 #include <QtCore/QSettings>
 #include <QtQml/QJSEngine>
 
@@ -20,6 +22,9 @@ constexpr const char* kSettingsGroup = "PoliceDrone/TakeoffCount";
 /// A suffix rather than a child key: QSettings would then have to hold "uid-abc" as both a
 /// value and a group, which not every backend keeps.
 constexpr const char* kLastFlightSuffix = "-lastFlightSeconds";
+
+/// The flight log beside them, as a JSON array: a string reads back the same from every backend.
+constexpr const char* kFlightsSuffix = "-flights";
 
 /// Relative altitude that counts as airborne when the autopilot never sends a landed state.
 /// Two metres clears barometric drift on the pad without waiting for cruise height.
@@ -77,6 +82,10 @@ void TakeoffCounter::_follow(Vehicle* vehicle)
             _lastFlightSeconds = -1;
             emit lastFlightSecondsChanged();
         }
+        if (!_flights.isEmpty()) {
+            _flights.clear();
+            emit flightsChanged();
+        }
         return;
     }
 
@@ -90,6 +99,7 @@ void TakeoffCounter::_follow(Vehicle* vehicle)
     // Nor is its duration known: the liftoff instant is behind us. Timing it from here would
     // report a flight far shorter than the one actually flown.
     _airborneSinceMs = 0;
+    _recordedThisCycle = false;
     _load();
 }
 
@@ -101,6 +111,7 @@ void TakeoffCounter::_armedChanged(bool armed)
     _markLanded();
     _airborneThisCycle = false;
     _airborneSinceMs = 0;
+    _recordedThisCycle = false;
 }
 
 void TakeoffCounter::_flyingChanged(bool flying)
@@ -148,8 +159,27 @@ void TakeoffCounter::_markLanded()
     }
 
     _lastFlightSeconds = static_cast<int>((QDateTime::currentMSecsSinceEpoch() - _airborneSinceMs) / 1000);
+
+    // flightDistance is the vehicle's own count since it armed; it is zeroed by the next arm, not
+    // by this landing, so a flicker's later landing reads the whole cycle's distance.
+    const QVariantMap flight{
+        { QStringLiteral("takeoff"), QDateTime::fromMSecsSinceEpoch(_airborneSinceMs).toString(Qt::ISODate) },
+        { QStringLiteral("seconds"), _lastFlightSeconds },
+        { QStringLiteral("metres"),  _vehicle->flightDistance()->rawValue().toDouble() },
+    };
+    if (_recordedThisCycle && !_flights.isEmpty()) {
+        _flights[0] = flight;
+    } else {
+        _flights.prepend(flight);
+        _recordedThisCycle = true;
+        while (_flights.size() > kMaxFlights) {
+            _flights.removeLast();
+        }
+    }
+
     _store();
     emit lastFlightSecondsChanged();
+    emit flightsChanged();
     qCDebug(TakeoffCounterLog) << "flight of" << _lastFlightSeconds << "s for" << _settingsKey();
 }
 
@@ -190,6 +220,12 @@ void TakeoffCounter::_load()
         _lastFlightSeconds = lastFlight;
         emit lastFlightSecondsChanged();
     }
+    const QVariantList flights =
+        QJsonDocument::fromJson(settings.value(key + QLatin1String(kFlightsSuffix)).toByteArray()).array().toVariantList();
+    if (flights != _flights) {
+        _flights = flights;
+        emit flightsChanged();
+    }
 }
 
 void TakeoffCounter::_store() const
@@ -204,5 +240,9 @@ void TakeoffCounter::_store() const
     settings.setValue(key, _count);
     if (_lastFlightSeconds >= 0) {
         settings.setValue(key + QLatin1String(kLastFlightSuffix), _lastFlightSeconds);
+    }
+    if (!_flights.isEmpty()) {
+        settings.setValue(key + QLatin1String(kFlightsSuffix),
+                          QString::fromUtf8(QJsonDocument(QJsonArray::fromVariantList(_flights)).toJson(QJsonDocument::Compact)));
     }
 }

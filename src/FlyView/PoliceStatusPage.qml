@@ -8,9 +8,9 @@ import QGroundControl.Controls
 /// The drawer behind the top bar's status banner.
 ///
 /// One drawer for every state the banner can show, on the ground and in the air alike: the
-/// flight log is the same two lines either way. The running flight time is deliberately not
-/// here - it is on the banner itself, beside the state, which is where an operator reads it
-/// without opening anything.
+/// flight log is the same either way, with the takeoff's date and time added on top in the air.
+/// The running flight time and distance are deliberately not here - they are on the banner
+/// itself, beside the state, which is where an operator reads them without opening anything.
 ///
 /// When arming is refused the reasons come first, because that is what the operator opened the
 /// drawer to find.
@@ -24,19 +24,30 @@ ToolIndicatorPage {
     /// Arming is refused. The reasons are listed above the log when it is.
     property bool armBlocked: false
 
+    /// The arm instant as a Date, from the dashboard; shown while armed.
+    property var takeoffTime: null
+
     showExpand: false
 
     /// Seconds into HH:mm:ss, or an em dash before this airframe has completed a flight under
     /// this station.
     readonly property string _lastFlightText: {
         const total = App.TakeoffCounter.lastFlightSeconds
-        if (total < 0) {
-            return "—"
-        }
+        return total < 0 ? "—" : _durationText(total)
+    }
+
+    function _durationText(total) {
         const h = Math.floor(total / 3600)
         const m = Math.floor((total % 3600) / 60)
         const s = total % 60
         return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
+    }
+
+    /// Whole metres, then kilometres to one place from 1 km, as the banner writes the flight in
+    /// progress (PoliceDroneDashboard._flightDistanceText).
+    function _distanceText(metres) {
+        const rounded = Math.round(metres)
+        return rounded >= 1000 ? (rounded / 1000).toFixed(1) + " km" : rounded + " m"
     }
 
     /// PX4 answers the question in machine-readable form. ArduPilot - the delivery airframe -
@@ -53,6 +64,12 @@ ToolIndicatorPage {
     contentComponent: Component {
         SettingsGroupLayout {
             heading: page.headingText
+
+            LabelledLabel {
+                label:     qsTr("이륙 일시")
+                labelText: page.takeoffTime ? Qt.formatDateTime(page.takeoffTime, "MM-dd HH:mm:ss") : ""
+                visible:   page._armed && page.takeoffTime !== null
+            }
 
             Repeater {
                 model: (page.armBlocked && page._reasonsAvailable)
@@ -120,6 +137,46 @@ ToolIndicatorPage {
             LabelledLabel {
                 label:     qsTr("직전 비행 시간")
                 labelText: page._lastFlightText
+            }
+
+            LabelledLabel {
+                label:     qsTr("지난 비행")
+                labelText: App.TakeoffCounter.flights.length === 0 ? qsTr("기록 없음") : ""
+            }
+
+            // Newest first, as TakeoffCounter keeps them. Held to a few rows and scrolled inside
+            // itself, so a long log leaves the drawer the size it was.
+            QGCListView {
+                objectName:             "policeFlightList"
+                Layout.fillWidth:       true
+                Layout.minimumWidth:    ScreenTools.defaultFontPixelWidth * 30
+                Layout.preferredHeight: Math.min(contentHeight, ScreenTools.defaultFontPixelHeight * 7)
+                visible:                count > 0
+                model:                  App.TakeoffCounter.flights
+
+                delegate: RowLayout {
+                    required property var modelData
+
+                    width:   ListView.view.width
+                    spacing: ScreenTools.defaultFontPixelWidth * 2
+
+                    // takeoff is local ISO 8601, yyyy-MM-ddTHH:mm:ss: cut rather than parsed, so no
+                    // time zone gets a say in it.
+                    QGCLabel {
+                        Layout.fillWidth: true
+                        text:             modelData.takeoff.substring(5, 10) + " " + modelData.takeoff.substring(11, 16)
+                    }
+
+                    QGCLabel {
+                        text: page._durationText(modelData.seconds)
+                    }
+
+                    QGCLabel {
+                        Layout.minimumWidth: ScreenTools.defaultFontPixelWidth * 7
+                        horizontalAlignment: Text.AlignRight
+                        text:                page._distanceText(modelData.metres)
+                    }
+                }
             }
         }
     }

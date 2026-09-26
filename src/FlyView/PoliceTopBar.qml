@@ -29,6 +29,8 @@ Rectangle {
     property var    vehicle:       null
     /// { text, accent, blocked } - PoliceDroneDashboard._status.
     property var    status:        null
+    /// The arm instant as a Date, PoliceDroneDashboard._takeoffTime; null before the first arm.
+    property var    takeoffTime:   null
     /// The lowest pack, PoliceDroneDashboard._lowestBattery.
     property var    lowestBattery: null
     property real   batteryPercent: NaN
@@ -619,6 +621,7 @@ Rectangle {
 
         PoliceStatusPage {
             headingText: bar.status ? bar.status.text : ""
+            takeoffTime: bar.takeoffTime
             armBlocked:  bar.status ? (bar.status.blocked === true) : false
         }
     }
