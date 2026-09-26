@@ -56,6 +56,12 @@ private slots:
     /// windows. 8.5 m shows the number in orange, 12.5 m nothing.
     void _testLidarDisplaysFollowTheSensor();
 
+    /// The forward window's ring full screen: its strokes stay under a cap and its number is
+    /// bigger than windowed. Windowed the ring is as it was: strokes a share of the radius, the
+    /// number at the app's default size. Grabs q_0_window and q_1_fullscreen when
+    /// QGC_SCREENSHOT_DIR is set.
+    void _testForwardRingFullscreenSize();
+
     /// Capture slot for the camera band. Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureCameraBand();
 

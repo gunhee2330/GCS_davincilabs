@@ -41,6 +41,10 @@ Item {
     property real warnStroke: ringRadius * 0.15
     property real boldStroke: ringRadius * 0.21
 
+    /// The distance number's size. The app's default unless the caller has a ring big enough to
+    /// want a bigger one - the forward window full screen.
+    property real labelPointSize: ScreenTools.defaultFontPointSize
+
     /// A dark edge under each arc, so the colour still reads over a bright frame. The instrument
     /// pill has no bright frame to fight and no room to spend on one.
     property bool outlined: true
@@ -218,6 +222,7 @@ Item {
                 anchors.centerIn: parent
                 color:            root._sectorColor(index)
                 font.bold:        true
+                font.pointSize:   root.labelPointSize
                 // One decimal: more than that is precision a proximity sensor has not earned and
                 // a wider pill for no gain. Metres, which is what the monitor holds.
                 text:             lidar.sectorDistances[index].toFixed(1) + " m"

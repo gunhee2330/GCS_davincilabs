@@ -115,6 +115,15 @@ Item {
         active:             root.proximityRingEnabled
         ringRadius:         Math.min(root.width, root.height) * 0.33
         showDistanceLabels: true
+        // Full screen the radius grows over five times and strokes at a share of it made a 33 px bar
+        // beside a number still at its windowed size. The strokes stop at a cap the windowed ring
+        // stays under, and the number grows with the ring up to one, so windowed nothing changes.
+        boldStroke:         Math.min(ringRadius * 0.21, _strokeCap)
+        warnStroke:         Math.min(ringRadius * 0.15, _strokeCap * 0.7)
+        labelPointSize:     ScreenTools.defaultFontPointSize *
+                            Math.max(1, Math.min(ringRadius * 0.22 / ScreenTools.defaultFontPixelHeight, 1.6))
+
+        readonly property real _strokeCap: ScreenTools.defaultFontPixelHeight * 0.6
     }
 
     Rectangle {

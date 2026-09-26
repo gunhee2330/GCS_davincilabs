@@ -9,6 +9,7 @@
 #include <QtCore/QScopeGuard>
 #include <QtCore/QtMath>
 #include <QtGui/QColor>
+#include <QtGui/QFont>
 #include <QtGui/QImage>
 #include <QtQml/QQmlContext>
 #include <QtQml/QQmlExpression>
@@ -246,6 +247,24 @@ bool hasAncestorNamed(QQuickItem *item, const QString &objectName)
         }
     }
     return false;
+}
+
+/// The forward window's ring, windowed or full screen: the visible ring outside the instrument pill.
+QQuickItem *findForwardRing(QQuickItem *item)
+{
+    if (!item->isVisible()) {
+        return nullptr;
+    }
+    if (item->objectName() == kRing) {
+        return hasAncestorNamed(item, kInstrumentPanel) ? nullptr : item;
+    }
+    const QList<QQuickItem *> children = item->childItems();
+    for (QQuickItem *const child : children) {
+        if (QQuickItem *const found = findForwardRing(child)) {
+            return found;
+        }
+    }
+    return nullptr;
 }
 
 }  // namespace
@@ -1302,6 +1321,76 @@ void PoliceGuidedActionUITest::_testLidarDisplaysFollowTheSensor()
         if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
             _grab(QStringLiteral("l_1_after_silence"));
         }
+    });
+}
+
+void PoliceGuidedActionUITest::_testForwardRingFullscreenSize()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> mockLink, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const dashboard = findVisibleItem(_rootItem, kDashboard, 5000);
+        QVERIFY2(dashboard, "Police dashboard not found - the layout under test is not up");
+        const bool capture = !qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty();
+
+        const double rgForwardOnly[8] = { 3.3, qQNaN(), qQNaN(), qQNaN(),
+                                          qQNaN(), qQNaN(), qQNaN(), qQNaN() };
+        const QString number = QStringLiteral("3.3 m");
+        const auto real = [](QQuickItem *ring, const char *expression) {
+            return evaluateOn(ring, QString::fromLatin1(expression)).toDouble();
+        };
+
+        // Windowed: exactly as before the cap - strokes a share of the radius, number at the
+        // app's default point size.
+        injectProximity(mockLink, vehicle, rgForwardOnly);
+        QQuickItem *windowRing = nullptr;
+        QTRY_VERIFY((windowRing = findForwardRing(_rootItem)) != nullptr);
+        QVERIFY2(hasAncestorNamed(windowRing, kForwardWindow), "The ring found is not in the forward window");
+        const qreal windowRadius = real(windowRing, "ringRadius");
+        QVERIFY(windowRadius > 0);
+        QVERIFY(qFuzzyCompare(real(windowRing, "boldStroke"), windowRadius * 0.21));
+        QVERIFY(qFuzzyCompare(real(windowRing, "warnStroke"), windowRadius * 0.15));
+        QVERIFY(qFuzzyCompare(real(windowRing, "_sectorStroke(0)"), windowRadius * 0.21));
+        QQuickItem *windowLabel = nullptr;
+        QTRY_VERIFY((windowLabel = findVisibleTextItem(windowRing, number)) != nullptr);
+        const qreal defaultPointSize = real(windowRing, "ScreenTools.defaultFontPointSize");
+        const qreal windowPointSize = windowLabel->property("font").value<QFont>().pointSizeF();
+        QCOMPARE(windowPointSize, defaultPointSize);
+        const qreal windowLabelHeight = windowLabel->implicitHeight();
+        if (capture) {
+            injectProximity(mockLink, vehicle, rgForwardOnly);
+            _grab(QStringLiteral("q_0_window"));
+            if (QTest::currentTestFailed()) return;
+        }
+
+        // Full screen: bigger ring, strokes held under the cap, number grown past windowed.
+        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("primary")));
+        injectProximity(mockLink, vehicle, rgForwardOnly);
+        QQuickItem *fullRing = nullptr;
+        QTRY_VERIFY((fullRing = findForwardRing(_rootItem)) && (real(fullRing, "ringRadius") > windowRadius));
+        const qreal cap = real(fullRing, "ScreenTools.defaultFontPixelHeight * 0.6");
+        const qreal fullBold = real(fullRing, "boldStroke");
+        QVERIFY2(fullBold <= cap,
+                 qPrintable(QStringLiteral("Full screen bold stroke %1 is over the cap %2").arg(fullBold).arg(cap)));
+        QVERIFY(real(fullRing, "warnStroke") <= (cap * 0.7) + 1e-9);
+        QVERIFY(real(fullRing, "_sectorStroke(0)") <= cap);
+        QQuickItem *fullLabel = nullptr;
+        QTRY_VERIFY((fullLabel = findVisibleTextItem(fullRing, number)) != nullptr);
+        const qreal fullPointSize = fullLabel->property("font").value<QFont>().pointSizeF();
+        QVERIFY2(fullPointSize > windowPointSize,
+                 qPrintable(QStringLiteral("Full screen number is %1 pt, windowed %2 pt").arg(fullPointSize).arg(windowPointSize)));
+        QVERIFY(fullLabel->implicitHeight() > windowLabelHeight);
+        if (capture) {
+            injectProximity(mockLink, vehicle, rgForwardOnly);
+            _grab(QStringLiteral("q_1_fullscreen"));
+            if (QTest::currentTestFailed()) return;
+        }
+
+        QVERIFY(dashboard->setProperty("expandedPanel", QString()));
     });
 }
 
