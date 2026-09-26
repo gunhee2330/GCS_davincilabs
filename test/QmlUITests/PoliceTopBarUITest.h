@@ -79,6 +79,14 @@ private slots:
     /// captures, when a capture directory is set.
     void _testParamDownloadProgress();
 
+    /// The plan panel's selected item rows, QGC's own "Selected Waypoint" figures: with a PX4
+    /// aircraft and a three waypoint route, picking the second waypoint shows the azimuth, the
+    /// distance from the previous point, the gradient, the altitude difference and the heading
+    /// of the leg into it, each worked out here from the coordinates inserted. Picking the
+    /// mission start takes the rows away. QGC's "Max telem dist" is still in the totals, as the
+    /// 반경 cell. Also the two captures, when a capture directory is set.
+    void _testPlanSelectedItemStats();
+
     /// Capture slot, no aircraft. Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureNoVehicleBar();
 

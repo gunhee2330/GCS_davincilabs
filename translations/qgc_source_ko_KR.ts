@@ -13001,6 +13001,41 @@ VTOL</translation>
         <comment>Farthest distance from home along the mission</comment>
         <translation>반경</translation>
     </message>
+    <message>
+        <location filename="../src/PlanView/MissionStats.qml" line="0"/>
+        <source>Selected Item</source>
+        <translation>선택 항목</translation>
+    </message>
+    <message>
+        <location filename="../src/PlanView/MissionStats.qml" line="0"/>
+        <source>Azimuth</source>
+        <translation>방위</translation>
+    </message>
+    <message>
+        <location filename="../src/PlanView/MissionStats.qml" line="0"/>
+        <source>Dist prev WP</source>
+        <translation>이전 점 거리</translation>
+    </message>
+    <message>
+        <location filename="../src/PlanView/MissionStats.qml" line="0"/>
+        <source>Gradient</source>
+        <translation>경사</translation>
+    </message>
+    <message>
+        <location filename="../src/PlanView/MissionStats.qml" line="0"/>
+        <source>deg</source>
+        <translation>도</translation>
+    </message>
+    <message>
+        <location filename="../src/PlanView/MissionStats.qml" line="0"/>
+        <source>Alt diff</source>
+        <translation>고도 차</translation>
+    </message>
+    <message>
+        <location filename="../src/PlanView/MissionStats.qml" line="0"/>
+        <source>Heading</source>
+        <translation>기수 방향</translation>
+    </message>
 </context>
   <context>
     <name>Mixer::ChannelConfigInstanceVirtualAxis</name>

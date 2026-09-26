@@ -5,15 +5,16 @@ import QGroundControl
 import QGroundControl.Controls
 
 // 임무 전체 요약. 우측 패널 맨 위에 고정되어 트리와 함께 스크롤되지 않는다.
-// 선택 웨이포인트 상세(고도차/방위각/경사/기수)는 현장 판단에 쓰이지 않아 뺐다.
-// 6칸 고정 격자다. 순찰 운용에서 출동 전에 확인하는 값만 넣는다 —
+// 전체 요약은 6칸 고정 격자다. 순찰 운용에서 출동 전에 확인하는 값만 넣는다 —
 // 거리/시간(소티 규모), 최대 반경(통신 링크·육안 범위 한계), 최대 고도(고도 제한),
 // 항목 수, 필요 배터리.
+// 그 아래 선택 항목 상세(방위/이전 점 거리/경사/고도 차/기수 방향)는 순정 "Selected Waypoint" 와 같은
+// 값이다. 경로 위의 점을 골랐을 때만 보인다.
 Rectangle {
     required property var planMasterController
 
     id: missionStats
-    // 칸 수가 6으로 고정이라 높이도 3행으로 고정이다. 내용이 높이를 정한다.
+    // 전체 요약은 3행 고정이고, 선택 항목이 보일 때만 그만큼 늘어난다. 내용이 높이를 정한다.
     implicitHeight: statGrid.implicitHeight + (_margins * 2)
     color: "transparent"
 
@@ -41,6 +42,22 @@ Rectangle {
     // 홈에서 가장 멀어지는 거리. 통신 링크와 육안 범위가 버티는지 출동 전에 보는 값이다.
     property real   _missionMaxTelemetry:       _missionValid ? _missionController.missionMaxTelemetry : NaN
 
+    // 선택 항목. 값과 계산은 순정 MissionStats 그대로다.
+    property var    _currentMissionItem:        _controllerValid ? _missionController.currentPlanViewItem : null
+    property bool   _currentMissionItemValid:   _currentMissionItem !== undefined && _currentMissionItem !== null
+    property bool   _currentItemIsVTOLTakeoff:  _currentMissionItemValid && _currentMissionItem.command == 84
+    // 0번(임무 시작/홈)과 경로가 지나지 않는 항목(ROI, 속도 변경 같은 명령)은 이전 점 기준 값이 없다.
+    property bool   _showSelectedItem:          _currentMissionItemValid && _currentMissionItem.sequenceNumber > 0 &&
+                                                _currentMissionItem.specifiesCoordinate && !_currentMissionItem.isStandaloneCoordinate
+    property real   _distance:                  _currentMissionItemValid ? _currentMissionItem.distance : NaN
+    property real   _altDifference:             _currentMissionItemValid ? _currentMissionItem.altDifference : NaN
+    property real   _azimuth:                   _currentMissionItemValid ? _currentMissionItem.azimuth : NaN
+    property real   _heading:                   _currentMissionItemValid ? _currentMissionItem.missionVehicleYaw : NaN
+    property real   _gradient:                  _currentMissionItemValid && _currentMissionItem.distance > 0 ?
+                                                    (_currentItemIsVTOLTakeoff ?
+                                                         0 : (Math.atan(_currentMissionItem.altDifference / _currentMissionItem.distance) * (180.0/Math.PI)))
+                                                  : NaN
+
     // 최대 고도는 홈 기준 상대고도로 보여준다. 항목이 없거나 홈이 아직 정해지지 않으면 NaN 이 된다.
     property real _maxRelAltitude: {
         if (!_missionValid || _waypointCount === 0) {
@@ -60,6 +77,12 @@ Rectangle {
     property string _maxTelemetryText:           (isNaN(_missionMaxTelemetry) || _waypointCount === 0) ?
                                                      _noValueText :
                                                      QGroundControl.unitsConversion.metersToAppSettingsHorizontalDistanceUnits(_missionMaxTelemetry).toFixed(0)
+    // 순정은 값과 단위를 한 문자열로 붙였다(소수 1자리). 여기서는 요약 칸처럼 단위를 따로 두고 정수로 쓴다.
+    property string _distanceText:      isNaN(_distance) ? _noValueText : QGroundControl.unitsConversion.metersToAppSettingsHorizontalDistanceUnits(_distance).toFixed(0)
+    property string _altDifferenceText: isNaN(_altDifference) ? _noValueText : QGroundControl.unitsConversion.metersToAppSettingsVerticalDistanceUnits(_altDifference).toFixed(0)
+    property string _gradientText:      isNaN(_gradient) ? _noValueText : _gradient.toFixed(0)
+    property string _azimuthText:       isNaN(_azimuth) ? _noValueText : Math.round(_azimuth) % 360
+    property string _headingText:       isNaN(_heading) ? _noValueText : Math.round(_heading) % 360
 
     readonly property string _noValueText:  "-.-"
     readonly property real   _margins:      ScreenTools.defaultFontPixelWidth
@@ -162,6 +185,8 @@ Rectangle {
 
         Stat {
             // 홈에서 가장 멀어지는 지점까지의 거리. 총 거리와 달리 링크·육안 범위 한계를 본다.
+            // 순정 "Max telem dist" 와 같은 값이다.
+            objectName: "missionStatsMaxTelemetry"
             label: qsTr("Max Range", "Farthest distance from home along the mission")
             value: _maxTelemetryText
             unit:  QGroundControl.unitsConversion.appSettingsHorizontalDistanceUnitsString
@@ -187,6 +212,58 @@ Rectangle {
             label: qsTr("Battery")
             value: _batteriesRequired >= 0 ? _batteriesRequired.toString() : _noValueText
             unit:  _batteriesRequired >= 0 ? qsTr("ea", "count unit, as in 5 ea") : ""
+        }
+
+        // 선택 항목. 요약과 같은 칸, 같은 2열이다. "이전 점 거리" 는 반 칸에 3자리 값과 함께 들어가지 않아
+        // 한 줄을 다 쓴다.
+        GridLayout {
+            objectName:        "missionStatsSelectedItem"
+            Layout.columnSpan: 2
+            Layout.fillWidth:  true
+            columns:           2
+            columnSpacing:     statGrid.columnSpacing
+            rowSpacing:        statGrid.rowSpacing
+            visible:           _showSelectedItem
+
+            QGCLabel {
+                Layout.columnSpan: 2
+                text:              qsTr("Selected Item")
+                font.pointSize:    missionStats._fontCaption
+            }
+
+            Stat {
+                objectName:        "missionStatsDistPrev"
+                Layout.columnSpan: 2
+                label:             qsTr("Dist prev WP")
+                value:             _distanceText
+                unit:              QGroundControl.unitsConversion.appSettingsHorizontalDistanceUnitsString
+            }
+
+            Stat {
+                objectName: "missionStatsAzimuth"
+                label:      qsTr("Azimuth")
+                value:      _azimuthText
+            }
+
+            Stat {
+                objectName: "missionStatsHeading"
+                label:      qsTr("Heading")
+                value:      _headingText
+            }
+
+            Stat {
+                objectName: "missionStatsGradient"
+                label:      qsTr("Gradient")
+                value:      _gradientText
+                unit:       qsTr("deg")
+            }
+
+            Stat {
+                objectName: "missionStatsAltDiff"
+                label:      qsTr("Alt diff")
+                value:      _altDifferenceText
+                unit:       QGroundControl.unitsConversion.appSettingsVerticalDistanceUnitsString
+            }
         }
     }
 }

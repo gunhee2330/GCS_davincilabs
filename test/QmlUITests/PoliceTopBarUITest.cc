@@ -3,12 +3,15 @@
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
 #include <QtCore/QElapsedTimer>
+#include <QtCore/QLocale>
 #include <QtCore/QMetaObject>
 #include <QtCore/QRegularExpression>
 #include <QtCore/QScopeGuard>
 #include <QtCore/QSettings>
 #include <QtCore/QVariant>
+#include <QtCore/QtMath>
 #include <QtGui/QImage>
+#include <QtPositioning/QGeoCoordinate>
 #include <QtQml/QQmlContext>
 #include <QtQml/QQmlExpression>
 #include <QtQuick/QQuickItem>
@@ -19,11 +22,15 @@
 #include "AppSettings.h"
 #include "AutoPilotPlugin.h"
 #include "Fact.h"
+#include "FactMetaData.h"
+#include "MissionController.h"
 #include "MockLink.h"
 #include "MultiVehicleManager.h"
 #include "ParameterManager.h"
 #include "PoliceCorePlugin.h"
+#include "QmlObjectListModel.h"
 #include "SettingsManager.h"
+#include "SimpleMissionItem.h"
 #include "TakeoffCounter.h"
 #include "Vehicle.h"
 #include "VehicleComponent.h"
@@ -1045,6 +1052,127 @@ void PoliceTopBarUITest::_testParamDownloadProgress()
         QVERIFY(done.save(QDir(dir).filePath(QStringLiteral("pp_1_done.png"))));
     }
     QVERIFY2(pixelAt(done, stripCentre) != stripColour, "The strip is still drawn after the download");
+}
+
+void PoliceTopBarUITest::_testPlanSelectedItemStats()
+{
+    _ignorePreexistingQmlWarnings();
+
+    // The tree's editor for each waypoint sizes its not-ready "?" off its indicator's width, which
+    // is 0 when the editor is made (MissionItemEditor.qml), so every editor the tree makes says so.
+    // Present at HEAD with this same route; clamping that one binding silences all of them.
+    ignoreLogMessage("default", QtWarningMsg,
+                     QRegularExpression(QStringLiteral(
+                         "^QFont::setPointSizeF: Point size <= 0 \\(0\\.000000\\), must be greater than 0$")));
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QVERIFY2(QMetaObject::invokeMethod(_window, "showPlanView"), "showPlanView is not invokable");
+        QQuickItem *const planView = findVisibleItem(_rootItem, QStringLiteral("mainView_plan"), 5000);
+        QVERIFY2(planView, "The plan view did not appear");
+        MissionController *const missionController =
+            qobject_cast<MissionController *>(planView->property("_missionController").value<QObject *>());
+        QVERIFY2(missionController, "The plan view has no mission controller");
+        // The plan's home is the operator's to place, as a map tap would; here it goes where the
+        // aircraft sits.
+        QVERIFY_TRUE_WAIT(vehicle->coordinate().isValid(), 5000);
+        missionController->setHomePosition(vehicle->coordinate());
+        QVERIFY_TRUE_WAIT(missionController->plannedHomePosition().isValid(), 5000);
+
+        // Three waypoints off the aircraft's home. The leg into the second runs 200 m on 60 degrees
+        // and climbs 20 m, so every figure in the rows can be worked out here.
+        const QGeoCoordinate home = missionController->plannedHomePosition();
+        const QGeoCoordinate wp1 = home.atDistanceAndAzimuth(100, 0);
+        const QGeoCoordinate wp2 = wp1.atDistanceAndAzimuth(200, 60);
+        const QGeoCoordinate wp3 = wp2.atDistanceAndAzimuth(150, 150);
+        QList<VisualMissionItem *> items;
+        for (const QGeoCoordinate &coord : { wp1, wp2, wp3 }) {
+            items.append(missionController->insertSimpleMissionItem(coord, missionController->visualItems()->count()));
+            QVERIFY(items.last());
+        }
+        SimpleMissionItem *const second = qobject_cast<SimpleMissionItem *>(items.at(1));
+        QVERIFY(second);
+        constexpr double climb = 20.0;
+        second->altitude()->setRawValue(second->altitude()->rawValue().toDouble() + climb);
+        const double legMeters = wp1.distanceTo(wp2);
+        QVERIFY_TRUE_WAIT((qAbs(second->distance() - legMeters) < 0.5) && (qAbs(second->altDifference() - climb) < 0.01),
+                          5000);
+
+        const QString sectionName = QStringLiteral("missionStatsSelectedItem");
+
+        // The mission start has no leg into it, so the rows are off the panel
+        missionController->setCurrentPlanViewSeqNum(0, true);
+        QVERIFY(verifyVisibility(sectionName, false, QStringLiteral("mission start picked")));
+        _grabIfCapturing(QStringLiteral("plan_stats_0_start"));
+        if (QTest::currentTestFailed()) return;
+
+        missionController->setCurrentPlanViewSeqNum(second->sequenceNumber(), true);
+        QVERIFY(verifyVisibility(sectionName, true, QStringLiteral("second waypoint picked")));
+        QQuickItem *const section = findVisibleItem(_rootItem, sectionName);
+        QVERIFY(section);
+        QVERIFY2(subtreeHasText(section, QCoreApplication::translate("MissionStats", "Selected Item")),
+                 "The selected item rows carry no title");
+
+        // The figures are the ones the delivery reads in Korean; elsewhere only the source strings
+        // are checked, through whatever catalogue is loaded.
+        const bool korean = (QLocale().language() == QLocale::Korean);
+        const double azimuth = qRound(wp1.azimuthTo(wp2)) % 360;
+        struct Row {
+            QString     objectName;
+            const char *label;
+            const char *comment;
+            const char *koreanLabel;
+            double      expected;
+            double      tolerance;  ///< the figure is printed rounded
+            QString     unit;
+        };
+        const QList<Row> rows = {
+            { QStringLiteral("missionStatsAzimuth"),  "Azimuth",      nullptr, "방위",        azimuth, 0,
+              QString() },
+            { QStringLiteral("missionStatsDistPrev"), "Dist prev WP", nullptr, "이전 점 거리",
+              FactMetaData::metersToAppSettingsHorizontalDistanceUnits(legMeters).toDouble(), 0.51,
+              FactMetaData::appSettingsHorizontalDistanceUnitsString() },
+            { QStringLiteral("missionStatsGradient"), "Gradient",     nullptr, "경사",
+              static_cast<double>(qRound(qRadiansToDegrees(qAtan(climb / legMeters)))), 0,
+              QCoreApplication::translate("MissionStats", "deg") },
+            { QStringLiteral("missionStatsAltDiff"),  "Alt diff",     nullptr, "고도 차",
+              FactMetaData::metersToAppSettingsVerticalDistanceUnits(climb).toDouble(), 0.51,
+              FactMetaData::appSettingsVerticalDistanceUnitsString() },
+            { QStringLiteral("missionStatsHeading"),  "Heading",      nullptr, "기수 방향",   azimuth, 0,
+              QString() },
+            { QStringLiteral("missionStatsMaxTelemetry"), "Max Range", "Farthest distance from home along the mission",
+              "반경",
+              FactMetaData::metersToAppSettingsHorizontalDistanceUnits(
+                  qMax(home.distanceTo(wp1), qMax(home.distanceTo(wp2), home.distanceTo(wp3)))).toDouble(), 0.51,
+              FactMetaData::appSettingsHorizontalDistanceUnitsString() },
+        };
+        for (const Row &row : rows) {
+            QQuickItem *const stat = findVisibleItem(section->parentItem(), row.objectName, 2000);
+            QVERIFY2(stat, qPrintable(QStringLiteral("%1 is not on the panel").arg(row.objectName)));
+            const QString label = stat->property("label").toString();
+            QCOMPARE(label, QCoreApplication::translate("MissionStats", row.label, row.comment));
+            if (korean) {
+                QCOMPARE(label, QString::fromUtf8(row.koreanLabel));
+            }
+            // Once the layout has given the rows their width
+            QQuickItem *const labelText = findVisibleItemWithExactText(stat, label);
+            QVERIFY2(labelText, qPrintable(QStringLiteral("%1 draws no label").arg(row.objectName)));
+            QVERIFY2(waitForCondition([labelText] { return !labelText->property("truncated").toBool(); }, 2000,
+                                      QStringLiteral("label drawn in full")),
+                     qPrintable(QStringLiteral("%1 is cut short on the panel").arg(label)));
+            QCOMPARE(stat->property("unit").toString(), row.unit);
+            const QString value = stat->property("value").toString();
+            bool ok = false;
+            const double number = value.toDouble(&ok);
+            QVERIFY2(ok && (qAbs(number - row.expected) <= row.tolerance),
+                     qPrintable(QStringLiteral("%1 reads \"%2\", expected %3").arg(label, value).arg(row.expected)));
+        }
+
+        _grabIfCapturing(QStringLiteral("plan_stats_1_selected"));
+    });
 }
 
 void PoliceTopBarUITest::_captureNoVehicleBar()
