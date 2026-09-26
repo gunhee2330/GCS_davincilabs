@@ -74,6 +74,11 @@ private slots:
     /// and arms once that is held.
     void _testDrawerForceArmWhenBlocked();
 
+    /// QGC's own parameter download strip lies along the bar's bottom edge while an aircraft's
+    /// parameters come in, drawn over the bar, and is gone once they are in. Also the two
+    /// captures, when a capture directory is set.
+    void _testParamDownloadProgress();
+
     /// Capture slot, no aircraft. Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureNoVehicleBar();
 

@@ -13,12 +13,15 @@
 #include <QtQml/QQmlExpression>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QQuickWindow>
+#include <QtTest/QSignalSpy>
 #include <QtTest/QTest>
 
 #include "AppSettings.h"
 #include "AutoPilotPlugin.h"
 #include "Fact.h"
 #include "MockLink.h"
+#include "MultiVehicleManager.h"
+#include "ParameterManager.h"
 #include "PoliceCorePlugin.h"
 #include "SettingsManager.h"
 #include "TakeoffCounter.h"
@@ -37,6 +40,9 @@ const QString kRfItem      = QStringLiteral("policeRfItem");
 const QString kBatteryItem = QStringLiteral("policeBatteryItem");
 const QString kDateTime    = QStringLiteral("policeDateTime");
 const QString kModeItem    = QStringLiteral("policeFlightModeItem");
+
+/// QGC's ParameterDownloadProgress as the dashboard hosts it over the bar.
+const QString kParamProgress = QStringLiteral("policeParamProgress");
 
 const QString kChevron     = QStringLiteral("policeStatusChevron");
 
@@ -955,6 +961,90 @@ void PoliceTopBarUITest::_testDrawerForceArmWhenBlocked()
         }
         QVERIFY_TRUE_WAIT(vehicle->armed(), TestTimeout::longMs());
     });
+}
+
+void PoliceTopBarUITest::_testParamDownloadProgress()
+{
+    _ignorePreexistingQmlWarnings();
+
+    startUI();
+    if (QTest::currentTestFailed()) {
+        return;
+    }
+
+    _window->resize(kLayoutWidth, kLayoutHeight);
+    QTest::qWait(kSettleMs);
+
+    QQuickItem *const bar = findVisibleItem(_rootItem, kTopBar, 5000);
+    QVERIFY2(bar, "The top bar is not on screen");
+    QQuickItem *const host = findVisibleItem(_rootItem, kParamProgress, 5000);
+    QVERIFY2(host, "The parameter download progress is not in the fly view");
+    QCOMPARE(sceneRect(host), sceneRect(bar));
+
+    // The stock component's first child is the strip; the second is the large bar QGC shows only
+    // in the light scheme.
+    QQuickItem *const strip = host->childItems().value(0);
+    QVERIFY2(strip, "The parameter download progress has no strip");
+    QCOMPARE(strip->width(), 0.0);
+
+    // COM_FLTMODE6 is left out of the mock's parameter stream, so QGC reaches the end one short
+    // and waits before asking for it by name: the download holds still part way through for long
+    // enough to be looked at, and then completes as usual.
+    QSignalSpy spyVehicle(MultiVehicleManager::instance(), &MultiVehicleManager::activeVehicleChanged);
+    QVERIFY(spyVehicle.isValid());
+    QPointer<MockLink> mockLink = MockLink::startPX4MockLink(MockConfiguration::OptionNone,
+                                                             MockConfiguration::FailMissingParamOnInitialRequest);
+    QVERIFY2(mockLink, "Could not start the mock aircraft");
+    const auto teardown = qScopeGuard([&] {
+        disconnectMockLink(mockLink);
+        closeUIWindow();
+        destroyUIEngine();
+    });
+    QVERIFY(waitForSignal(spyVehicle, 10000, QStringLiteral("activeVehicleChanged")));
+    Vehicle *const vehicle = MultiVehicleManager::instance()->activeVehicle();
+    QVERIFY(vehicle);
+
+    // The software backend leaves the grab's devicePixelRatio at 1, so the scale comes from the
+    // grab's size against the window's.
+    const auto pixelAt = [this](const QImage &image, const QPointF &scenePoint) {
+        return image.pixelColor((scenePoint * image.width() / _window->width()).toPoint());
+    };
+
+    // Mid-download, grabbed at once: no event is processed between the check and the grab.
+    QVERIFY_TRUE_WAIT(!vehicle->parameterManager()->parametersReady() &&
+                      (vehicle->parameterManager()->loadProgress() > 0) && (strip->width() > 0), 10000);
+    const QImage downloading = _window->grabWindow();
+    QVERIFY(!downloading.isNull());
+    const QString dir = qEnvironmentVariable("QGC_SCREENSHOT_DIR");
+    if (!dir.isEmpty()) {
+        QVERIFY(QDir().mkpath(dir));
+        QVERIFY(downloading.save(QDir(dir).filePath(QStringLiteral("pp_0_downloading.png"))));
+    }
+    QVERIFY(strip->isVisible());
+    QVERIFY2(qAbs(strip->width() - vehicle->loadProgress() * host->width()) < 1.0,
+             qPrintable(QStringLiteral("Strip %1 wide for %2 of a %3 wide bar")
+                            .arg(strip->width()).arg(vehicle->loadProgress()).arg(host->width())));
+    QVERIFY2(strip->width() < host->width(), "The strip is full width before the download is done");
+    QCOMPARE(sceneRect(strip).left(), sceneRect(bar).left());
+    QCOMPARE(sceneRect(strip).bottom(), sceneRect(bar).bottom());
+    const QPointF stripCentre = strip->mapToScene(QPointF(strip->width() / 2, strip->height() / 2));
+    const QColor stripColour = strip->property("color").value<QColor>();
+    QVERIFY2(pixelAt(downloading, stripCentre) == stripColour,
+             qPrintable(QStringLiteral("The strip at (%1, %2) of the grab reads %3, not its own %4")
+                            .arg(stripCentre.x()).arg(stripCentre.y())
+                            .arg(pixelAt(downloading, stripCentre).name(), stripColour.name())));
+
+    // Once the aircraft is in, the strip is gone.
+    QVERIFY_TRUE_WAIT(vehicle->isInitialConnectComplete(), 10000);
+    QVERIFY(vehicle->parameterManager()->parametersReady());
+    QVERIFY_TRUE_WAIT(strip->width() == 0, 5000);
+    QTest::qWait(kSettleMs);
+    const QImage done = _window->grabWindow();
+    QVERIFY(!done.isNull());
+    if (!dir.isEmpty()) {
+        QVERIFY(done.save(QDir(dir).filePath(QStringLiteral("pp_1_done.png"))));
+    }
+    QVERIFY2(pixelAt(done, stripCentre) != stripColour, "The strip is still drawn after the download");
 }
 
 void PoliceTopBarUITest::_captureNoVehicleBar()

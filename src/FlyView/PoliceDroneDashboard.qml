@@ -864,6 +864,17 @@ Item {
         onMenuRequested: root.menuRequested()
     }
 
+    // QGC's own parameter download progress, laid over the bar the way FlyViewToolBar lays it
+    // over its own: a green line along the bar's bottom edge that grows with the download and is
+    // gone once it is over. Here rather than inside the bar because it follows the active vehicle
+    // by itself, and the bar reads nothing it was not handed. Same z and declared after, so it
+    // draws over the bar and goes under whatever covers the bar.
+    ParameterDownloadProgress {
+        objectName:   "policeParamProgress"
+        anchors.fill: topBar
+        z:            topBar.z
+    }
+
     // Obstacle glow over the map. One instance rather than one per map engine: the police layer
     // is built once whichever engine is loaded, and it is the only thing that knows where the map
     // is still visible - the top bar covers the map's top. No right margin: the camera stack
