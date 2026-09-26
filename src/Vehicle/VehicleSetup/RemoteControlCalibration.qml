@@ -39,7 +39,13 @@ ColumnLayout {
                 Layout.fillWidth: true
                 spacing: ScreenTools.defaultFontPixelHeight
 
-                QGCLabel { text: qsTr("Attitude Controls") }
+                QGCLabel {
+                    text: qsTr("Attitude Controls")
+                    // The settings cards' caption
+                    font.pointSize: ScreenTools.mockupPointUnit * 0.95
+                    font.letterSpacing: ScreenTools.mockupUnit * 0.019
+                    color: qgcPal.secondaryText
+                }
 
                 Repeater {
                     model: [
@@ -55,6 +61,9 @@ ColumnLayout {
                         QGCLabel {
                             Layout.fillWidth: true
                             text: modelData.name
+                            // The settings rows' label
+                            font.pointSize: ScreenTools.mockupPointUnit * 1.25
+                            font.weight: Font.DemiBold
                         }
 
                         RemoteControlChannelValueDisplay {
@@ -72,6 +81,9 @@ ColumnLayout {
 
                 QGCLabel {
                     text: qsTr("Aux Extensions")
+                    font.pointSize: ScreenTools.mockupPointUnit * 0.95
+                    font.letterSpacing: ScreenTools.mockupUnit * 0.019
+                    color: qgcPal.secondaryText
                     visible: controller.pitchExtensionEnabled || controller.rollExtensionEnabled
                 }
 
@@ -88,6 +100,9 @@ ColumnLayout {
                         QGCLabel {
                             Layout.fillWidth: true
                             text: modelData.name
+                            // The settings rows' label
+                            font.pointSize: ScreenTools.mockupPointUnit * 1.25
+                            font.weight: Font.DemiBold
                         }
 
                         RemoteControlChannelValueDisplay {
@@ -105,6 +120,9 @@ ColumnLayout {
 
                 QGCLabel {
                     text: qsTr("Additional Axes")
+                    font.pointSize: ScreenTools.mockupPointUnit * 0.95
+                    font.letterSpacing: ScreenTools.mockupUnit * 0.019
+                    color: qgcPal.secondaryText
                     visible: controller.additionalAxis1Enabled || controller.additionalAxis2Enabled || controller.additionalAxis3Enabled ||
                              controller.additionalAxis4Enabled || controller.additionalAxis5Enabled || controller.additionalAxis6Enabled
                 }
@@ -126,6 +144,9 @@ ColumnLayout {
                         QGCLabel {
                             Layout.fillWidth: true
                             text: modelData.name
+                            // The settings rows' label
+                            font.pointSize: ScreenTools.mockupPointUnit * 1.25
+                            font.weight: Font.DemiBold
                         }
 
                         RemoteControlChannelValueDisplay {
@@ -152,10 +173,12 @@ ColumnLayout {
                 id: stickDisplayContainer
                 implicitWidth: stickDisplayLayout.width + _margins * 2
                 implicitHeight: stickDisplayLayout.height + _margins * 2
-                border.color: qgcPal.text
-                border.width: 1
-                color: qgcPal.window
-                radius: ScreenTools.defaultBorderRadius
+                // A settings card
+                border.color: qgcPal.cardBorder
+                border.width: ScreenTools.hairline
+                border.pixelAligned: false
+                color: qgcPal.card
+                radius: ScreenTools.mockupUnit * 0.6
 
                 property real _margins: ScreenTools.defaultFontPixelHeight / 2
                 property real _stickAdjust: leftStickDisplay.width / 2 - _margins * 1.25
@@ -184,6 +207,7 @@ ColumnLayout {
                         QGCCheckBox {
                             id: centeredThrottleCheckBox
                             text: qsTr("Centered Throttle")
+                            textFontPointSize: ScreenTools.mockupPointUnit * 1.25    // the settings rows' label size
                             checked: controller.centeredThrottle
                             enabled: !controller.calibrating
                             visible: !controller.joystickMode
@@ -301,7 +325,10 @@ ColumnLayout {
         id: separator
         Layout.fillWidth: true
         implicitHeight: 1
-        color: qgcPal.text
+        // The settings cards' rule, one device pixel
+        transform: Scale { yScale: ScreenTools.hairline }
+        opacity: 0.999    // not opaque, or the software renderer skips what lies under its whole-pixel bounds
+        color: qgcPal.cardBorder
     }
 
     // Additional Setup + Channel Monitor

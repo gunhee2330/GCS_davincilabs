@@ -79,6 +79,14 @@ private slots:
     /// light scheme. Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureSettingsDark();
 
+    /// A settings switch answers a tap anywhere in a finger's minimum around its drawn pill, the
+    /// tablet's figure, while the pill and its row keep the mockup's size.
+    void _testSettingsSwitchTouchTarget();
+
+    /// Capture slot for the radio page on an ArduPilot aircraft, which has no PX4 switch rows.
+    /// Skipped unless QGC_SCREENSHOT_DIR is set.
+    void _captureArduPilotRadio();
+
     /// The fork palette and the dark default only exist while custom/ names PoliceCorePlugin to
     /// QGC's custom-build hook. Without it everything builds and the stock plugin runs instead.
     void _policeCorePluginIsLive();

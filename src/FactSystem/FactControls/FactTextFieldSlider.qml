@@ -25,6 +25,9 @@ Rectangle {
     property var    sliderMin:          undefined ///< explicit slider minimum, overrides fact.userMin/min
     property var    sliderMax:          undefined ///< explicit slider maximum, overrides fact.userMax/max
     property color  backgroundColor:    _ftfsBackgroundColor
+    /// true: the slider sits on the one line between the check box and the value, as the police
+    /// settings mockup draws it, rather than under them (SettingsControlStyle)
+    property bool   sliderInline:       false
 
     signal enableCheckboxClicked
 
@@ -40,14 +43,15 @@ Rectangle {
     property var  _sliderMax:               sliderMax !== undefined ? sliderMax : (fact.userMax !== undefined ? fact.userMax : (allowUsingMinMax ? fact.max : undefined))
 
     function updateSliderToClampedValue() {
-        if (_showSlider && sliderLoader.item) {
+        const slider = (sliderInline ? inlineSliderLoader : sliderLoader).item
+        if (_showSlider && slider) {
             let clampedSliderValue = control.fact.value
             if (clampedSliderValue > control._sliderMax) {
                 clampedSliderValue = control._sliderMax
             } else if (clampedSliderValue < control._sliderMin) {
                 clampedSliderValue = control._sliderMin
             }
-            sliderLoader.item.value = clampedSliderValue
+            slider.value = clampedSliderValue
         }
     }
 
@@ -78,16 +82,27 @@ Rectangle {
 
             QGCCheckBox {
                 id:                 enableCheckbox
-                Layout.fillWidth:   visible
+                // On the one line a check box without a label leaves the room to the slider
+                Layout.fillWidth:   visible && (!control.sliderInline || text !== "")
                 text:               control.label
                 visible:            control.showEnableCheckbox
 
                 onClicked: control.enableCheckboxClicked()
             }
 
+            Loader {
+                id:                 inlineSliderLoader
+                Layout.fillWidth:   !enableCheckbox.Layout.fillWidth
+                visible:            control.sliderInline
+                sourceComponent:    control._showSlider && control.sliderInline ? sliderComponent : null
+                enabled:            !control.showEnableCheckbox || enableCheckbox.checked
+
+                onLoaded: control.updateSliderToClampedValue()
+            }
+
             LabelledFactTextField {
                 id:                 factTextField
-                Layout.fillWidth:   !control.showEnableCheckbox
+                Layout.fillWidth:   !control.showEnableCheckbox && !control.sliderInline
                 label:              control.showEnableCheckbox ? "" : control.label
                 fact:               control.fact
                 enabled:            !control.showEnableCheckbox || enableCheckbox.checked
@@ -97,7 +112,8 @@ Rectangle {
         Loader {
             id:                 sliderLoader
             Layout.fillWidth:   true
-            sourceComponent:    control._showSlider ? sliderComponent : null
+            visible:            !control.sliderInline
+            sourceComponent:    control._showSlider && !control.sliderInline ? sliderComponent : null
             enabled:            !control.showEnableCheckbox || enableCheckbox.checked
 
             onLoaded: control.updateSliderToClampedValue()

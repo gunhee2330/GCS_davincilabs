@@ -22,12 +22,15 @@ ColumnLayout {
         Layout.bottomMargin: ScreenTools.defaultFontPixelHeight * 0.2
         spacing: ScreenTools.defaultFontPixelHeight
 
+        // The police mockup's key-value rows: 1.15 cqw, the key dimmed
         QGCLabel {
             id: label
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignLeft | Qt.AlignVCenter
             text: root.labelText
             wrapMode: Text.WordWrap
+            font.pointSize: ScreenTools.mockupPointUnit * 1.15
+            color: QGroundControl.globalPalette.secondaryText
         }
 
         QGCLabel {
@@ -38,13 +41,19 @@ ColumnLayout {
             text: root.valueText
             color: root.valueColor !== "" ? root.valueColor : QGroundControl.globalPalette.text
             wrapMode: Text.WordWrap
+            font.pointSize: ScreenTools.mockupPointUnit * 1.15
         }
     }
 
     Rectangle {
         Layout.fillWidth: true
         Layout.preferredHeight: 1
-        color: Qt.rgba(QGroundControl.globalPalette.text.r, QGroundControl.globalPalette.text.g, QGroundControl.globalPalette.text.b, 0.08)
+        // One device pixel: the software renderer rounds a thinner fill up to a whole logical
+        // pixel, so a whole one is scaled down, and kept just short of opaque so the renderer
+        // still draws what lies under the rest of its bounds
+        transform: Scale { yScale: ScreenTools.hairline }
+        opacity: 0.999
+        color: QGroundControl.globalPalette.cardBorder
         visible: root.showDivider
     }
 }

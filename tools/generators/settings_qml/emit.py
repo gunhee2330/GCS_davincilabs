@@ -28,8 +28,17 @@ def _object_name(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9_]", "", text)
 
 
-def _wrap_with_description(control_qml: str, fact_ref: str, vis_expr: str, indent: str) -> str:
-    """Wrap a control's QML in a ColumnLayout that appends a shortDescription label."""
+def _wrap_with_description(
+    control_qml: str,
+    fact_ref: str,
+    vis_expr: str,
+    indent: str,
+    label_expr: str,
+    fills_row: bool = False,
+    control_width: str = "",
+) -> str:
+    """Wrap a control's QML in a SettingsRow that shows its label with the shortDescription
+    under it, beside the control. The control itself is rendered with a blank label."""
     control_qml_indented = "\n".join(
         (f"    {line}" if line.strip() else line) for line in control_qml.splitlines()
     )
@@ -37,6 +46,9 @@ def _wrap_with_description(control_qml: str, fact_ref: str, vis_expr: str, inden
         indent=indent,
         vis_expr=vis_expr,
         fact_ref=fact_ref,
+        label_expr=label_expr,
+        fills_row=fills_row,
+        control_width=control_width,
         control_qml_indented=control_qml_indented,
     )
 
@@ -50,6 +62,9 @@ def _qml_control(ctrl: ControlDef, settings_dir: Path, json_context: str = "") -
         if ctrl.showWhen:
             return f"({ctrl.showWhen}) && {fact_ref}.userVisible"
         return f"{fact_ref}.userVisible"
+
+    # The row draws the label, so each control below gets a blank one
+    row_label = qml_tr(ctrl.label, json_context) if ctrl.label else f"{fact_ref}.label"
 
     if ctrl.control == "component":
         return _env.get_template("control_component.qml.j2").render(
@@ -84,25 +99,34 @@ def _qml_control(ctrl: ControlDef, settings_dir: Path, json_context: str = "") -
     elif ctrl.control == "slider":
         control_qml = render_slider(
             fact_ref, indent,
-            label=ctrl.label,
             enable_checkbox=ctrl.enableCheckbox,
             button=ctrl.button,
             enable_when=ctrl.enableWhen,
+            label_source='""',
             tr_context=json_context,
         )
-        return _wrap_with_description(control_qml, fact_ref, _vis_expr(), indent)
+        # The slider has no width of its own; the mockup gives it 16 cqw beside its value and
+        # button, and the enable check box stands ahead of it
+        return _wrap_with_description(
+            control_qml, fact_ref, _vis_expr(), indent, row_label,
+            control_width="ScreenTools.mockupUnit * 31",
+        )
     elif ctrl.control in ("browse", "scaler"):
         qml_type = "LabelledFactBrowse" if ctrl.control == "browse" else "LabelledFactIncrementer"
         label_expr = qml_tr(ctrl.label, json_context) if ctrl.label else "fact.label"
+        properties = dict(ctrl.properties or {})
+        if ctrl.control == "browse":
+            # The browse dialog took its title from the label
+            properties = {"dialogTitle": label_expr, **properties}
         control_qml = _env.get_template("control_labelled_fact.qml.j2").render(
             indent=indent,
             qml_type=qml_type,
-            label_expr=label_expr,
+            label_expr='""',
             fact_ref=fact_ref,
             enable_when=ctrl.enableWhen,
-            properties=ctrl.properties,
+            properties=properties,
         )
-        return _wrap_with_description(control_qml, fact_ref, _vis_expr(), indent)
+        return _wrap_with_description(control_qml, fact_ref, _vis_expr(), indent, row_label)
     elif ctrl.control == "checkbox":
         use_checkbox, use_combobox = True, False
     elif ctrl.control == "combobox":
@@ -118,25 +142,23 @@ def _qml_control(ctrl: ControlDef, settings_dir: Path, json_context: str = "") -
     if use_checkbox:
         control_qml = render_checkbox(
             fact_ref, indent,
-            label=ctrl.label,
             enable_when=ctrl.enableWhen,
             label_property="text",
-            label_source="fact.label",
+            label_source='""',
             qml_type="FactCheckBoxSlider",
             tr_context=json_context,
             object_name=f"settingsCheckBox_{ctrl.fact_name}",
         )
-        return _wrap_with_description(control_qml, fact_ref, _vis_expr(), indent)
+        return _wrap_with_description(control_qml, fact_ref, _vis_expr(), indent, row_label, fills_row=True)
     if use_combobox:
         control_qml = render_combobox(
             fact_ref, indent,
-            label=ctrl.label,
             enable_when=ctrl.enableWhen,
-            label_source="fact.label",
+            label_source='""',
             qml_type="LabelledFactComboBox",
             tr_context=json_context,
         )
-        return _wrap_with_description(control_qml, fact_ref, _vis_expr(), indent)
+        return _wrap_with_description(control_qml, fact_ref, _vis_expr(), indent, row_label)
 
     fact_type = get_fact_type(ctrl.setting, settings_dir)
     extra: list[str] = [f'objectName: "settingsTextField_{ctrl.fact_name}"']
@@ -144,15 +166,14 @@ def _qml_control(ctrl: ControlDef, settings_dir: Path, json_context: str = "") -
         extra.append("textFieldPreferredWidth: _stringFieldWidth")
     control_qml = render_textfield(
         fact_ref, indent,
-        label=ctrl.label,
         enable_when=ctrl.enableWhen,
         placeholder=ctrl.placeholder,
-        label_source="fact.label",
+        label_source='""',
         qml_type="LabelledFactTextField",
         extra_lines=extra if extra else None,
         tr_context=json_context,
     )
-    return _wrap_with_description(control_qml, fact_ref, _vis_expr(), indent)
+    return _wrap_with_description(control_qml, fact_ref, _vis_expr(), indent, row_label)
 
 
 def _qml_missing_placeholder(description: str) -> str:

@@ -34,11 +34,16 @@ SetupPage {
             additionalSetupComponent: ColumnLayout {
                 spacing: ScreenTools.defaultFontPixelHeight / 2
 
-                ColumnLayout {
+                // A settings card of rows, as the other setup pages draw theirs
+                SettingsGroupLayout {
                     id: switchSettings
                     Layout.fillWidth: true
+                    // Off PX4 there are no rows: no card, and the same empty slot the plain layout left
+                    showBorder: switchRows.count > 0
+                    Layout.preferredHeight: switchRows.count > 0 ? -1 : 0
 
                     Repeater {
+                        id: switchRows
                         model: QGroundControl.multiVehicleManager.activeVehicle.px4Firmware ?
                                     (QGroundControl.multiVehicleManager.activeVehicle.multiRotor ?
                                         [ "RC_MAP_AUX1", "RC_MAP_AUX2", "RC_MAP_PARAM1", "RC_MAP_PARAM2", "RC_MAP_PARAM3", "RC_MAP_PAY_SW"] :
@@ -56,7 +61,10 @@ SetupPage {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: 1
-                    color: qgcPal.text
+                    // The settings cards' rule, one device pixel
+                    transform: Scale { yScale: ScreenTools.hairline }
+                    opacity: 0.999    // not opaque, or the software renderer skips what lies under its whole-pixel bounds
+                    color: qgcPal.cardBorder
                 }
 
                 RowLayout {

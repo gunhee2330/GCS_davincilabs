@@ -6,17 +6,20 @@ import QGroundControl.Controls
 
 ColumnLayout {
     id: control
-    spacing: ScreenTools.defaultFontPixelHeight / 3
+    // Caption to card, .45 cqw in the police mockup
+    spacing: ScreenTools.mockupUnit * 0.45
 
     default property alias contentItem: _controlsColumn.data
 
     property string heading
     property string iconSource
 
-    property real _margins: ScreenTools.defaultFontPixelHeight * 0.83
-    // Half of it lands above each row and half below, giving every row the same generous
-    // touch band and leaving the hairline centred in the gap
-    property real _rowSpacing: ScreenTools.defaultFontPixelHeight * 1.44
+    // The settings cards' padding, after the police mockup: 1.4 cqw across, 1 cqw down
+    property real _margins: ScreenTools.mockupUnit * 1.4
+    property real _verticalMargins: ScreenTools.mockupUnit
+    // Half of it lands above each row and half below, the mockup's row padding pair, leaving
+    // the hairline centred in the gap
+    property real _rowSpacing: _verticalMargins * 2
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
@@ -31,10 +34,11 @@ ColumnLayout {
         visible: control.heading !== "" || control.iconSource !== ""
 
         QGCLabel {
+            id: _headingLabel
             text: control.heading
-            font.pointSize: ScreenTools.defaultFontPointSize * 0.85
-            font.bold: true
-            opacity: 0.6
+            font.pointSize: ScreenTools.mockupPointUnit * 0.95
+            font.letterSpacing: ScreenTools.mockupUnit * 0.019    // .02em of the caption
+            color: qgcPal.secondaryText
             visible: control.heading !== ""
         }
 
@@ -42,7 +46,7 @@ ColumnLayout {
         // than tall in some sections and taller than wide in others, and a fixed box
         // letterboxed the tall ones into looking indented.
         QGCColoredImage {
-            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight
+            Layout.preferredHeight: _headingLabel.implicitHeight
             Layout.preferredWidth: Layout.preferredHeight * 2
             fillMode: Image.PreserveAspectFit
             horizontalAlignment: Image.AlignLeft
@@ -58,16 +62,17 @@ ColumnLayout {
     Rectangle {
         id: _card
         implicitWidth: _contentRow.implicitWidth + _margins * 2
-        implicitHeight: _contentRow.implicitHeight + _margins * 2
+        implicitHeight: _contentRow.implicitHeight + _verticalMargins * 2
         Layout.fillWidth: true
-        color: qgcPal.button
-        border.width: 1
-        border.color: qgcPal.groupBorder
-        radius: ScreenTools.defaultFontPixelHeight / 2
+        color: qgcPal.card
+        border.width: ScreenTools.hairline
+        border.pixelAligned: false    // a whole-pixel snap would round the hairline away
+        border.color: qgcPal.cardBorder
+        radius: ScreenTools.mockupUnit * 0.6
 
         RowLayout {
             id: _contentRow
-            y: _margins
+            y: _verticalMargins
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.leftMargin: _margins
@@ -93,15 +98,33 @@ ColumnLayout {
                 readonly property Item row: index < _controlsColumn.children.length
                                                 ? _controlsColumn.children[index] : null
 
-                x: _contentRow.x + _controlsColumn.x
-                width: _controlsColumn.width
+                // Edge to edge inside the card border, as the mockup rules its rows
+                x: ScreenTools.hairline
+                width: _card.width - ScreenTools.hairline * 2
                 y: _contentRow.y + _controlsColumn.y + (row ? row.y : 0) - _rowSpacing / 2
                 height: 1
-                color: qgcPal.groupBorder
+                // A fill this thin is rounded up to a whole logical pixel by the software renderer;
+                // one scaled down from a whole pixel lands on a single device pixel
+                transform: Scale { yScale: ScreenTools.hairline }
+                // Just short of opaque: that renderer also skips whatever lies under an opaque
+                // item's whole-pixel bounds, which the scaled rule no longer covers
+                opacity: 0.999
+                color: qgcPal.cardBorder
                 // row.y > 0 means some visible row precedes this one; a hidden first row
                 // collapses the layout so its successor must not draw a leading rule
                 visible: row && row.visible && row.height > 0 && row.y > 0
             }
+        }
+    }
+
+    // The settings cards' row type and control sizes, on the stock rows the vehicle pages are
+    // built from
+    Instantiator {
+        model: Array.from(_controlsColumn.children)
+
+        delegate: SettingsControlStyle {
+            required property var modelData
+            row: modelData
         }
     }
 }

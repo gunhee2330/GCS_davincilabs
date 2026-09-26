@@ -7,7 +7,10 @@ import QGroundControl.Controls
 
 Button {
     id:             control
-    padding:        ScreenTools.defaultFontPixelHeight * 0.61
+    // Mockup rail row: 1.05 cqw down, 1.6 cqw across
+    padding:        ScreenTools.mockupUnit * 1.05
+    leftPadding:    ScreenTools.mockupUnit * 1.6
+    rightPadding:   ScreenTools.mockupUnit * 1.6
     hoverEnabled:   !ScreenTools.isMobile
     autoExclusive:  true
     icon.color:     textColor
@@ -29,37 +32,34 @@ Button {
     }
 
     background: Item {
-        // The tint lands on #2f3f53, within two points per channel of the mockup's #2d3a4a and
-        // indistinguishable from it. Kept as a tint rather than a fixed colour so it follows the
-        // rail if the rail moves, and because a fixed one would need a palette role of its own
+        // The mockup fills the selected row edge to edge in selectedRow; press and hover keep a
+        // light accent tint on the others
         Rectangle {
             anchors.fill:   parent
-            color:          qgcPal.buttonHighlight
-            opacity:        control.checked || control.pressed ? 0.25 : control.enabled && control.hovered ? 0.1 : 0
-            radius:         ScreenTools.defaultFontPixelHeight * 0.39
+            color:          control.checked ? qgcPal.selectedRow : qgcPal.buttonHighlight
+            opacity:        control.checked ? 1 : control.pressed ? 0.25 : control.enabled && control.hovered ? 0.1 : 0
         }
 
-        // Kept a sibling of the tint rather than a child so it is not dimmed by its opacity.
-        // This stripe is the selection cue that survives glare at arm's length
+        // Kept a sibling of the fill rather than a child so it is not dimmed by its opacity.
+        // This stripe is the selection cue that survives glare at arm's length. Mockup .3 cqw
         Rectangle {
             anchors.left:   parent.left
             anchors.top:    parent.top
             anchors.bottom: parent.bottom
-            width:          Math.max(2, Math.round(ScreenTools.defaultFontPixelHeight * 0.17))
-            radius:         width / 2
+            width:          Math.round(ScreenTools.mockupUnit * 0.3)
             color:          qgcPal.buttonHighlight
             visible:        control.checked
         }
     }
 
     contentItem: RowLayout {
-        spacing: ScreenTools.defaultFontPixelHeight * 0.61
+        spacing: ScreenTools.mockupUnit
 
         QGCColoredImage {
             source: control.icon.source
             color:  control.icon.color
-            width:  ScreenTools.defaultFontPixelHeight
-            height: ScreenTools.defaultFontPixelHeight
+            width:  ScreenTools.mockupUnit * 1.7
+            height: ScreenTools.mockupUnit * 1.7
         }
 
         QGCLabel {
@@ -67,6 +67,7 @@ Button {
             Layout.fillWidth:       true
             text:                   control.text
             color:                  control.textColor
+            font.pointSize:         ScreenTools.mockupPointUnit * 1.35
             horizontalAlignment:    QGCLabel.AlignLeft
         }
 
@@ -74,7 +75,7 @@ Button {
             visible:    control.expandable
             source:     "/InstrumentValueIcons/cheveron-right.svg"
             color:      control.textColor
-            width:      ScreenTools.defaultFontPixelHeight * 0.75
+            width:      ScreenTools.mockupUnit * 1.1
             height:     width
             rotation:   control.expanded ? 90 : 0
 

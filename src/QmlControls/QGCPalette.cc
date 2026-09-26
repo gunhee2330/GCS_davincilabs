@@ -78,6 +78,16 @@ void QGCPalette::_buildMap()
     DECLARE_QGC_COLOR(toolbarBackground,    "#00ffffff", "#00ffffff", "#000d0f12", "#000d0f12")
     DECLARE_QGC_COLOR(groupBorder,          "#93a0af", "#6b7889", "#45505e", "#647285")
     DECLARE_QGC_COLOR(modifiedParamValue,   "#bf7539", "#bf7539", "#de8500", "#de8500")
+    // Settings card fill and line, dim text, switch/slider groove, the selected rail row, the page
+    // beside the rail and the stepper's end cells. Stock values repeat what those spots drew
+    // before they had names of their own
+    DECLARE_QGC_COLOR(card,                 "#ffffff", "#ffffff", "#212429", "#161c25")
+    DECLARE_QGC_COLOR(cardBorder,           "#93a0af", "#6b7889", "#45505e", "#647285")
+    DECLARE_QGC_COLOR(secondaryText,        "#8a95a1", "#5d6772", "#5f6b78", "#96a1ab")
+    DECLARE_QGC_COLOR(controlTrack,         "#93a0af", "#6b7889", "#45505e", "#647285")
+    DECLARE_QGC_COLOR(selectedRow,          "#d3dae2", "#c9d9f0", "#1c242f", "#1c2a3d")
+    DECLARE_QGC_COLOR(settingsPanel,        "#e3e8ee", "#e3e8ee", "#141922", "#141922")
+    DECLARE_QGC_COLOR(stepperFill,          "#aab5c2", "#aab5c2", "#1c242f", "#1c242f")
 
     // Colors not affecting by theming
     //                                                      Disabled     Enabled

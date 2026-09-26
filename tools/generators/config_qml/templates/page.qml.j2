@@ -23,8 +23,6 @@ SetupPage {
                 id: controller
             }
 
-            property real _margins: ScreenTools.defaultFontPixelHeight
-
 {% for name, expr in constants %}
             readonly property var {{ name }}: {{ expr }}
 {% endfor %}
@@ -106,14 +104,13 @@ SetupPage {
 
             ColumnLayout {
                 id: outerColumn
-                spacing: _margins * 1.25
+                // Card to the next caption, 1.2 cqw in the police mockup
+                spacing: ScreenTools.mockupUnit * 1.2
                 // Cards span the panel rather than huddling in its middle. Stock centred the
                 // content for a full window; the config rail already narrows the body, so
                 // centring only left the cards adrift of the left-aligned panel title above.
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.leftMargin: _margins
-                anchors.rightMargin: _margins
 {% for sec_qml in sections %}
 
 {{ sec_qml }}

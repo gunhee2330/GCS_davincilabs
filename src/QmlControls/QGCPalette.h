@@ -150,6 +150,13 @@ public:
     DEFINE_QGC_COLOR(toolStripHoverColor,           setToolStripHoverColor)
     DEFINE_QGC_COLOR(groupBorder,                   setGroupBorder)
     DEFINE_QGC_COLOR(modifiedParamValue,            setModifiedParamValue)
+    DEFINE_QGC_COLOR(card,                          setCard)
+    DEFINE_QGC_COLOR(cardBorder,                    setCardBorder)
+    DEFINE_QGC_COLOR(secondaryText,                 setSecondaryText)
+    DEFINE_QGC_COLOR(controlTrack,                  setControlTrack)
+    DEFINE_QGC_COLOR(selectedRow,                   setSelectedRow)
+    DEFINE_QGC_COLOR(settingsPanel,                 setSettingsPanel)
+    DEFINE_QGC_COLOR(stepperFill,                   setStepperFill)
     DEFINE_QGC_COLOR(photoCaptureButtonColor,       setPhotoCaptureButtonColor)
     DEFINE_QGC_COLOR(videoCaptureButtonColor,       setVideoCaptureButtonColor)
 

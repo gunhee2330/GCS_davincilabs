@@ -13,11 +13,11 @@ Button {
     // The dark button fill is the same value as the window and the card it sits on, so the
     // border is the only thing that draws the button - keep it in both themes
     property bool showBorder: true
-    property real backRadius: ScreenTools.defaultBorderRadius
+    property real backRadius: _settingsLook ? ScreenTools.mockupUnit * 0.4 : ScreenTools.defaultBorderRadius
     property real heightFactor: 0.5
     property string iconSource: ""
     property real fontWeight: Font.Normal // default for qml Text
-    property real pointSize: ScreenTools.defaultFontPointSize
+    property real pointSize: _settingsLook ? ScreenTools.mockupPointUnit * 1.05 : ScreenTools.defaultFontPointSize
 
     property alias wrapMode: text.wrapMode
     property alias horizontalAlignment: text.horizontalAlignment
@@ -26,10 +26,10 @@ Button {
 
     id: control
     hoverEnabled: !ScreenTools.isMobile
-    topPadding: _verticalPadding
-    bottomPadding: _verticalPadding
-    leftPadding: _horizontalPadding
-    rightPadding: _horizontalPadding
+    topPadding: _settingsLook ? ScreenTools.mockupUnit * 0.35 : _verticalPadding
+    bottomPadding: _settingsLook ? ScreenTools.mockupUnit * 0.35 : _verticalPadding
+    leftPadding: _settingsLook ? ScreenTools.mockupUnit * 1.1 : _horizontalPadding
+    rightPadding: _settingsLook ? ScreenTools.mockupUnit * 1.1 : _horizontalPadding
     focusPolicy: Qt.ClickFocus
     font.family: ScreenTools.normalFontFamily
     text: ""
@@ -38,6 +38,12 @@ Button {
     property int _horizontalPadding: ScreenTools.defaultFontPixelWidth * 2
     property int _verticalPadding: Math.round(ScreenTools.defaultFontPixelHeight * heightFactor) - (iconSource === "" ? 0 : (_iconHeight - ScreenTools.defaultFontPixelHeight)  / 2)
     property real _iconHeight: text.height * 1.5
+    /// Under the settings views, the police settings mockup's text button: 1.05 cqw text padded
+    /// .35 cqw down and 1.1 cqw across, a hairline in the card's line and a .4 cqw corner
+    readonly property bool _settingsLook: ScreenTools.inSettingsLook(control)
+    // A finger's tap target around the drawn control
+    containmentMask: _settingsLook ? _touchArea : null
+    SettingsTouchArea { id: _touchArea; visible: control._settingsLook }
 
     QGCPalette { id: qgcPal; colorGroupEnabled: control.enabled }
 
@@ -45,10 +51,11 @@ Button {
         id: backRect
         radius: backRadius
         implicitWidth: ScreenTools.implicitButtonWidth
-        implicitHeight: ScreenTools.implicitButtonHeight
-        border.width: showBorder ? 1 : 0
-        border.color: qgcPal.buttonBorder
-        color: primary ? qgcPal.primaryButton : qgcPal.button
+        implicitHeight: _settingsLook ? 0 : ScreenTools.implicitButtonHeight
+        border.width: showBorder ? (_settingsLook ? ScreenTools.hairline : 1) : 0
+        border.color: _settingsLook ? qgcPal.cardBorder : qgcPal.buttonBorder
+        border.pixelAligned: !_settingsLook    // a whole-pixel snap would round the hairline away
+        color: primary ? qgcPal.primaryButton : (_settingsLook ? qgcPal.card : qgcPal.button)
 
         Rectangle {
             anchors.fill: parent

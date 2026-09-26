@@ -28,14 +28,16 @@ RowLayout {
 
     spacing: ScreenTools.defaultFontPixelWidth * 2
 
+    // A settings row draws the label itself and caps this control's width, so the path has to
+    // be free to elide and an empty label must not hold a blank line above it
     ColumnLayout {
         Layout.fillWidth:    true
-        Layout.minimumWidth: implicitWidth
         spacing:             0
 
         QGCLabel {
             Layout.fillWidth:   true
             text:               root.label
+            visible:            text !== ""
         }
 
         QGCLabel {

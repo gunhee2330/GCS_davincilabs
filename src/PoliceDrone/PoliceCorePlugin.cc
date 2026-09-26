@@ -18,10 +18,12 @@ struct ColorOverride
     const char *darkEnabled;
 };
 
-/// The window is the police top bar's #0c1218, so bar and page read as one surface. The settings
-/// rail is windowShade, a selected rail row is buttonHighlight (its stripe, and its fill at 25%),
-/// a selected sub-row is windowShadeLight, and a settings card is button. groupBorder keeps the
-/// table's #647285, the only line that clears 3:1 on card, rail and window alike.
+/// Values from the police settings mockup. The window is the police top bar's #0c1218, which the
+/// settings rails share; the page beside a rail is settingsPanel, a card on it is card edged in
+/// cardBorder, and its descriptions and captions are secondaryText. A selected rail row is
+/// selectedRow with a buttonHighlight stripe, a switch or slider groove is controlTrack, and the
+/// stepper's end buttons are stepperFill. cardBorder is the mockup's own line: groupBorder,
+/// which plan view and the fly panels draw with, keeps its 3:1 value.
 /// Disabled variants sit a step dimmer. Status colours and map colours are left alone.
 constexpr ColorOverride kOverrides[] = {
     //  name                   light      dark disabled  dark enabled
@@ -41,6 +43,13 @@ constexpr ColorOverride kOverrides[] = {
     { "primaryButtonText",    nullptr,   "#9fb0c3",     "#0c1218"   },
     { "textField",            nullptr,   "#121920",     "#0c1218"   },
     { "textFieldText",        nullptr,   "#7d8a99",     "#e8eef4"   },
+    { "card",                 nullptr,   "#131a22",     "#151d26"   },
+    { "cardBorder",           nullptr,   "#1e2835",     "#243040"   },
+    { "secondaryText",        nullptr,   "#5f6b78",     "#8d9aa8"   },
+    { "controlTrack",         nullptr,   "#222c38",     "#2b3745"   },
+    { "selectedRow",          nullptr,   "#111c30",     "#13213a"   },
+    { "settingsPanel",        nullptr,   "#0f151c",     "#0f151c"   },
+    { "stepperFill",          nullptr,   "#1c2733",     "#1c2733"   },
 };
 
 }  // namespace

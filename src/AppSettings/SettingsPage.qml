@@ -13,13 +13,14 @@ Item {
     default property alias contentItem: mainLayout.data
     property int sectionFilter: -1
 
-    property real _margins: ScreenTools.defaultFontPixelHeight
+    // Mockup panel padding across, 2.2 cqw
+    property real _margins: ScreenTools.mockupUnit * 2.2
 
     QGCFlickable {
         objectName:     "settingsPageFlickable"
         anchors.fill:   parent
         contentWidth:   mainLayout.width + (root._margins * 2)
-        contentHeight:  mainLayout.height
+        contentHeight:  mainLayout.y + mainLayout.height
 
         ColumnLayout {
             id:         mainLayout
@@ -27,8 +28,11 @@ Item {
             // config pages lay out. Stock centred the content for a full window, which left
             // it adrift of the left-aligned page title and the settings rail beside it
             x:          root._margins
+            // A pixel down, or the clip edge takes a first card's top hairline
+            y:          1
             width:      Math.max(root.width - (root._margins * 2), implicitWidth, ScreenTools.defaultFontPixelWidth * 50)
-            spacing:    ScreenTools.defaultFontPixelHeight
+            // Card to the next caption, 1.2 cqw in the mockup
+            spacing:    ScreenTools.mockupUnit * 1.2
         }
     }
 }

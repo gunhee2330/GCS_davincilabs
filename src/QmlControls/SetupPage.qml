@@ -14,7 +14,8 @@ Item {
 
     property alias  pageComponent:          pageLoader.sourceComponent
     property string pageName:               vehicleComponent ? vehicleComponent.name : ""
-    property real   availableWidth:         width - pageLoader.x
+    // The page keeps a character clear on both sides, which lines it up under the panel title
+    property real   availableWidth:         width - pageLoader.x * 2
     property real   availableHeight:        height - pageLoader.y
     property bool   showAdvanced:           false
     property alias  advanced:               advancedCheckBox.checked
@@ -59,6 +60,7 @@ Item {
 
         RowLayout {
             id:                 headingRow
+            x:                  pageLoader.x
             width:              availableWidth
             spacing:            _margins
             layoutDirection:    Qt.RightToLeft
@@ -89,7 +91,10 @@ Item {
         Loader {
             id:                 pageLoader
             objectName:         "setupPage_contentLoader"
-            anchors.topMargin:  _margins
+            x:                  ScreenTools.defaultFontPixelWidth
+            // Only under a heading row: with none, the panel already spaces the page from its
+            // title, and a pixel keeps a first card's top hairline off the clip edge
+            anchors.topMargin:  headingRow.visible ? _margins : 1
             anchors.top:        headingRow.bottom
         }
 

@@ -22,6 +22,9 @@ CheckBox {
     property ButtonGroup buttonGroup: null
 
     property bool _noText: text === ""
+    /// The settings views run a narrower page beside a wider rail, where a long stock label (Flight
+    /// Behavior's) no longer fits on one line, so there it wraps rather than running off the page
+    readonly property bool _settingsLook: ScreenTools.inSettingsLook(control)
 
     QGCPalette { id: qgcPal; colorGroupEnabled: control.enabled }
 
@@ -36,6 +39,7 @@ CheckBox {
         //implicitHeight: _noText ? 0 : Math.max(text.implicitHeight, ScreenTools.checkBoxIndicatorSize)
         leftPadding:        control.indicator.width + control.spacing
         verticalAlignment:  Text.AlignVCenter
+        wrapMode:           control._settingsLook ? Text.WordWrap : Text.NoWrap
         text:               control.text
         font.pointSize:     textFontPointSize
         font.bold:          control.textBold

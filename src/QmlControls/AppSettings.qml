@@ -8,12 +8,14 @@ import QGroundControl.AppSettings
 
 Rectangle {
     id:     settingsView
-    color:  qgcPal.window
+    // The page beside the rail; the rail itself shares the top bar's window colour
+    color:  qgcPal.settingsPanel
     z:      QGroundControl.zOrderTopMost
 
+    /// The pages under here draw their SettingsGroupLayout cards after the police mockup
+    readonly property bool settingsMockupLook: true
+
     readonly property real _defaultTextHeight:  ScreenTools.defaultFontPixelHeight
-    readonly property real _defaultTextWidth:   ScreenTools.defaultFontPixelWidth
-    readonly property real _horizontalMargin:   _defaultTextWidth / 2
     readonly property real _verticalMargin:     _defaultTextHeight / 2
 
     property bool _first: true
@@ -181,30 +183,35 @@ Rectangle {
 
     SettingsPagesModel { id: settingsPagesModel }
 
-    // Declared ahead of leftPanel so it stacks behind it. The rail only reads as its own zone
-    // if it is a shade lighter than the panel it borders
+    // Declared ahead of leftPanel so it stacks behind it. The mockup runs the rail in the top
+    // bar's colour, a shade darker than the page it borders
     Rectangle {
         anchors.left:   parent.left
         anchors.right:  divider.right
         anchors.top:    parent.top
         anchors.bottom: parent.bottom
-        color:          qgcPal.windowShade
+        color:          qgcPal.window
     }
 
+    // The mockup rail: 22% of the screen, its right border included, rows running edge to edge
     ColumnLayout {
         id:                 leftPanel
-        width:              Math.max(buttonColumn.implicitWidth + _horizontalMargin, ScreenTools.defaultFontPixelWidth * 22)
-        anchors.topMargin:  _verticalMargin
+        width:              Math.max(buttonColumn.implicitWidth, settingsView.width * 0.22 - divider.width)
+        anchors.topMargin:  ScreenTools.mockupUnit * 1.2
         anchors.top:        parent.top
         anchors.bottom:     parent.bottom
-        anchors.leftMargin: _horizontalMargin
         anchors.left:       parent.left
-        spacing:            _verticalMargin / 2
+        spacing:            ScreenTools.mockupUnit * 0.6
 
         QGCTextField {
             id:                 searchField
             objectName:         "settings_searchField"
             Layout.fillWidth:   true
+            Layout.leftMargin:  ScreenTools.mockupUnit * 1.6
+            Layout.rightMargin: ScreenTools.mockupUnit * 1.6
+            // The rail rows' text size, and a field as tall as it was
+            font.pointSize:     ScreenTools.mockupPointUnit * 1.35
+            _verticalPadding:   ScreenTools.mockupUnit
             placeholderText:    qsTr("Search settings...")
 
             onTextChanged: {
@@ -289,8 +296,7 @@ Rectangle {
                         Layout.fillWidth: true
                         // A full touch target per row, and every row but the open page's dimmed
                         Layout.preferredHeight: Math.max(implicitHeight, ScreenTools.minTouchPixels)
-                        textColor:     isSelected ? qgcPal.buttonText
-                                                  : Qt.rgba(qgcPal.buttonText.r, qgcPal.buttonText.g, qgcPal.buttonText.b, 0.6)
+                        textColor:     isSelected ? qgcPal.buttonText : qgcPal.secondaryText
                         objectName:    "settingsButton_" + (model.nameKey ?? pageName)
                         text:          pageName
                         icon.source:   pageIconUrl
@@ -332,8 +338,9 @@ Rectangle {
                         Button {
                             id:             sectionBtn
                             Layout.fillWidth: true
-                            padding:        ScreenTools.defaultFontPixelHeight * 0.5
-                            leftPadding:    ScreenTools.defaultFontPixelHeight * 2.2
+                            // Text lined up with the page rows' text: row padding, icon and gap
+                            padding:        ScreenTools.mockupUnit * 0.75
+                            leftPadding:    ScreenTools.mockupUnit * 4.3
                             hoverEnabled:   !ScreenTools.isMobile
 
                             property int sectionIndex: modelData.index
@@ -346,22 +353,17 @@ Rectangle {
                             property color textColor: qgcPal.buttonText
                             visible: sectionMatchesSearch
 
-                            // A sub-item is subordinate to its parent row, so it gets the quieter
-                            // shade fill rather than the parent's accent tint
+                            // Selected like a page row, with a narrower stripe so the sub-item still reads
+                            // as subordinate. Only drawn while checked, when the fill is opaque
                             background: Rectangle {
-                                color:   qgcPal.windowShadeLight
+                                color:   qgcPal.selectedRow
                                 opacity: sectionBtn.sectionChecked || sectionBtn.pressed ? 1 : sectionBtn.enabled && sectionBtn.hovered ? 0.5 : 0
-                                radius:  ScreenTools.defaultFontPixelHeight * 0.39
 
-                                // That fill is barely a shade off the rail, which leaves label brightness as the only
-                                // selection cue. This stripe carries it instead, narrower than the parent row's so the
-                                // sub-item still reads as subordinate. Only drawn while checked, when the fill is opaque
                                 Rectangle {
                                     anchors.left:   parent.left
                                     anchors.top:    parent.top
                                     anchors.bottom: parent.bottom
-                                    width:          Math.max(2, Math.round(ScreenTools.defaultFontPixelHeight * 0.1))
-                                    radius:         width / 2
+                                    width:          ScreenTools.mockupUnit * 0.2
                                     color:          qgcPal.buttonHighlight
                                     visible:        sectionBtn.sectionChecked
                                 }
@@ -369,9 +371,8 @@ Rectangle {
 
                             contentItem: QGCLabel {
                                 text:  modelData.name
-                                color: sectionBtn.textColor
-                                opacity: sectionBtn.sectionChecked ? 1 : 0.7
-                                font.pointSize: ScreenTools.defaultFontPointSize * 0.9
+                                color: sectionBtn.sectionChecked ? sectionBtn.textColor : qgcPal.secondaryText
+                                font.pointSize: ScreenTools.mockupPointUnit * 1.2
                                 horizontalAlignment: Text.AlignLeft
                             }
 
@@ -391,46 +392,64 @@ Rectangle {
     // Full height and drawn in the border colour: it is the rail's right edge, not a floating rule
     Rectangle {
         id:                     divider
-        anchors.leftMargin:     _horizontalMargin
         anchors.left:           leftPanel.right
         anchors.top:            parent.top
         anchors.bottom:         parent.bottom
-        width:                  1
-        color:                  qgcPal.groupBorder
+        width:                  ScreenTools.hairline
+        color:                  "transparent"
+
+        // A fill this thin is rounded up to a whole logical pixel by the software renderer; one
+        // scaled down from a whole pixel lands on a single device pixel
+        Rectangle {
+            width:      1
+            height:     parent.height
+            color:      qgcPal.cardBorder
+            transform:  Scale { xScale: ScreenTools.hairline }
+            opacity:    0.999    // not opaque, or that renderer skips what lies under its whole-pixel bounds
+        }
     }
 
+    // Mockup panel: padded 1.6 cqw down and 2.2 cqw across, a 1.55 cqw semibold title
     Item {
         id:                 panelHeader
-        anchors.leftMargin: _horizontalMargin
         anchors.left:       divider.right
         anchors.right:      parent.right
         anchors.top:        parent.top
         visible:            _panelTitle !== ""
-        height:             visible ? panelTitleLabel.implicitHeight + _defaultTextHeight * 1.7 : 0
+        height:             visible ? _titleMetrics.height + ScreenTools.mockupUnit * 1.6 : 0
+
+        // The title's line keeps the normal font's metrics, so a Korean title drawn in
+        // NanumGothic sits where the page below expects it
+        FontMetrics {
+            id:             _titleMetrics
+            font.family:    ScreenTools.normalFontFamily
+            font.pointSize: ScreenTools.mockupPointUnit * 1.55
+        }
 
         QGCLabel {
             id:                     panelTitleLabel
-            anchors.leftMargin:     _defaultTextHeight * 1.1
+            anchors.leftMargin:     ScreenTools.mockupUnit * 2.2
             anchors.left:           parent.left
-            anchors.rightMargin:    _defaultTextHeight * 1.1
+            anchors.rightMargin:    ScreenTools.mockupUnit * 2.2
             anchors.right:          parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            // No rule under the title any more, so the air sits above it instead
-            anchors.verticalCenterOffset: _defaultTextHeight * 0.3
+            anchors.baseline:       parent.bottom
+            anchors.baselineOffset: -_titleMetrics.descent
             text:                   _panelTitle
-            font.pointSize:         ScreenTools.mediumFontPointSize
-            font.bold:              true
+            font.pointSize:         ScreenTools.mockupPointUnit * 1.55
+            // The mockup's 600. Under a Korean locale the title takes the bundled NanumGothic
+            // (loaded for that locale), whose Bold is its 600: Open Sans falls back to a system
+            // face for Hangul that draws no heavier weight at all
+            font.family:            Qt.locale().name.startsWith("ko") ? "NanumGothic" : ScreenTools.normalFontFamily
+            font.weight:            Font.DemiBold
             elide:                  Text.ElideRight
         }
     }
 
-    //-- Panel Contents
+    //-- Panel Contents. The page pads itself 2.2 cqw across; the first caption sits 1.2 cqw under the title
     Loader {
         id:                     rightPanel
         objectName:             "settings_rightPanel"
-        anchors.leftMargin:     _horizontalMargin
-        anchors.rightMargin:    _horizontalMargin
-        anchors.topMargin:      _verticalMargin
+        anchors.topMargin:      ScreenTools.mockupUnit * 1.2
         anchors.bottomMargin:   _verticalMargin
         anchors.left:           divider.right
         anchors.right:          parent.right

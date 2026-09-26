@@ -45,6 +45,10 @@ GridLayout {
     QGCLabel {
         Layout.columnSpan: parent.columns
         text: qsTr("Raw Channel Monitor")
+        // The settings cards' caption
+        font.pointSize: ScreenTools.mockupPointUnit * 0.95
+        font.letterSpacing: ScreenTools.mockupUnit * 0.019
+        color: qgcPal.secondaryText
     }
 
     Repeater {

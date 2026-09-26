@@ -13,11 +13,11 @@ T.ComboBox {
     id: control
     // The mockup gives the combo box the same box as the text field: 12 across,
     // 8 down and a 7 corner against its 18px text metric
-    padding: ScreenTools.defaultFontPixelHeight * 0.67
-    topPadding: ScreenTools.defaultFontPixelHeight * 0.44
+    padding: _settingsLook ? ScreenTools.mockupUnit : ScreenTools.defaultFontPixelHeight * 0.67
+    topPadding: _settingsLook ? ScreenTools.mockupUnit * 0.35 : ScreenTools.defaultFontPixelHeight * 0.44
     bottomPadding: topPadding
     spacing: ScreenTools.defaultFontPixelWidth
-    font.pointSize: ScreenTools.defaultFontPointSize
+    font.pointSize: _settingsLook ? ScreenTools.mockupPointUnit * 1.15 : ScreenTools.defaultFontPointSize
     font.family: ScreenTools.normalFontFamily
     implicitWidth: Math.max(background.implicitWidth,
                             (control.sizeToContents ? _largestTextWidth : contentItem.implicitWidth) + leftPadding + rightPadding + padding)
@@ -31,6 +31,12 @@ T.ComboBox {
     property real _largestTextWidth: 0
     property bool _onCompleted: false
     property bool _showHighlight: enabled && pressed
+    /// Under the settings views, the police settings mockup's select: 1.15 cqw text padded .35 cqw
+    /// down and 1 cqw across, a hairline in the card's line, a .4 cqw corner and a dim chevron
+    readonly property bool _settingsLook: ScreenTools.inSettingsLook(control)
+    // A finger's tap target around the drawn control
+    containmentMask: _settingsLook ? _touchArea : null
+    SettingsTouchArea { id: _touchArea; visible: control._settingsLook }
 
     QGCPalette { id: qgcPal; colorGroupEnabled: enabled }
 
@@ -99,14 +105,16 @@ T.ComboBox {
         anchors.rightMargin: control.padding
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        height: ScreenTools.defaultFontPixelWidth
-        width: height
-        source: "/qmlimages/arrow-down.png"
+        height: _settingsLook ? ScreenTools.mockupUnit * 0.95 : ScreenTools.defaultFontPixelWidth
+        // The chevron takes the middle .57 of its square, so the settings box is cropped to it
+        width: _settingsLook ? ScreenTools.mockupUnit * 0.6 : height
+        fillMode: _settingsLook ? Image.PreserveAspectCrop : Image.PreserveAspectFit
+        source: _settingsLook ? "/InstrumentValueIcons/cheveron-down.svg" : "/qmlimages/arrow-down.png"
         // Follows the label so it inverts with it while pressed, the way QGCButton's icon does
-        color: text.color
+        color: _settingsLook && !_showHighlight ? qgcPal.secondaryText : text.color
         // The mockup's chevron is a dimmed version of the label ink. 0.4 drops the light theme
         // to 2.44:1, so it is dimmed only as far as 3:1 allows
-        opacity: 0.55
+        opacity: _settingsLook ? 1 : 0.55
     }
 
     // The label of the button
@@ -121,12 +129,13 @@ T.ComboBox {
 
     background: Rectangle {
         // An input control, so it takes the input fill and matches the QGCTextField beside it
-        color: qgcPal.textField
-        border.color: qgcPal.buttonBorder
+        color: _settingsLook ? qgcPal.card : qgcPal.textField
+        border.color: _settingsLook ? qgcPal.cardBorder : qgcPal.buttonBorder
         // That fill is darker than the surfaces around it in the dark theme, so the border is
         // what separates the two - draw it in both themes
-        border.width: 1
-        radius: ScreenTools.defaultFontPixelHeight * 0.39
+        border.width: _settingsLook ? ScreenTools.hairline : 1
+        border.pixelAligned: !_settingsLook    // a whole-pixel snap would round the hairline away
+        radius: _settingsLook ? ScreenTools.mockupUnit * 0.4 : ScreenTools.defaultFontPixelHeight * 0.39
 
         Rectangle {
             anchors.fill: parent

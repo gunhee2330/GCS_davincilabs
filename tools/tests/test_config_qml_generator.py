@@ -187,6 +187,18 @@ class TestControlGroups:
         qml = generate_config_page_qml(load_page_def(_make_page_json(tmp_path, data)))
         assert qml.count("ConfigSection {") == 1
 
+    def test_described_textfield_is_a_settings_row(self, tmp_path: Path):
+        data = _minimal_page()
+        data["sections"][0]["controls"].append(
+            {"param": "PARAM_TWO", "control": "textfield", "label": "Two", "description": "Two's help."}
+        )
+        qml = generate_config_page_qml(load_page_def(_make_page_json(tmp_path, data)))
+        row = qml.split("SettingsRow {")[1]
+        assert 'label: qsTranslate(' in row and '"Two")' in row
+        assert '"Two\'s help.")' in row or "Two's help." in row
+        # The row draws the label, so the field's own is blank
+        assert 'label: ""' in row.split("LabelledFactTextField {")[1]
+
 
 class TestRealPageDefinitions:
     """Audit: every VehicleConfig.json in the repo must load under strict validation."""

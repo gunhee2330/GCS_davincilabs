@@ -98,12 +98,14 @@ SettingsPage {
             }
 
             QGCLabel {
-                Layout.preferredHeight: root._touchHeight
                 verticalAlignment:      Text.AlignVCenter
                 text:                   QGroundControl.qgcVersion
 
                 QGCMouseArea {
                     fillItem:   parent
+                    // The row is drawn at the settings rows' height; the tap target keeps _touchHeight
+                    anchors.topMargin:      -Math.max(0, root._touchHeight - parent.height) / 2
+                    anchors.bottomMargin:   -Math.max(0, root._touchHeight - parent.height) / 2
                     enabled:    !root._developerMode
                     onClicked:  root._registerTap()
                 }
@@ -117,8 +119,17 @@ SettingsPage {
         }
 
         QGCButton {
+            // Drawn at the settings rows' button size, while the button itself, and so its touch
+            // target, keeps _touchHeight and reaches into the gaps above and below its row
             Layout.preferredHeight: root._touchHeight
+            Layout.topMargin:       -_touchReach
+            Layout.bottomMargin:    -_touchReach
+            topInset:               _touchReach
+            bottomInset:            _touchReach
             text:                   qsTr("Turn Off Developer Mode")
+
+            readonly property real _touchReach: Math.max(0, root._touchHeight - (implicitContentHeight + topPadding + bottomPadding)) / 2
+
             visible:                root._developerMode
             onClicked:              QGroundControl.corePlugin.showAdvancedUI = false
         }

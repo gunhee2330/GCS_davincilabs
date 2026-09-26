@@ -1,15 +1,13 @@
-{{ indent }}ColumnLayout {
-{{ indent }}    Layout.fillWidth: true
-{{ indent }}    spacing: ScreenTools.defaultFontPixelHeight / 4
+{{ indent }}SettingsRow {
+{{ indent }}    label: {{ label_expr }}
+{{ indent }}    description: {{ fact_ref }}.shortDescription
 {{ indent }}    visible: {{ vis_expr }}
+{% if fills_row %}
+{{ indent }}    controlFillsRow: true
+{% endif %}
+{% if control_width %}
+{{ indent }}    controlPreferredWidth: {{ control_width }}
+{% endif %}
 
 {{ control_qml_indented }}
-
-{{ indent }}    QGCLabel {
-{{ indent }}        Layout.fillWidth: true
-{{ indent }}        text: {{ fact_ref }}.shortDescription
-{{ indent }}        visible: text !== ""
-{{ indent }}        font.pointSize: ScreenTools.smallFontPointSize
-{{ indent }}        wrapMode: Text.WordWrap
-{{ indent }}    }
 {{ indent }}}

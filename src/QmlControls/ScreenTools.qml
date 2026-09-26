@@ -114,6 +114,13 @@ Item {
     property real implicitSliderHeight:             defaultFontPixelHeight
     property real defaultBorderRadius:              defaultFontPixelWidth / 2
 
+    // The police settings mockup sizes everything in cqw, 1% of its 1920 px tablet frame: 19.2 px
+    // there, 7.68 logical px at QT_SCALE_FACTOR 2.5 where the text metric is 18 px and the default
+    // font 9 pt. Tied to the text metric so the settings screens follow UI scaling with the rest
+    readonly property real mockupUnit:              defaultFontPixelHeight * 0.4267
+    readonly property real mockupPointUnit:         defaultFontPointSize * 0.64    ///< mockupUnit as a font point size
+    readonly property real hairline:                1 / Screen.devicePixelRatio    ///< The mockup's 1 px line: one device pixel
+
     // It's not possible to centralize an even number of pixels, checkBoxIndicatorSize should be an odd number to allow centralization
     property real checkBoxIndicatorSize:            2 * Math.floor(defaultFontPixelHeight / 2) + 1
     property real radioButtonIndicatorSize:         checkBoxIndicatorSize
@@ -137,6 +144,18 @@ Item {
 
     function printScreenStats() {
         console.log('ScreenTools: Screen.width: ' + Screen.width + ' Screen.height: ' + Screen.height + ' Screen.pixelDensity: ' + Screen.pixelDensity)
+    }
+
+    /// True for an item under a view that draws the police settings mockup (settingsMockupLook on
+    /// the settings and vehicle setup roots), so a shared control takes that look there and keeps
+    /// its stock one everywhere else. Called from a binding, it re-runs if an ancestor is moved
+    function inSettingsLook(item) {
+        for (let p = item; p; p = p.parent) {
+            if (p.settingsMockupLook === true) {
+                return true
+            }
+        }
+        return false
     }
 
     /// Returns the current x position of the mouse in global screen coordinates.

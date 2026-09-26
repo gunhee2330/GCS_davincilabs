@@ -44,7 +44,8 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: parent.width
         height: parent.height / 2
-        color: qgcPal.windowShade
+        // The settings screens' groove
+        color: qgcPal.controlTrack
     }
 
     Rectangle {
@@ -69,12 +70,15 @@ Item {
         width: 1
         height: parent.height
         color: qgcPal.window
+        // The lighter groove shows it, and it would cut through the text
+        visible: !notMappedLabel.visible
     }
 
     QGCLabel {
         id: notMappedLabel
         anchors.centerIn: parent
         text: qsTr("Not Mapped")
+        font.pointSize: ScreenTools.mockupPointUnit * 1.15    // the settings rows' value
         visible: control.mode === RemoteControlChannelValueDisplay.MappedValue && !control.channelMapped
     }
 

@@ -148,10 +148,11 @@ def render_slider(
     allow_using_min_max: bool = False,
     slider_min: str = "",
     slider_max: str = "",
+    label_source: str = "fact.label",
     tr_context: str = "",
 ) -> str:
     """Render a ``FactTextFieldSlider``, optionally with enable checkbox and button."""
-    label_line = f'    label: {qml_tr(label, tr_context)}' if label else "    label: fact.label"
+    label_line = f'    label: {qml_tr(label, tr_context)}' if label else f"    label: {label_source}"
     inner_indent = indent
     has_button = button is not None and button.text
     if has_button:
@@ -275,13 +276,15 @@ def render_textfield(
 ) -> str:
     """Render a ``FactTextField`` (or ``LabelledFactTextField``).
 
-    When *description* is set the control is wrapped in a ``ColumnLayout``
-    with a small ``QGCLabel`` below it, matching the app-settings style.
+    When *description* is set the control goes in a ``SettingsRow``, matching the app-settings
+    rows: the label with the description under it on the left, the field on the right.
     """
+    label_expr = None
+    label_line = None
     if qml_type == "LabelledFactTextField":
-        label_line = f'    label: {qml_tr(label, tr_context)}' if label else f"    label: {label_source}"
-    else:
-        label_line = None
+        label_expr = qml_tr(label, tr_context) if label else label_source
+        # A described row draws the label itself, so the field's own is left blank
+        label_line = '    label: ""' if description else f"    label: {label_expr}"
 
     ii = indent + "    " if description else indent
 
@@ -300,22 +303,12 @@ def render_textfield(
     lines.append(f"{ii}}}")
 
     if description:
-        desc_lines = [
-            f"{ii}QGCLabel {{",
-            f"{ii}    Layout.fillWidth: true",
-            f"{ii}    Layout.preferredWidth: 0",
-            f"{ii}    text: {qml_tr(description, tr_context)}",
-            f"{ii}    font.pointSize: ScreenTools.smallFontPointSize",
-            f"{ii}    wrapMode: Text.WordWrap",
-            f"{ii}}}",
-        ]
-        wrapped = [
-            f"{indent}ColumnLayout {{",
-            f"{indent}    Layout.fillWidth: true",
-            f"{indent}    Layout.preferredWidth: 0",
-            f"{indent}    spacing: ScreenTools.defaultFontPixelHeight / 4",
+        wrapped = [f"{indent}SettingsRow {{"]
+        if label_expr is not None:
+            wrapped.append(f"{indent}    label: {label_expr}")
+        wrapped += [
+            f"{indent}    description: {qml_tr(description, tr_context)}",
             "\n".join(lines),
-            "\n".join(desc_lines),
             f"{indent}}}",
         ]
         return "\n".join(wrapped)

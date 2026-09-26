@@ -1,5 +1,6 @@
 #include "PoliceTopBarUITest.h"
 
+#include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QMetaObject>
@@ -8,6 +9,8 @@
 #include <QtCore/QSettings>
 #include <QtCore/QVariant>
 #include <QtGui/QImage>
+#include <QtQml/QQmlContext>
+#include <QtQml/QQmlExpression>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QQuickWindow>
 #include <QtTest/QTest>
@@ -165,6 +168,15 @@ void PoliceTopBarUITest::_ignorePreexistingQmlWarnings()
     // Also present at HEAD, from a font that sets both sizes.
     ignoreLogMessage("default", QtWarningMsg,
                      QRegularExpression(QStringLiteral("^Both point size and pixel size set\\. Using pixel size\\.$")));
+
+    // The Korean translation of PIDTuning.qml's "Switches to '%1' when you click Stop." writes the
+    // marker as "% 1", so the PID tuning page's arg() finds none. Present at HEAD as well. Only that
+    // string, as the translator in use renders it, so any other arg() slip still fails the run
+    ignoreLogMessage("default", QtWarningMsg,
+                     QRegularExpression(QStringLiteral("^QString::arg: Argument missing: \"") +
+                                        QRegularExpression::escape(QCoreApplication::translate(
+                                            "PIDTuning", "Switches to '%1' when you click Stop.")) +
+                                        QStringLiteral("\", ")));
 
     // The stock plan view's map visuals are sometimes torn down mid-creation when the previous
     // slot's engine goes away, and the message lands in whichever slot is running by then.
@@ -776,7 +788,8 @@ void PoliceTopBarUITest::_captureBar()
 
         for (const auto &shot : { std::pair<QString, QString>{ kBanner,      QStringLiteral("t_1_status_drawer") },
                                   std::pair<QString, QString>{ kBatteryItem, QStringLiteral("t_2_battery_drawer") },
-                                  std::pair<QString, QString>{ kRfItem,      QStringLiteral("t_3_rf_drawer") } }) {
+                                  std::pair<QString, QString>{ kRfItem,      QStringLiteral("t_3_rf_drawer") },
+                                  std::pair<QString, QString>{ kGpsItem,     QStringLiteral("t_12_gps_drawer") } }) {
             if (!_openDrawerFrom(shot.first)) {
                 return;
             }
@@ -892,6 +905,18 @@ void PoliceTopBarUITest::_captureSettingsDark()
             if (QTest::currentTestFailed()) return;
         }
 
+        // The other pages on the rail, those this build shows
+        for (const QString &page : { QStringLiteral("Plan View"), QStringLiteral("Telemetry"), QStringLiteral("NTRIP/RTK"),
+                                     QStringLiteral("3D View"), QStringLiteral("Help"), QStringLiteral("App Logging"),
+                                     QStringLiteral("App Log Viewer"), QStringLiteral("PX4 Log Transfer"), QStringLiteral("Remote ID") }) {
+            QVERIFY2(showSettings(page), "showSettingsTool is not invokable");
+            if (!findVisibleItemScrolled(QStringLiteral("settingsButton_") + page, QStringLiteral("settings_buttonList"))) {
+                continue;
+            }
+            _grab(QStringLiteral("w_") + QString(page).remove(QRegularExpression(QStringLiteral("[^A-Za-z0-9]"))));
+            if (QTest::currentTestFailed()) return;
+        }
+
         // The rail at the very bottom of its list
         QQuickItem *const rail = findVisibleItem(_rootItem, QStringLiteral("settings_buttonList"), 5000);
         QVERIFY2(rail, "The settings rail is not visible");
@@ -917,12 +942,124 @@ void PoliceTopBarUITest::_captureSettingsDark()
         _grab(QStringLiteral("k_3_vehicle_other_page"));
         if (QTest::currentTestFailed()) return;
 
+        // A generated vehicle page, for its ConfigSection cards
+        VehicleComponent *const safety =
+            vehicle->autopilotPlugin()->findKnownVehicleComponent(AutoPilotPlugin::KnownSafetyVehicleComponent);
+        QVERIFY2(safety, "The PX4 mock vehicle has no safety component");
+        QVERIFY2(clickButtonScrolled(QStringLiteral("vehicleConfig_comp_") + safety->name().remove(QLatin1Char(' ')),
+                                     QStringLiteral("vehicleConfig_sidebarFlickable")),
+                 "Could not tap the safety row");
+        QTest::mouseMove(_window, QPoint(kLayoutWidth * 3 / 4, kLayoutHeight / 2));
+        _grab(QStringLiteral("k_4_vehicle_config_section"));
+        if (QTest::currentTestFailed()) return;
+
+        // Every page on the vehicle rail, the hand-written ones included
+        int page = 0;
+        for (const QVariant &entry : vehicle->autopilotPlugin()->vehicleComponents()) {
+            VehicleComponent *const comp = entry.value<VehicleComponent *>();
+            if (!comp || comp->setupSource().isEmpty()) {
+                continue;
+            }
+            QVERIFY2(clickButtonScrolled(QStringLiteral("vehicleConfig_comp_") + comp->name().remove(QLatin1Char(' ')),
+                                         QStringLiteral("vehicleConfig_sidebarFlickable")),
+                     qPrintable(QStringLiteral("Could not tap the %1 row").arg(comp->name())));
+            QTest::mouseMove(_window, QPoint(kLayoutWidth * 3 / 4, kLayoutHeight / 2));
+            _grab(QStringLiteral("v_%1").arg(page++, 2, 10, QLatin1Char('0')));
+            if (QTest::currentTestFailed()) return;
+        }
+
         // The palette theme is process-wide, so put it back for whatever slot runs next.
         Fact *const scheme = SettingsManager::instance()->appSettings()->indoorPalette();
         scheme->setRawValue(0);
         const auto restore = qScopeGuard([scheme] { scheme->setRawValue(1); });
         QVERIFY2(showSettings(QStringLiteral("General")), "showSettingsTool is not invokable");
         _grab(QStringLiteral("u_9_general_light"));
+    });
+}
+
+void PoliceTopBarUITest::_testSettingsSwitchTouchTarget()
+{
+    _ignorePreexistingQmlWarnings();
+
+    startUI();
+    if (QTest::currentTestFailed()) return;
+    _window->resize(kLayoutWidth, kLayoutHeight);
+    QTest::qWait(kSettleMs);
+
+    QVERIFY2(QMetaObject::invokeMethod(_window, "showSettingsTool", Q_ARG(QVariant, QVariant(QStringLiteral("Fly View")))),
+             "showSettingsTool is not invokable");
+    QQuickItem *const control = findVisibleItemScrolled(QStringLiteral("settingsCheckBox_keepMapCenteredOnVehicle"),
+                                                        QStringLiteral("settingsPageFlickable"));
+    QVERIFY2(control, "The Fly View page shows no Keep Map Centered switch");
+    QQuickItem *const row = control->parentItem() ? control->parentItem()->parentItem() : nullptr;
+    QVERIFY2(row, "The switch sits in no settings row");
+    const qreal rowHeight = row->height();
+    QQuickItem *const content = control->property("contentItem").value<QQuickItem *>();
+    QVERIFY2(content, "The switch has no content item");
+    QQuickItem *pill = nullptr;
+    for (QQuickItem *const child : content->childItems()) {
+        if (child->inherits("QQuickRectangle")) {
+            pill = child;
+        }
+    }
+    QVERIFY2(pill, "The switch draws no pill");
+    const QRectF pillRect = sceneRect(pill);
+
+    // The tablet's figure: Android lays a logical inch out at about 160 px, so ScreenTools' 5 mm
+    // comes to 31 px there. This desktop screen's own figure is under the drawn switch
+    QQmlExpression setMinTouch(qmlContext(control), control, QStringLiteral(
+        "ScreenTools.minTouchPixels = Math.max(ScreenTools.minTouchPixels, Math.round(5 * 160 / 25.4))"));
+    const qreal minTouch = setMinTouch.evaluate().toReal();
+    QVERIFY2(!setMinTouch.hasError(), qPrintable(setMinTouch.error().toString()));
+    QTest::qWait(100);
+
+    QQuickItem *const target = qobject_cast<QQuickItem *>(control->property("containmentMask").value<QObject *>());
+    QVERIFY2(target, "The switch has no tap target in the settings look");
+
+    const QRectF targetRect = sceneRect(target);
+    QVERIFY2(targetRect.height() >= minTouch && targetRect.width() >= minTouch,
+             qPrintable(QStringLiteral("Tap target %1 x %2 is under %3").arg(targetRect.width()).arg(targetRect.height()).arg(minTouch)));
+    // The pill keeps its drawn size and the row its height: only the target grew
+    QCOMPARE(sceneRect(pill), pillRect);
+    QCOMPARE(row->height(), rowHeight);
+    const qreal reach = minTouch / 2 - 1;
+    QVERIFY2(reach > control->height() / 2, "The taps off the centre would still land inside the switch's own bounds");
+
+    // Centre, below, above, and the centre again to put the setting back
+    for (const qreal dy : { 0.0, reach, -reach, 0.0 }) {
+        const bool before = control->property("checked").toBool();
+        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, (pillRect.center() + QPointF(0, dy)).toPoint());
+        QVERIFY2(waitForCondition([&] { return control->property("checked").toBool() != before; }, 2000,
+                                  QStringLiteral("switch toggled")),
+                 qPrintable(QStringLiteral("A tap %1 px off the pill's centre did not toggle it").arg(dy)));
+    }
+}
+
+void PoliceTopBarUITest::_captureArduPilotRadio()
+{
+    if (qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+        QSKIP("QGC_SCREENSHOT_DIR is not set");
+    }
+    if (!apmFirmwareSupported()) {
+        QSKIP("ArduPilot support not registered in this build");
+    }
+
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startAPMArduCopterMockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QVERIFY2(QMetaObject::invokeMethod(_window, "showVehicleConfig"), "showVehicleConfig is not invokable");
+        VehicleComponent *const radio =
+            vehicle->autopilotPlugin()->findKnownVehicleComponent(AutoPilotPlugin::KnownRadioVehicleComponent);
+        QVERIFY2(radio, "The ArduPilot mock vehicle has no radio component");
+        QVERIFY2(clickButtonScrolled(QStringLiteral("vehicleConfig_comp_") + radio->name().remove(QLatin1Char(' ')),
+                                     QStringLiteral("vehicleConfig_sidebarFlickable")),
+                 "Could not tap the radio row");
+        QTest::mouseMove(_window, QPoint(kLayoutWidth * 3 / 4, kLayoutHeight / 2));
+        _grab(QStringLiteral("k_5_apm_radio"));
     });
 }
 

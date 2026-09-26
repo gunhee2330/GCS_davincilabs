@@ -10,7 +10,7 @@ Rectangle {
     anchors.fill:   parent
     anchors.rightMargin: ScreenTools.defaultFontPixelWidth
     anchors.leftMargin:  ScreenTools.defaultFontPixelWidth
-    color:          qgcPal.window
+    color:          qgcPal.settingsPanel
 
     property real _minSummaryW:     ScreenTools.isTinyScreen ? ScreenTools.defaultFontPixelWidth * 28 : ScreenTools.defaultFontPixelHeight * 13.2
     property real _summaryBoxSpace: ScreenTools.defaultFontPixelWidth * 2
@@ -39,12 +39,14 @@ Rectangle {
     QGCFlickable {
         clip:               true
         anchors.fill:       parent
-        contentHeight:      summaryColumn.height
+        contentHeight:      summaryColumn.y + summaryColumn.height
         contentWidth:       _summaryRoot.width
         flickableDirection: Flickable.VerticalFlick
 
         Column {
             id:             summaryColumn
+            // A pixel down, or the clip edge takes the first cards' top hairline
+            y:              1
             width:          _summaryRoot.width
             spacing:        ScreenTools.defaultFontPixelHeight
 
@@ -86,17 +88,18 @@ Rectangle {
                         Layout.fillHeight: true
                         implicitWidth: _minSummaryW
                         implicitHeight: mainLayout.implicitHeight + (_margins * 2)
-                        radius: ScreenTools.defaultFontPixelHeight / 2
-                        color: qgcPal.button
+                        radius: ScreenTools.mockupUnit * 0.6
+                        color: qgcPal.card
                         visible: {
                             void QGroundControl.corePlugin.showAdvancedUI // re-bind when maintenance mode toggles
                             return modelData.summaryQmlSource.toString() !== "" && vehicleConfigView._componentAllowed(modelData)
                         }
-                        border.width: 1
+                        border.width: setupIncomplete ? 1 : ScreenTools.hairline
+                        border.pixelAligned: false    // a whole-pixel snap would round the hairline away
                         // A card still owing setup is outlined entirely, so it is findable in a grid
                         // of a dozen without reading a single label
                         // At full strength: half alpha composited fainter than the plain border it outranks
-                        border.color: setupIncomplete ? qgcPal.colorOrange : qgcPal.groupBorder
+                        border.color: setupIncomplete ? qgcPal.colorOrange : qgcPal.cardBorder
 
                         readonly property real titleHeight: ScreenTools.defaultFontPixelHeight * 2.4
                         readonly property bool showsSetupState: modelData.requiresSetup && modelData.setupSource !== ""
@@ -117,7 +120,8 @@ Rectangle {
                                 text: capitalizeWords(modelData.name)
                                 backgroundColor: qgcPal.windowShadeLight
                                 showBorder: true
-                                backRadius: ScreenTools.defaultFontPixelHeight * 0.39
+                                // The mockup's text button edge: a hairline in the card's line, a .4 cqw corner
+                                backRadius: ScreenTools.mockupUnit * 0.4
 
                                 // The stock content item centres the label and has no room for a
                                 // chevron; the title is a navigation target, so it reads left to

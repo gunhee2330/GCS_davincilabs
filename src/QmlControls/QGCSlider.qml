@@ -18,7 +18,10 @@ Slider {
     wheelEnabled: false
 
     property real _implicitBarLength: Math.round(ScreenTools.defaultFontPixelWidth * 20)
-    property real _barHeight: Math.round(ScreenTools.defaultFontPixelHeight / 3)
+    // Under the settings views, the police mockup's groove and knob, .35 and 1.3 cqw. Drawing
+    // only: the control's own height, and so its touch band, is implicitSliderHeight either way
+    property real _barHeight: _settingsLook ? ScreenTools.mockupUnit * 0.35 : Math.round(ScreenTools.defaultFontPixelHeight / 3)
+    readonly property bool _settingsLook: ScreenTools.inSettingsLook(control)
 
     QGCPalette { id: qgcPal; colorGroupEnabled: control.enabled }
 
@@ -30,9 +33,19 @@ Slider {
         width: control.horizontal ? control.availableWidth : implicitWidth
         height: control.horizontal ? implicitHeight : control.availableHeight
         radius: control._barHeight / 2
-        color: qgcPal.button
-        border.width: 1
+        color: control._settingsLook ? qgcPal.controlTrack : qgcPal.button
+        border.width: control._settingsLook ? 0 : 1
         border.color: qgcPal.buttonText
+
+        // The settings mockup's accent up to the knob
+        Rectangle {
+            y:      control.horizontal ? 0 : parent.height * control.visualPosition
+            width:  control.horizontal ? parent.width * control.visualPosition : parent.width
+            height: control.horizontal ? parent.height : parent.height * (1 - control.visualPosition)
+            radius: parent.radius
+            color:  qgcPal.buttonHighlight
+            visible: control._settingsLook
+        }
     }
 
     handle: Rectangle {
@@ -44,12 +57,15 @@ Slider {
                control.topPadding + control.visualPosition * (control.availableHeight - height)
         implicitWidth: _radius * 2
         implicitHeight: _radius * 2
-        color: qgcPal.button
-        border.color: qgcPal.buttonText
-        border.width: 1
+        // The settings mockup's plain white knob. The light card is white too, so there a
+        // groove-coloured edge keeps the knob findable
+        color: control._settingsLook ? "white" : qgcPal.button
+        border.color: control._settingsLook ? qgcPal.controlTrack : qgcPal.buttonText
+        border.width: !control._settingsLook || qgcPal.globalTheme === QGCPalette.Light ? 1 : 0
         radius: _radius
 
-        property real _radius: ScreenTools.defaultFontPixelHeight / 2
+        // Whole pixels, or the software renderer floors the corner and squares the knob off
+        property real _radius: control._settingsLook && !control.displayValue ? Math.round(ScreenTools.mockupUnit * 0.65) : ScreenTools.defaultFontPixelHeight / 2
 
         Label {
             text: control.value.toFixed(control.to <= 1 ? 1 : 0)
@@ -57,7 +73,7 @@ Slider {
             anchors.centerIn: parent
             font.family: ScreenTools.normalFontFamily
             font.pointSize: ScreenTools.smallFontPointSize
-            color: qgcPal.buttonText
+            color: control._settingsLook ? "black" : qgcPal.buttonText
         }
     }
 
