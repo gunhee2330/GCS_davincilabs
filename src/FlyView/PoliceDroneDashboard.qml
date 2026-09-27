@@ -455,12 +455,10 @@ Item {
         const s = _flightSeconds % 60
         return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
     }
-    // The distance flown since the arm, which is where Vehicle zeroes flightDistance: whole
-    // metres, then kilometres to one place from 1 km. PoliceStatusPage writes its log the same way.
-    readonly property string _flightDistanceText: {
-        const metres = _activeVehicle ? Math.round(_activeVehicle.flightDistance.rawValue) : 0
-        return metres >= 1000 ? (metres / 1000).toFixed(1) + " km" : metres + " m"
-    }
+    // The distance flown since the arm, which is where Vehicle zeroes flightDistance, written the
+    // way the stock telemetry bar writes the Fact: its value in the app's distance unit, and the unit.
+    readonly property string _flightDistanceText:
+        _activeVehicle ? _activeVehicle.flightDistance.valueString + " " + _activeVehicle.flightDistance.units : ""
     // blocked says the aircraft has refused to arm, which is the one state with something to go
     // and read: the banner grows a chevron and the drawer behind it lists the reasons above the
     // flight log. Carried on the object rather than derived from the text, so nothing has to
@@ -478,7 +476,8 @@ Item {
             return { text: qsTr("통신 두절"), accent: _alarmColor }
         }
         if (_activeVehicle.armed) {
-            return { text: qsTr("비행 중 %1 %2").arg(_takeoffTime ? _flightElapsedText : "").arg(_flightDistanceText),
+            // The distance apart from the time, so the bar can set a gap between the two.
+            return { text: qsTr("비행 중 %1").arg(_takeoffTime ? _flightElapsedText : ""), distance: _flightDistanceText,
                      accent: _statusFlyColor }
         }
         const report = _activeVehicle.healthAndArmingCheckReport

@@ -27,7 +27,7 @@ Rectangle {
 
     // ------------------------------------------------------------------ what the bar reads
     property var    vehicle:       null
-    /// { text, accent, blocked } - PoliceDroneDashboard._status.
+    /// { text, distance, accent, blocked } - PoliceDroneDashboard._status.
     property var    status:        null
     /// The arm instant as a Date, PoliceDroneDashboard._takeoffTime; null before the first arm.
     property var    takeoffTime:   null
@@ -259,12 +259,29 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing:                bar._innerGap
 
-                BarText {
+                // The flight time and the distance flown, two figures kept apart by a gap wider
+                // than the space inside each.
+                Row {
                     anchors.verticalCenter: parent.verticalCenter
-                    color:                  bar._accent
-                    font.weight:            Font.DemiBold
-                    font.pixelSize:         bar.valueSize
-                    text:                   bar.status ? bar.status.text : ""
+                    spacing:                ScreenTools.defaultFontPixelWidth * 2
+
+                    BarText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        color:                  bar._accent
+                        font.weight:            Font.DemiBold
+                        font.pixelSize:         bar.valueSize
+                        text:                   bar.status ? bar.status.text : ""
+                    }
+
+                    BarText {
+                        objectName:             "policeStatusDistance"
+                        anchors.verticalCenter: parent.verticalCenter
+                        color:                  bar._accent
+                        font.weight:            Font.DemiBold
+                        font.pixelSize:         bar.valueSize
+                        text:                   (bar.status && bar.status.distance) ? bar.status.distance : ""
+                        visible:                text !== ""
+                    }
                 }
 
                 // Only where there is something to go and read: an arming refusal. A chevron on
@@ -621,6 +638,7 @@ Rectangle {
 
         PoliceStatusPage {
             headingText: bar.status ? bar.status.text : ""
+            headingDistance: (bar.status && bar.status.distance) ? bar.status.distance : ""
             takeoffTime: bar.takeoffTime
             armBlocked:  bar.status ? (bar.status.blocked === true) : false
         }

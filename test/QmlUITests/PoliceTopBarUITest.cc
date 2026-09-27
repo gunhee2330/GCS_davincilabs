@@ -57,6 +57,9 @@ const QString kParamProgress = QStringLiteral("policeParamProgress");
 
 const QString kChevron     = QStringLiteral("policeStatusChevron");
 
+/// The distance flown, beside the flight time on the banner.
+const QString kBannerDistance = QStringLiteral("policeStatusDistance");
+
 /// The status drawer's list of past flights.
 const QString kFlightList  = QStringLiteral("policeFlightList");
 
@@ -198,6 +201,14 @@ QString bannerText(QQuickItem *banner, const QString &state)
         }
     }
     return QString();
+}
+
+/// The gap \a distance leaves after \a time on their line, in ScreenTools character widths.
+qreal gapInCharacters(QQuickItem *time, QQuickItem *distance)
+{
+    QQmlExpression characterWidth(qmlContext(time), time, QStringLiteral("ScreenTools.defaultFontPixelWidth"));
+    const qreal width = characterWidth.evaluate().toReal();
+    return (width > 0) ? ((sceneRect(distance).left() - sceneRect(time).right()) / width) : 0;
 }
 
 /// The counter is started by QGCApplication::_initForNormalAppBoot, which the test harness
@@ -632,20 +643,28 @@ void PoliceTopBarUITest::_testBannerShowsFlightTimeWhenFlying()
             return item && subtreeHasText(item, QStringLiteral("비행 중"));
         })(), TestTimeout::longMs());
 
-        // Then the distance flown since the arm, a space after the time: whole metres, and from
-        // 1 km kilometres to one place. The mock has already climbed, so the distance is moved to
-        // each figure from wherever the climb left it.
+        // Then the distance flown since the arm, on a label of its own after the time, as the
+        // stock telemetry bar writes flightDistance: one place and the unit, metres here, however
+        // large. A five-digit figure is the widest line the banner has to hold. The mock has
+        // already climbed, so the distance is moved to each figure from wherever the climb left it.
         const auto setDistance = [vehicle](double metres) {
             vehicle->updateFlightDistance(metres - vehicle->flightDistance()->rawValue().toDouble());
         };
-        const QRegularExpression metres(QStringLiteral("^비행 중 \\d\\d:\\d\\d 850 m$"));
+        const QRegularExpression time(QStringLiteral("^비행 중 \\d\\d:\\d\\d$"));
+        QVERIFY_TRUE_WAIT(time.match(bannerText(banner, QStringLiteral("비행 중"))).hasMatch(), TestTimeout::mediumMs());
+        QQuickItem *const distance = findVisibleItem(banner, kBannerDistance, 3000);
+        QVERIFY2(distance, "The banner shows no distance in the air");
         setDistance(850.0);
-        QVERIFY_TRUE_WAIT(metres.match(bannerText(banner, QStringLiteral("비행 중"))).hasMatch(),
-                          TestTimeout::mediumMs());
-        const QRegularExpression kilometres(QStringLiteral("^비행 중 \\d\\d:\\d\\d 1\\.2 km$"));
-        setDistance(1234.0);
-        QVERIFY_TRUE_WAIT(kilometres.match(bannerText(banner, QStringLiteral("비행 중"))).hasMatch(),
-                          TestTimeout::mediumMs());
+        QVERIFY_TRUE_WAIT(distance->property("text").toString() == QStringLiteral("850.0 m"), TestTimeout::mediumMs());
+        setDistance(12345.6);
+        QVERIFY_TRUE_WAIT(distance->property("text").toString() == QStringLiteral("12345.6 m"), TestTimeout::mediumMs());
+
+        // Two figures, not one run-on line: about two characters between the time and the distance.
+        QQuickItem *const timeLabel = findVisibleItemWithExactText(banner, bannerText(banner, QStringLiteral("비행 중")));
+        QVERIFY2(timeLabel, "The banner's time has no label of its own");
+        const qreal bannerGap = gapInCharacters(timeLabel, distance);
+        QVERIFY2(bannerGap >= 1.5,
+                 qPrintable(QStringLiteral("The banner sets the distance %1 characters after the time").arg(bannerGap)));
 
         // The wider line must not push the right cluster into its clip: the flight mode, its
         // leftmost item, still starts right of the message pictogram beside the banner.
@@ -653,8 +672,8 @@ void PoliceTopBarUITest::_testBannerShowsFlightTimeWhenFlying()
         QQuickItem *const mode = findVisibleItem(_rootItem, kModeItem, 3000);
         QVERIFY2(messages && mode, "The message pictogram or the flight mode left the bar");
         QVERIFY2(sceneRect(mode).left() >= sceneRect(messages).right(),
-                 qPrintable(QStringLiteral("The banner \"%1\" pushed the flight mode under it: mode at %2, messages end at %3")
-                                .arg(bannerText(banner, QStringLiteral("비행 중")))
+                 qPrintable(QStringLiteral("The banner \"%1  %2\" pushed the flight mode under it: mode at %3, messages end at %4")
+                                .arg(bannerText(banner, QStringLiteral("비행 중")), distance->property("text").toString())
                                 .arg(sceneRect(mode).left()).arg(sceneRect(messages).right())));
         _grabIfCapturing(QStringLiteral("flightlog_0_banner_flying"));
         if (QTest::currentTestFailed()) {
@@ -670,9 +689,32 @@ void PoliceTopBarUITest::_testBannerShowsFlightTimeWhenFlying()
         QVERIFY2(subtreeHasText(page, QStringLiteral("이륙 일시")), "The drawer does not say when the flight took off");
         QStringList texts;
         collectTexts(page, texts);
-        const QRegularExpression takeoff(QStringLiteral("^\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d$"));
+        const QRegularExpression takeoff(QStringLiteral("^\\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d$"));
         QVERIFY2(std::any_of(texts.cbegin(), texts.cend(), [&](const QString &text) { return takeoff.match(text).hasMatch(); }),
-                 qPrintable(QStringLiteral("No MM-dd HH:mm:ss takeoff time in the drawer: %1").arg(texts.join(QStringLiteral(" | ")))));
+                 qPrintable(QStringLiteral("No yyyy-MM-dd HH:mm:ss takeoff time in the drawer: %1").arg(texts.join(QStringLiteral(" | ")))));
+
+        // The heading repeats the banner, the distance as far from the time as there.
+        QQuickItem *const headingTime = findVisibleItemWithExactText(page, bannerText(page, QStringLiteral("비행 중")));
+        QQuickItem *const headingDistance = findVisibleItemWithExactText(page, QStringLiteral("12345.6 m"));
+        QVERIFY2(headingTime && headingDistance,
+                 qPrintable(QStringLiteral("The drawer heading is not the banner's time and distance: %1").arg(texts.join(QStringLiteral(" | ")))));
+        const qreal headingGap = gapInCharacters(headingTime, headingDistance);
+        QVERIFY2(headingGap >= 1.5,
+                 qPrintable(QStringLiteral("The drawer heading sets the distance %1 characters after the time").arg(headingGap)));
+
+        // Top to bottom: the heading, the hold button, then the log with the takeoff's time first.
+        QQuickItem *const holdButton = findVisibleItem(page, kArmButton, 3000);
+        QVERIFY2(holdButton, "The drawer shows no hold button in the air");
+        QVERIFY2(sceneRect(holdButton).top() >= sceneRect(headingTime).bottom(), "The hold button is not under the heading");
+        qreal above = sceneRect(holdButton).bottom();
+        for (const QString &label : { QStringLiteral("이륙 일시"), QStringLiteral("이륙 횟수"),
+                                      QStringLiteral("직전 비행 시간"), QStringLiteral("지난 비행") }) {
+            QQuickItem *const item = findVisibleItemWithExactText(page, label);
+            QVERIFY2(item, qPrintable(QStringLiteral("The drawer shows no %1 in the air").arg(label)));
+            QVERIFY2(sceneRect(item).top() >= above,
+                     qPrintable(QStringLiteral("%1 is not below the row before it").arg(label)));
+            above = sceneRect(item).bottom();
+        }
         _grabIfCapturing(QStringLiteral("flightlog_1_drawer_flying"));
         QVERIFY2(_closeDrawer(), "The status drawer would not close");
     });
@@ -725,7 +767,7 @@ void PoliceTopBarUITest::_testFlightLogListsFlightsNewestFirst()
         if (QTest::currentTestFailed()) {
             return;
         }
-        fly(1234.0);
+        fly(12345.6);
         if (QTest::currentTestFailed()) {
             return;
         }
@@ -740,11 +782,14 @@ void PoliceTopBarUITest::_testFlightLogListsFlightsNewestFirst()
         QVERIFY2(list, "The drawer shows no flight list after two flights");
         QCOMPARE(list->property("count").toInt(), 2);
 
-        // Newest first: the 1.2 km flight, then the 850 m one. Each row is the takeoff's date and
-        // time, the duration and the distance.
-        const QRegularExpression date(QStringLiteral("^\\d\\d-\\d\\d \\d\\d:\\d\\d$"));
+        // Newest first: the 12345.6 m flight, then the 850 m one. Each row is the takeoff's date
+        // with the year and the time, the duration and the distance as the banner writes it.
+        const QRegularExpression date(QStringLiteral("^\\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d$"));
         const QRegularExpression duration(QStringLiteral("^\\d\\d:\\d\\d:\\d\\d$"));
-        const QStringList distances{ QStringLiteral("1.2 km"), QStringLiteral("850 m") };
+        const QStringList distances{ QStringLiteral("12345.6 m"), QStringLiteral("850.0 m") };
+        // Taken before the rows are checked, so a row that does not fit is on the picture.
+        _grabIfCapturing(QStringLiteral("flightlog_2_drawer_records"));
+        qreal durationLeft = -1;
         for (int i = 0; i < distances.size(); ++i) {
             QQuickItem *row = nullptr;
             QVERIFY(QMetaObject::invokeMethod(list, "itemAtIndex", Q_RETURN_ARG(QQuickItem *, row), Q_ARG(int, i)));
@@ -755,10 +800,29 @@ void PoliceTopBarUITest::_testFlightLogListsFlightsNewestFirst()
             QVERIFY2(date.match(texts.at(0)).hasMatch(), qPrintable(QStringLiteral("Row %1 date reads %2").arg(i).arg(texts.at(0))));
             QVERIFY2(duration.match(texts.at(1)).hasMatch(), qPrintable(QStringLiteral("Row %1 duration reads %2").arg(i).arg(texts.at(1))));
             QCOMPARE(texts.at(2), distances.at(i));
-            QVERIFY2(sceneRect(row).right() <= sceneRect(list).right() + 1,
-                     qPrintable(QStringLiteral("Row %1 runs past the list's edge").arg(i)));
+            // One line each: no column squeezed under its own text, none past the list's edge.
+            const QList<QQuickItem *> labels = row->childItems();
+            for (QQuickItem *const label : labels) {
+                QVERIFY2(label->implicitWidth() <= label->width() + 1,
+                         qPrintable(QStringLiteral("Row %1 squeezes \"%2\" into %3 of its %4")
+                                        .arg(i).arg(label->property("text").toString())
+                                        .arg(label->width()).arg(label->implicitWidth())));
+                QVERIFY2(sceneRect(label).right() <= sceneRect(list).right() + 1,
+                         qPrintable(QStringLiteral("Row %1 runs \"%2\" past the list's edge")
+                                        .arg(i).arg(label->property("text").toString())));
+            }
+            // The durations in one column, whatever the width of the distance after them.
+            const qreal left = sceneRect(labels.at(1)).left();
+            QVERIFY2((durationLeft < 0) || qAbs(left - durationLeft) <= 1,
+                     qPrintable(QStringLiteral("Row %1 starts its duration at %2, the row above at %3").arg(i).arg(left).arg(durationLeft)));
+            durationLeft = left;
+            // And the three columns kept clearly apart.
+            for (int column = 1; column < labels.size(); ++column) {
+                const qreal gap = gapInCharacters(labels.at(column - 1), labels.at(column));
+                QVERIFY2(gap >= 1.5, qPrintable(QStringLiteral("Row %1 sets column %2 only %3 characters after the one before")
+                                                    .arg(i).arg(column).arg(gap)));
+            }
         }
-        _grabIfCapturing(QStringLiteral("flightlog_2_drawer_records"));
         if (QTest::currentTestFailed()) {
             return;
         }
