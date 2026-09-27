@@ -1,5 +1,7 @@
 #include "PoliceGuidedActionUITest.h"
 
+#include <algorithm>
+
 #include <QtCore/QDebug>
 #include <QtCore/QDir>
 #include <QtCore/QHash>
@@ -7,10 +9,14 @@
 #include <QtCore/QRect>
 #include <QtCore/QRegularExpression>
 #include <QtCore/QScopeGuard>
+#include <QtCore/QTimer>
 #include <QtCore/QtMath>
 #include <QtGui/QColor>
 #include <QtGui/QFont>
+#include <QtGui/QFontMetricsF>
 #include <QtGui/QImage>
+#include <QtNetwork/QTcpServer>
+#include <QtNetwork/QTcpSocket>
 #include <QtQml/QQmlContext>
 #include <QtQml/QQmlExpression>
 #include <QtQuick/QQuickItem>
@@ -24,6 +30,10 @@
 #include "MAVLinkLib.h"
 #include "MockLink.h"
 #include "SettingsManager.h"
+#include "SiyiAiController.h"
+#include "SiyiAiProtocol.h"
+#include "SiyiCameraSettings.h"
+#include "SiyiLongProtocol.h"
 #include "Vehicle.h"
 #include "VehicleLinkManager.h"
 
@@ -1692,5 +1702,284 @@ void PoliceGuidedActionUITest::_captureCameraBand()
 
         QVERIFY(verifyVisibility(kStartMissionButton, true, QStringLiteral("with a mission uploaded")));
         _grab(QStringLiteral("v2_4_route_uploaded"));
+    });
+}
+
+namespace {
+
+/// The model byte on every frame of the fake count link. The controller only asks that the class
+/// list and the pushes agree on it.
+constexpr quint8 kCountModel = 5;
+
+/// One ObjectCount frame as the module writes it on its private link: mode, model, then \a body.
+QByteArray objectCountFrame(SiyiAi::ObjectCountMode mode, const QByteArray &body)
+{
+    QByteArray data;
+    data.append(static_cast<char>(mode));
+    data.append(static_cast<char>(kCountModel));
+    data.append(body);
+    return SiyiLongProtocol::encode(static_cast<quint8>(SiyiAi::PrivateCommandId::ObjectCount), data);
+}
+
+/// The detection card's count cells, found by the property only the card's Stat carries.
+void collectCountCells(QQuickItem *item, QList<QQuickItem *> &out)
+{
+    const QList<QQuickItem *> children = item->childItems();
+    for (QQuickItem *const child : children) {
+        if (child->property("labelWidth").isValid()) {
+            out.append(child);
+        } else {
+            collectCountCells(child, out);
+        }
+    }
+}
+
+/// A cell's dot-and-label row (the child with a spacing) or its count (the child with a contentWidth).
+QQuickItem *cellChild(QQuickItem *cell, const char *property)
+{
+    const QList<QQuickItem *> children = cell->childItems();
+    for (QQuickItem *const child : children) {
+        if (child->property(property).isValid()) {
+            return child;
+        }
+    }
+    return nullptr;
+}
+
+} // namespace
+
+void PoliceGuidedActionUITest::_testDetectionCardCells()
+{
+    _ignorePreexistingQmlWarnings();
+
+    // The card's order. Each count goes out split over four classes of its kind, every tally
+    // under the byte's 255 ceiling: a class tally on the ceiling is drawn "255+", not a number.
+    const QStringList labels { QStringLiteral("인원"), QStringLiteral("차량"), QStringLiteral("배"),
+                               QStringLiteral("연기"), QStringLiteral("화재") };
+    const QStringList classNames { QStringLiteral("person"), QStringLiteral("car"), QStringLiteral("boat"),
+                                   QStringLiteral("smoke"), QStringLiteral("fire") };
+    const QList<int> counts { 123, 456, 789, 100, 999 };
+    constexpr int kClassesPerCount = 4;
+
+    QStringList names;
+    QByteArray tallies;
+    for (int cell = 0; cell < counts.size(); ++cell) {
+        for (int part = 0; part < kClassesPerCount; ++part) {
+            names.append(classNames[cell]);
+            tallies.append(static_cast<char>((counts[cell] / kClassesPerCount) +
+                                             ((part < (counts[cell] % kClassesPerCount)) ? 1 : 0)));
+        }
+    }
+    QByteArray classList(1, static_cast<char>(names.size()));
+    classList.append(QByteArray(names.size(), '\1'));     // filter mask, every class counted
+    classList.append(names.join(QLatin1Char(',')).toLatin1());
+    classList.append('\0');
+    const QByteArray classListFrame = objectCountFrame(SiyiAi::ObjectCountMode::ClassList, classList);
+    const QByteArray pushFrame = objectCountFrame(SiyiAi::ObjectCountMode::Start,
+                                                  QByteArray(1, static_cast<char>(names.size())) + tallies);
+    // Every kind's first class on the byte's ceiling: all five cells read "255+", the widest
+    // thing the card is ever sent.
+    QByteArray ceilingTallies(names.size(), '\0');
+    for (int cell = 0; cell < counts.size(); ++cell) {
+        ceilingTallies[cell * kClassesPerCount] = static_cast<char>(SiyiAi::kObjectCountSaturation);
+    }
+    const QByteArray ceilingFrame = objectCountFrame(SiyiAi::ObjectCountMode::Start,
+                                                     QByteArray(1, static_cast<char>(names.size())) + ceilingTallies);
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [&, this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const dashboard = findVisibleItem(_rootItem, kDashboard, 5000);
+        QVERIFY2(dashboard, "Police dashboard not found - the layout under test is not up");
+
+        QHash<QString, QQuickItem *> items;
+        for (const QString &name : { kZoomWindow, kThermalWindow, kAiPanel, kTelemetryBar,
+                                     kInstrumentPanel, kCameraStrip, kGuidedStrip }) {
+            QQuickItem *const item = findVisibleItem(_rootItem, name, 3000);
+            QVERIFY2(item, qPrintable(QStringLiteral("%1 is not on screen").arg(name)));
+            items.insert(name, item);
+        }
+        QQuickItem *const card = items[kAiPanel];
+
+        QList<QQuickItem *> cells;
+        collectCountCells(card, cells);
+        QCOMPARE(cells.size(), labels.size());
+        std::sort(cells.begin(), cells.end(), [](QQuickItem *a, QQuickItem *b) {
+            return sceneRect(a).x() < sceneRect(b).x();
+        });
+        for (int i = 0; i < cells.size(); ++i) {
+            QCOMPARE(cells[i]->property("label").toString(), labels[i]);
+            QVERIFY2(cellChild(cells[i], "spacing") && cellChild(cells[i], "contentWidth"),
+                     qPrintable(QStringLiteral("Cell %1 has no label row or no count").arg(labels[i])));
+        }
+
+        // One width for all five, and everything in each cell inside it, the count centred.
+        const auto checkCells = [&](const QString &state) {
+            for (int i = 0; i < cells.size(); ++i) {
+                const QRectF cellRect = sceneRect(cells[i]);
+                QVERIFY2(qAbs(cellRect.width() - sceneRect(cells[0]).width()) <= 0.5,
+                         qPrintable(QStringLiteral("%1: cell %2 is %3 wide, cell %4 is %5")
+                                        .arg(state, labels[i]).arg(cellRect.width())
+                                        .arg(labels[0]).arg(sceneRect(cells[0]).width())));
+
+                // The count's ink, centred in its own box however wide that box is.
+                QQuickItem *const value = cellChild(cells[i], "contentWidth");
+                const qreal contentWidth = value->property("contentWidth").toReal();
+                const QRectF valueRect = value->mapRectToScene(
+                    QRectF((value->width() - contentWidth) / 2, 0, contentWidth, value->height()));
+                const QRectF labelRect = sceneRect(cellChild(cells[i], "spacing"));
+                const QRectF bounds = cellRect.adjusted(-kEdgeSlack, 0, kEdgeSlack, 0);
+                QVERIFY2(contentWidth <= cellRect.width() + kEdgeSlack,
+                         qPrintable(QStringLiteral("%1: cell %2 count '%3' is %4 wide in a %5 cell")
+                                        .arg(state, labels[i], value->property("text").toString())
+                                        .arg(contentWidth).arg(cellRect.width())));
+                QVERIFY2((valueRect.left() >= bounds.left()) && (valueRect.right() <= bounds.right()),
+                         qPrintable(QStringLiteral("%1: cell %2 count %3 runs outside the cell %4")
+                                        .arg(state, labels[i], QDebug::toString(valueRect),
+                                             QDebug::toString(cellRect))));
+                QVERIFY2((labelRect.left() >= bounds.left()) && (labelRect.right() <= bounds.right()),
+                         qPrintable(QStringLiteral("%1: cell %2 label %3 runs outside the cell %4")
+                                        .arg(state, labels[i], QDebug::toString(labelRect),
+                                             QDebug::toString(cellRect))));
+                QVERIFY2(qAbs(valueRect.center().x() - cellRect.center().x()) <= kCentreSlack,
+                         qPrintable(QStringLiteral("%1: cell %2 count %3 is not centred in %4")
+                                        .arg(state, labels[i], QDebug::toString(valueRect),
+                                             QDebug::toString(cellRect))));
+                QVERIFY2(!cells[i]->clip() && !value->clip(),
+                         qPrintable(QStringLiteral("%1: cell %2 clips").arg(state, labels[i])));
+            }
+        };
+
+        // The card and a margin around it, cut out of the window at the grab's own pixel scale.
+        const QString dir = qEnvironmentVariable("QGC_SCREENSHOT_DIR");
+        const auto grabCard = [&, this](const QString &name) {
+            if (dir.isEmpty()) {
+                return;
+            }
+            QVERIFY(QDir().mkpath(dir));
+            QTest::qWait(kSettleMs);
+            const QImage image = _window->grabWindow();
+            const qreal scale = static_cast<qreal>(image.width()) / _window->width();
+            const QRectF area = sceneRect(card).adjusted(-12, -12, 12, 12);
+            const QRect pixels = QRectF(area.topLeft() * scale, area.size() * scale).toAlignedRect();
+            QVERIFY(image.copy(pixels).save(QDir(dir).filePath(name + QStringLiteral(".png"))));
+        };
+
+        // At rest: the module is not there, every cell a dash.
+        for (QQuickItem *const cell : cells) {
+            QCOMPARE(cellChild(cell, "contentWidth")->property("text").toString(), QStringLiteral("–"));
+        }
+        grabCard(QStringLiteral("detection_card_0_rest"));
+        if (QTest::currentTestFailed()) return;
+        checkCells(QStringLiteral("at rest"));
+        if (QTest::currentTestFailed()) return;
+        const QRectF restCard = sceneRect(card);
+
+        // A fake module on loopback at the private port, answering nothing and pushing the same
+        // tallies twice a second, well inside the controller's count timeout.
+        QTcpServer server;
+        QVERIFY2(server.listen(QHostAddress::LocalHost, SiyiAi::kPrivatePort),
+                 qPrintable(QStringLiteral("Cannot stand in for the module's count port: %1").arg(server.errorString())));
+        SiyiAiController *const ai = SiyiAiController::instance();
+        Fact *const aiAddress = SettingsManager::instance()->siyiCameraSettings()->aiIpAddress();
+        const QVariant savedAddress = aiAddress->rawValue();
+        const auto restoreModule = qScopeGuard([ai, aiAddress, savedAddress] {
+            ai->stop();
+            aiAddress->setRawValue(savedAddress);
+        });
+        aiAddress->setRawValue(QStringLiteral("127.0.0.1"));
+        ai->start();
+        QTRY_VERIFY_WITH_TIMEOUT(server.hasPendingConnections(), 5000);
+        QTcpSocket *const module = server.nextPendingConnection();
+        (void) module->write(classListFrame);
+        (void) module->write(pushFrame);
+        QByteArray pushing = pushFrame;
+        QTimer pusher;
+        pusher.setInterval(500);
+        (void) connect(&pusher, &QTimer::timeout, module, [module, &pushing] { (void) module->write(pushing); });
+        pusher.start();
+
+        QTRY_VERIFY_WITH_TIMEOUT(ai->countsValid(), 5000);
+        for (int i = 0; i < cells.size(); ++i) {
+            QTRY_COMPARE(cellChild(cells[i], "contentWidth")->property("text").toString(),
+                         QString::number(counts[i]));
+        }
+        grabCard(QStringLiteral("detection_card_1_counts"));
+        if (QTest::currentTestFailed()) return;
+        if (!dir.isEmpty()) {
+            _grab(QStringLiteral("detection_card_2_screen"));
+            if (QTest::currentTestFailed()) return;
+        }
+        QTest::qWait(kSettleMs);
+        checkCells(QStringLiteral("three-digit counts"));
+        if (QTest::currentTestFailed()) return;
+        QVERIFY2(sceneRect(card) == restCard,
+                 qPrintable(QStringLiteral("Detection card moved from %1 to %2 when the counts came in")
+                                .arg(QDebug::toString(restCard), QDebug::toString(sceneRect(card)))));
+
+        // Three-digit counts at the count face's own size. A value may shrink to fit its cell, but
+        // only one wider than any count: "999", the widest, is as tall and as wide as the face
+        // draws it unfitted, which is how every count was drawn before the cells could fit one.
+        for (int i = 0; i < cells.size(); ++i) {
+            QQuickItem *const value = cellChild(cells[i], "contentWidth");
+            const QString text = value->property("text").toString();
+            const QFontMetricsF metrics(value->property("font").value<QFont>());
+            const qreal height = value->property("contentHeight").toReal();
+            const qreal width = value->property("contentWidth").toReal();
+            QVERIFY2((qAbs(height - metrics.height()) <= 0.5) && (qAbs(width - metrics.horizontalAdvance(text)) <= 0.5),
+                     qPrintable(QStringLiteral("Cell %1 draws '%2' %3 x %4, the face at its own size is %5 x %6")
+                                    .arg(labels[i], text).arg(width).arg(height)
+                                    .arg(metrics.horizontalAdvance(text)).arg(metrics.height())));
+        }
+
+        // The byte's ceiling marker, wider than any count, still inside every cell.
+        pushing = ceilingFrame;
+        (void) module->write(pushing);
+        for (int i = 0; i < cells.size(); ++i) {
+            QTRY_COMPARE(cellChild(cells[i], "contentWidth")->property("text").toString(),
+                         QStringLiteral("255+"));
+        }
+        grabCard(QStringLiteral("detection_card_3_ceiling"));
+        if (QTest::currentTestFailed()) return;
+        checkCells(QStringLiteral("ceiling marker"));
+        if (QTest::currentTestFailed()) return;
+        QVERIFY2(sceneRect(card) == restCard,
+                 qPrintable(QStringLiteral("Detection card moved from %1 to %2 on the ceiling marker")
+                                .arg(QDebug::toString(restCard), QDebug::toString(sceneRect(card)))));
+
+        // The bar under the card shares its width; it stays off the camera column as well.
+        const QRectF barRect = sceneRect(items[kTelemetryBar]).adjusted(kEdgeSlack, kEdgeSlack, -kEdgeSlack, -kEdgeSlack);
+        for (const QString &window : { kZoomWindow, kThermalWindow }) {
+            QVERIFY2(!barRect.intersects(sceneRect(items[window])),
+                     qPrintable(QStringLiteral("Telemetry bar %1 overlaps %2 %3")
+                                    .arg(QDebug::toString(sceneRect(items[kTelemetryBar])), window,
+                                         QDebug::toString(sceneRect(items[window])))));
+        }
+
+        // The card, at the width the cells gave it, off everything around it.
+        const QRectF cardRect = sceneRect(card).adjusted(kEdgeSlack, kEdgeSlack, -kEdgeSlack, -kEdgeSlack);
+        const QList<QPair<QString, QString>> neighbours {
+            { QStringLiteral("zoom window"),        kZoomWindow },
+            { QStringLiteral("thermal window"),     kThermalWindow },
+            { QStringLiteral("telemetry bar"),      kTelemetryBar },
+            { QStringLiteral("instrument panel"),   kInstrumentPanel },
+            { QStringLiteral("camera tool strip"),  kCameraStrip },
+            { QStringLiteral("guided tool strip"),  kGuidedStrip },
+        };
+        for (const auto &neighbour : neighbours) {
+            const QRectF other = sceneRect(items[neighbour.second]);
+            QVERIFY2(!cardRect.intersects(other),
+                     qPrintable(QStringLiteral("Detection card %1 overlaps the %2 %3")
+                                    .arg(QDebug::toString(sceneRect(card)), neighbour.first,
+                                         QDebug::toString(other))));
+        }
+
+        // A visible gap, not just no overlap, between the card and the 줌 and 열상 column.
+        for (const QString &window : { kZoomWindow, kThermalWindow }) {
+            const qreal gap = sceneRect(items[window]).left() - sceneRect(card).right();
+            QVERIFY2(gap >= 3.0, qPrintable(QStringLiteral("Detection card ends %1 px before %2").arg(gap).arg(window)));
+        }
     });
 }

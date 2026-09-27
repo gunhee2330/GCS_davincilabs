@@ -90,6 +90,16 @@ private slots:
     /// drag that starts on it must not send a box either.
     void _testTrackCancelButton();
 
+    /// The detection card's five cells are one width, the widest of a dot with its label and a
+    /// three-digit count, so 배 is no narrower than the rest. Counts of 123, 456, 789, 100 and 999
+    /// sent down the AI module's count link each land inside their own cell, centred, at the count
+    /// face's own unfitted size; the byte-ceiling marker "255+" in all five fits inside its cell
+    /// too. The card at that width, and the telemetry bar sharing it, stay clear of the 줌 and 열상
+    /// windows, the card by at least 3 px; the card also clears the telemetry bar, the instrument
+    /// panel and both tool strips. Grabs detection_card_0_rest, detection_card_1_counts,
+    /// detection_card_2_screen and detection_card_3_ceiling when QGC_SCREENSHOT_DIR is set.
+    void _testDetectionCardCells();
+
 private:
     /// Pre-existing QML warnings that the strict log check would otherwise fail on.
     void _ignorePreexistingQmlWarnings();

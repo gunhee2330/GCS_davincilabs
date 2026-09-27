@@ -47,7 +47,22 @@ Item {
     /// One band for every value, so the row keeps its height whatever a value measures.
     readonly property real _valueHeight: Math.max(18, _em * 1.25)
 
-    implicitWidth:  row.implicitWidth + _em
+    /// One width for every cell, the widest thing any of them holds: a dot and its label, or a
+    /// three-digit count. Sized by its own label each, 배 came out the narrow one, and a crowd
+    /// past a hundred had never been measured against the cell it lands in. Whole pixels, so the
+    /// layout snapping each cell to the pixel grid cannot leave one a pixel short of the others.
+    readonly property real _cellWidth: Math.ceil(Math.max(personStat.labelWidth, vehicleStat.labelWidth,
+                                                          boatStat.labelWidth, smokeStat.labelWidth,
+                                                          fireStat.labelWidth, threeDigits.advanceWidth))
+
+    TextMetrics {
+        id:   threeDigits
+        font: personStat.valueFont
+        text: "999"
+    }
+
+    // The row and a 0.35 em margin either side of it.
+    implicitWidth:  row.implicitWidth + _em * 0.7
     implicitHeight: Math.max(ScreenTools.minTouchPixels, _em * 2.9)
 
     /// A dash for a count the module cannot give, a number for one it can.
@@ -153,14 +168,15 @@ Item {
         property string value
         property color  dot
 
-        // The card is given a width by the dashboard so it lines up with the telemetry bar under
-        // it; sharing that width out evenly is what lets the card be narrowed without the stats
-        // spilling past its edge.
-        Layout.fillWidth: true
+        readonly property real labelWidth: labelRow.implicitWidth
+        readonly property font valueFont:  valueText.font
+
+        Layout.preferredWidth: root._cellWidth
 
         spacing: root._em * 0.15
 
         Row {
+            id:                       labelRow
             anchors.horizontalCenter: parent.horizontalCenter
             spacing:                  root._em * 0.28
 
@@ -180,10 +196,16 @@ Item {
             }
         }
 
+        // The cell's own width, so a value wider than any count ("255+") steps its face down to
+        // fit rather than running into the divider. 0 to 999 fit at the set size and never shrink.
         Text {
+            id:                       valueText
             anchors.horizontalCenter: parent.horizontalCenter
+            width:                    parent.width
             height:                   root._valueHeight
+            horizontalAlignment:      Text.AlignHCenter
             verticalAlignment:        Text.AlignVCenter
+            fontSizeMode:             Text.HorizontalFit
             color:                    qgcPal.text
             // Every value on this strip is a count now, so the digit face is the only one left.
             font.family:              "Open Sans"
@@ -201,14 +223,20 @@ Item {
         opacity:                0.15
     }
 
+    // Centred at its own width rather than stretched to the card's. The card takes the telemetry
+    // bar's width, which the row under it rounds to a whole pixel, and that fraction shared out
+    // over the cells came back from the layout's own rounding as one cell a pixel wider than the
+    // rest. The fraction goes to the two margins instead.
     RowLayout {
         id:                  row
-        anchors.fill:        parent
-        anchors.leftMargin:  root._em * 0.35
-        anchors.rightMargin: root._em * 0.35
-        spacing:             root._em * 0.3
+        anchors.centerIn:    parent
+        // 0.3 em when each cell was only as wide as its own label. At the three-digit width that
+        // ran the card, and the bar that shares its width, under the 줌 and 열상 windows on the
+        // tablet.
+        spacing:             root._em * 0.25
 
         Stat {
+            id:    personStat
             label: qsTr("인원")
             value: root._live ? root._display(root._persons, root._personsSat) : "–"
             dot:   "#e0a800"
@@ -220,6 +248,7 @@ Item {
         // model's, and a module carrying a person-only model reads as a dash here rather than
         // vanishing and moving everything beside it.
         Stat {
+            id:    vehicleStat
             label: qsTr("차량")
             value: root._live ? root._display(root._vehicles, root._vehiclesSat) : "–"
             dot:   "#a78bfa"
@@ -228,6 +257,7 @@ Item {
         Divider {}
 
         Stat {
+            id:    boatStat
             label: qsTr("배")
             value: root._live ? root._display(root._boats, root._boatsSat) : "–"
             dot:   "#1f9fd0"
@@ -236,6 +266,7 @@ Item {
         Divider {}
 
         Stat {
+            id:    smokeStat
             label: qsTr("연기")
             value: root._live ? root._display(root._smokes, root._smokesSat) : "–"
             dot:   "#9aa5b1"
@@ -244,6 +275,7 @@ Item {
         Divider {}
 
         Stat {
+            id:    fireStat
             label: qsTr("화재")
             value: root._live ? root._display(root._fires, root._firesSat) : "–"
             dot:   "#ff5b3a"
