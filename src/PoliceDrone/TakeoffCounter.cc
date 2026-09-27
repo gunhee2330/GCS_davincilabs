@@ -73,6 +73,10 @@ void TakeoffCounter::_follow(Vehicle* vehicle)
     }
 
     _vehicle = vehicle;
+    if (!_takeoffTime.isEmpty()) {
+        _takeoffTime.clear();
+        emit takeoffTimeChanged();
+    }
     if (!_vehicle) {
         if (_count != 0) {
             _count = 0;
@@ -107,11 +111,14 @@ void TakeoffCounter::_armedChanged(bool armed)
 {
     // Arming opens a cycle and disarming closes one; the latch drops either way so the next
     // liftoff counts. Disarming in the air is also a landing, for an airframe that never sends one.
-    Q_UNUSED(armed);
     _markLanded();
     _airborneThisCycle = false;
     _airborneSinceMs = 0;
     _recordedThisCycle = false;
+    if (armed && !_takeoffTime.isEmpty()) {
+        _takeoffTime.clear();
+        emit takeoffTimeChanged();
+    }
 }
 
 void TakeoffCounter::_flyingChanged(bool flying)
@@ -140,9 +147,11 @@ void TakeoffCounter::_markAirborne()
     _inAir = true;
     _airborneThisCycle = true;
     _airborneSinceMs = QDateTime::currentMSecsSinceEpoch();
+    _takeoffTime = QDateTime::fromMSecsSinceEpoch(_airborneSinceMs).toString(Qt::ISODate);
     ++_count;
     _store();
     emit takeoffCountChanged();
+    emit takeoffTimeChanged();
     qCDebug(TakeoffCounterLog) << "takeoff" << _count << "for" << _settingsKey();
 }
 
@@ -163,7 +172,7 @@ void TakeoffCounter::_markLanded()
     // flightDistance is the vehicle's own count since it armed; it is zeroed by the next arm, not
     // by this landing, so a flicker's later landing reads the whole cycle's distance.
     const QVariantMap flight{
-        { QStringLiteral("takeoff"), QDateTime::fromMSecsSinceEpoch(_airborneSinceMs).toString(Qt::ISODate) },
+        { QStringLiteral("takeoff"), _takeoffTime },
         { QStringLiteral("seconds"), _lastFlightSeconds },
         { QStringLiteral("metres"),  _vehicle->flightDistance()->rawValue().toDouble() },
     };

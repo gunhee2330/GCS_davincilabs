@@ -196,4 +196,51 @@ void TakeoffCounterTest::_logIsLoadedAndKeepsLatestHundred_test()
     QCOMPARE(restarted.flights().first().toMap().value(QStringLiteral("metres")).toDouble(), 42.0);
 }
 
+void TakeoffCounterTest::_takeoffTimeIsFirstLiftoff_test()
+{
+    TakeoffCounter counter(nullptr);
+    counter.init();
+    QVERIFY(counter.takeoffTime().isEmpty());
+
+    mockLink()->setArmed(true);
+    QVERIFY_TRUE_WAIT(vehicle()->armed(), TestTimeout::mediumMs());
+    QVERIFY2(counter.takeoffTime().isEmpty(), "Arming on the pad set a takeoff time");
+
+    const QDateTime before = QDateTime::currentDateTime().addSecs(-1);
+    _setMockAltitude(kHoverM);
+    QVERIFY_TRUE_WAIT(vehicle()->flying(), TestTimeout::mediumMs());
+    const QString first = counter.takeoffTime();
+    const QDateTime takeoff = QDateTime::fromString(first, Qt::ISODate);
+    QVERIFY2(takeoff.isValid() && (takeoff >= before) && (takeoff <= QDateTime::currentDateTime()),
+             qPrintable(QStringLiteral("takeoffTime reads \"%1\" at the liftoff").arg(first)));
+    QTest::qWait(kFlightMs);
+
+    _setMockAltitude(0);
+    QVERIFY_TRUE_WAIT(!vehicle()->flying(), TestTimeout::mediumMs());
+    QCOMPARE(counter.flights().first().toMap().value(QStringLiteral("takeoff")).toString(), first);
+    QCOMPARE(counter.takeoffTime(), first);
+
+    // Up again in the same cycle, more than a second later: still the first liftoff.
+    _setMockAltitude(kHoverM);
+    QVERIFY_TRUE_WAIT(vehicle()->flying(), TestTimeout::mediumMs());
+    QCOMPARE(counter.takeoffTime(), first);
+    _setMockAltitude(0);
+    QVERIFY_TRUE_WAIT(!vehicle()->flying(), TestTimeout::mediumMs());
+
+    mockLink()->setArmed(false);
+    QVERIFY_TRUE_WAIT(!vehicle()->armed(), TestTimeout::mediumMs());
+    QCOMPARE(counter.takeoffTime(), first);
+    QCOMPARE(counter.flights().first().toMap().value(QStringLiteral("takeoff")).toString(), first);
+
+    QSignalSpy takeoffTimeSpy(&counter, &TakeoffCounter::takeoffTimeChanged);
+    QVERIFY(takeoffTimeSpy.isValid());
+    mockLink()->setArmed(true);
+    QVERIFY_TRUE_WAIT(vehicle()->armed(), TestTimeout::mediumMs());
+    QVERIFY2(counter.takeoffTime().isEmpty(), "The next arm kept the last cycle's takeoff time");
+    QCOMPARE(takeoffTimeSpy.count(), 1);
+
+    mockLink()->setArmed(false);
+    QVERIFY_TRUE_WAIT(!vehicle()->armed(), TestTimeout::mediumMs());
+}
+
 UT_REGISTER_TEST(TakeoffCounterTest, TestLabel::Integration, TestLabel::Vehicle)

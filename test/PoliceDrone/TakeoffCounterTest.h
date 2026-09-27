@@ -22,6 +22,10 @@ private slots:
     /// drops the oldest record to make room rather than growing past it.
     void _logIsLoadedAndKeepsLatestHundred_test();
 
+    /// takeoffTime is empty while armed on the pad, set at the first liftoff to the string the
+    /// record keeps, left alone by a second liftoff and the disarm, and cleared by the next arm.
+    void _takeoffTimeIsFirstLiftoff_test();
+
 private:
     /// Puts the mock at \a metres above home. MockLink has no landing: its takeoff handler arms
     /// and sets the altitude to home plus param7, so 0 sets it back on the pad. It reports

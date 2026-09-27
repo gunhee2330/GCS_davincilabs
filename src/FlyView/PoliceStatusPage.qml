@@ -26,9 +26,6 @@ ToolIndicatorPage {
     /// Arming is refused. The reasons are listed above the log when it is.
     property bool armBlocked: false
 
-    /// The arm instant as a Date, from the dashboard; shown while armed.
-    property var takeoffTime: null
-
     showExpand: false
 
     /// Seconds into HH:mm:ss, or an em dash before this airframe has completed a flight under
@@ -142,10 +139,12 @@ ToolIndicatorPage {
                     }
                 }
 
+                // The cycle's first liftoff, the string its flight record keeps: local ISO 8601, cut
+                // rather than parsed like the list below. Empty while armed on the pad.
                 LabelledLabel {
                     label:     qsTr("이륙 일시")
-                    labelText: page.takeoffTime ? Qt.formatDateTime(page.takeoffTime, "yyyy-MM-dd HH:mm:ss") : ""
-                    visible:   page._armed && page.takeoffTime !== null
+                    labelText: App.TakeoffCounter.takeoffTime.replace("T", " ")
+                    visible:   page._armed && App.TakeoffCounter.takeoffTime !== ""
                 }
 
                 LabelledLabel {

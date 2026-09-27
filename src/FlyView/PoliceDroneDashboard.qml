@@ -740,8 +740,9 @@ Item {
     // ------------------------------------------------------------------- flight log
     //
     // Procurement requires the operator to read the flight's date, duration and distance from
-    // the video screen in flight. Duration and distance are Vehicle facts; the wall-clock
-    // takeoff instant is not tracked anywhere, so it is captured here on the arm transition.
+    // the video screen in flight. Duration and distance are Vehicle facts; the banner times the
+    // flight from the arm instant, captured here on the arm transition. The drawer's takeoff
+    // date is TakeoffCounter's first liftoff instead, the one the flight record keeps.
     //
     // Deriving it from flightTime alone would jitter: that fact ticks once a second, so
     // now - flightTime lands on a different second each update.
@@ -843,7 +844,6 @@ Item {
 
         vehicle:        root._activeVehicle
         status:         root._status
-        takeoffTime:    root._takeoffTime
         lowestBattery:  root._lowestBattery
         batteryPercent: root._batteryPercent
         batteryColor:   root._batteryColor

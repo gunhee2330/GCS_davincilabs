@@ -35,6 +35,9 @@ class TakeoffCounter : public QObject
     /// Each is a map: takeoff (local ISO 8601 date and time of the first liftoff), seconds (as
     /// lastFlightSeconds) and metres (the vehicle's flightDistance when the flight was timed).
     Q_PROPERTY(QVariantList flights READ flights NOTIFY flightsChanged)
+    /// Local ISO 8601 date and time of this arm cycle's first liftoff, the very string its flight
+    /// record keeps as takeoff. Empty until the liftoff, and again from the next arm.
+    Q_PROPERTY(QString takeoffTime READ takeoffTime NOTIFY takeoffTimeChanged)
 
 public:
     /// No default argument: a default-constructible QML_SINGLETON is default-constructed by the
@@ -52,6 +55,7 @@ public:
     [[nodiscard]] int takeoffCount() const { return _count; }
     [[nodiscard]] int lastFlightSeconds() const { return _lastFlightSeconds; }
     [[nodiscard]] QVariantList flights() const { return _flights; }
+    [[nodiscard]] QString takeoffTime() const { return _takeoffTime; }
 
     static constexpr int kMaxFlights = 100;
 
@@ -59,6 +63,7 @@ signals:
     void takeoffCountChanged();
     void lastFlightSecondsChanged();
     void flightsChanged();
+    void takeoffTimeChanged();
 
 private slots:
     void _activeVehicleChanged(Vehicle* vehicle);
@@ -92,6 +97,8 @@ private:
     /// The station's own clock rather than a vehicle fact, for the same lifetime reason the
     /// dashboard times flights off its own: a Fact handed out by getFact() is destructible from QML.
     qint64 _airborneSinceMs = 0;
+    /// _airborneSinceMs as takeoffTime shows it. Unlike that, kept past the disarm.
+    QString _takeoffTime;
     /// In the air right now: set on the first liftoff and on every flying edge, cleared on landing.
     /// Not on altitude alone after that, since ground above home reads over 2 m. What keeps a
     /// disarm after the landing from timing the wait on the pad as flight.

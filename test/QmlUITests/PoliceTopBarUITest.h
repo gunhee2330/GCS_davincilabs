@@ -66,6 +66,11 @@ private slots:
     /// one takeoff, and its duration runs from the first liftoff to the last landing.
     void _testLandedFlickerIsOneFlight();
 
+    /// The drawer's 이륙 일시 is the first liftoff, not the arm: armed on the pad the row is off
+    /// the drawer, and the time it shows in the air is the takeoff of the flight record left by
+    /// the landing. Also the three captures, when a capture directory is set.
+    void _testTakeoffTimeIsFirstLiftoff();
+
     /// The one state with something to go and read: a refused arm paints the banner red, grows
     /// the chevron beside it and sends the operator to the drawer.
     void _testArmBlockedBanner();

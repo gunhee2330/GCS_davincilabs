@@ -1006,6 +1006,81 @@ void PoliceTopBarUITest::_testLandedFlickerIsOneFlight()
     });
 }
 
+void PoliceTopBarUITest::_testTakeoffTimeIsFirstLiftoff()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> mockLink, Vehicle *vehicle) {
+        startTakeoffCounter();
+        TakeoffCounter *const counter = TakeoffCounter::instance();
+
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        // The value beside the 이륙 일시 label, or a null string while the row is off the drawer.
+        const auto takeoffRow = [](QQuickItem *page) {
+            QQuickItem *const label = findVisibleItemWithExactText(page, QStringLiteral("이륙 일시"));
+            return label ? label->parentItem()->property("labelText").toString() : QString();
+        };
+
+        // Armed on the pad: the arm instant is not a takeoff.
+        mockLink->setArmed(true);
+        QVERIFY_TRUE_WAIT(vehicle->armed(), TestTimeout::mediumMs());
+        QVERIFY(!vehicle->flying());
+        QTest::qWait(kSettleMs);
+        if (!_openDrawerFrom(kBanner)) {
+            return;
+        }
+        QQuickItem *page = findVisibleItem(_rootItem, kStatusPage, 3000);
+        QVERIFY2(page, "The banner opened something other than the status page");
+        QVERIFY2(takeoffRow(page).isNull(),
+                 qPrintable(QStringLiteral("Armed on the pad the drawer reads 이륙 일시 %1").arg(takeoffRow(page))));
+        _grabIfCapturing(QStringLiteral("takeoff_0_drawer_armed_on_ground"));
+        QVERIFY2(_closeDrawer(), "The status drawer would not close");
+
+        // The flying transition creates QGCPressure, which warns on hosts without a backend.
+        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
+                         QRegularExpression(QStringLiteral("Failed to connect to pressure backend")));
+        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
+                         QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
+
+        // Up to 1.5 m and back to 0, the way _testFlightLogListsFlightsNewestFirst flies the mock.
+        vehicle->sendMavCommand(vehicle->defaultComponentId(), MAV_CMD_NAV_TAKEOFF, false, 0, 0, 0, 0, 0, 0, 1.5f);
+        QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::mediumMs());
+        if (!_openDrawerFrom(kBanner)) {
+            return;
+        }
+        page = findVisibleItem(_rootItem, kStatusPage, 3000);
+        QVERIFY2(page, "The banner opened something other than the status page");
+        const QString inFlight = takeoffRow(page);
+        QVERIFY2(QRegularExpression(QStringLiteral("^\\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d$")).match(inFlight).hasMatch(),
+                 qPrintable(QStringLiteral("In the air the drawer reads 이륙 일시 \"%1\"").arg(inFlight)));
+        _grabIfCapturing(QStringLiteral("takeoff_1_drawer_in_flight"));
+        QVERIFY2(_closeDrawer(), "The status drawer would not close");
+
+        vehicle->sendMavCommand(vehicle->defaultComponentId(), MAV_CMD_NAV_TAKEOFF, false, 0, 0, 0, 0, 0, 0, 0.0f);
+        QVERIFY_TRUE_WAIT(!vehicle->flying(), TestTimeout::mediumMs());
+        QVERIFY2(!counter->flights().isEmpty(), "The landing left no flight record");
+        const QString record = counter->flights().first().toMap().value(QStringLiteral("takeoff")).toString();
+        QCOMPARE(inFlight, QString(record).replace(QLatin1Char('T'), QLatin1Char(' ')));
+
+        // Landed and still armed: the row and the record side by side, the same instant.
+        if (!_openDrawerFrom(kBanner)) {
+            return;
+        }
+        page = findVisibleItem(_rootItem, kStatusPage, 3000);
+        QVERIFY2(page, "The banner opened something other than the status page");
+        QCOMPARE(takeoffRow(page), inFlight);
+        QVERIFY2(findVisibleItem(_rootItem, kFlightList, 3000), "The drawer shows no flight list after the landing");
+        _grabIfCapturing(QStringLiteral("takeoff_2_drawer_landed_record"));
+        QVERIFY2(_closeDrawer(), "The status drawer would not close");
+
+        mockLink->setArmed(false);
+        QVERIFY_TRUE_WAIT(!vehicle->armed(), TestTimeout::mediumMs());
+    });
+}
+
 void PoliceTopBarUITest::_testArmBlockedBanner()
 {
     _ignorePreexistingQmlWarnings();
