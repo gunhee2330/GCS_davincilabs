@@ -1976,13 +1976,14 @@ Item {
     //
     // QGC's own map scale, which stock hosts in FlyViewWidgetLayer and so went with it; the
     // picture-in-picture one inside FlyViewMap was never lost. Same visibility rule as stock.
-    // Bottom left, a stock margin above the forward window's dock and the detection card, and
-    // right of the tool strip and the lidar glow's left band. Counted off the dock arithmetic,
-    // not off the forward window, which the operator can drag away.
+    // Bottom left, a stock margin above the forward window's dock and the detection card, and on
+    // the left column's own inset, the one the tool strip and the forward window stand on; the
+    // lidar glow's left band may light behind it. Counted off the dock arithmetic, not off the
+    // forward window, which the operator can drag away.
     MapScale {
         // Read by the layout test.
         objectName: "policeMapScale"
-        x:          Math.max(toolStrip.x + toolStrip.width, obstacleGlow._thickness) + root._toolsMargin
+        x:          toolStrip.x
         y:          Math.min(aiPanel.y, root.height - root._bottomInset - root._windowWidth * 9 / 16)
                         - height - root._toolsMargin
         mapControl: root.mapItem

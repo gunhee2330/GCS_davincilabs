@@ -1127,19 +1127,6 @@ void PoliceGuidedActionUITest::_testMapScale()
             items.insert(name, item);
         }
 
-        // The glow is up only while the lidar talks, but its four bands are laid out regardless,
-        // and where they would light is where the scale must not be.
-        QQuickItem *const glow = dashboard->findChild<QQuickItem *>(kGlow);
-        QVERIFY2(glow, "The lidar glow is not in the dashboard");
-        QList<QQuickItem *> bands;
-        const QList<QQuickItem *> glowChildren = glow->childItems();
-        for (QQuickItem *const child : glowChildren) {
-            if (child->property("_alongY").isValid()) {
-                bands.append(child);
-            }
-        }
-        QCOMPARE(bands.size(), 4);
-
         // Stock autohides the full-map scale three seconds after the map last moved and brings
         // it back on the next change. An operator's zoom, then the grab straight after.
         QVERIFY(map->setProperty("zoomLevel", map->property("zoomLevel").toReal() - 1));
@@ -1159,27 +1146,21 @@ void PoliceGuidedActionUITest::_testMapScale()
         const QRectF forward = sceneRect(items[kForwardWindow]);
         const QRectF card    = sceneRect(items[kAiPanel]);
         const QRectF left    = sceneRect(items[kGuidedStrip]);
-        QRectF leftBand;
-        for (QQuickItem *const band : bands) {
-            const QRectF r = sceneRect(band);
-            if (!band->property("_alongY").toBool() && (r.left() <= screen.left() + kEdgeSlack)) {
-                leftBand = r;
-            }
-        }
-        QVERIFY2(!leftBand.isNull(), "The lidar glow has no left band");
         QVERIFY2(rect.width() > 0 && rect.height() > 0,
                  qPrintable(QStringLiteral("The map scale is %1").arg(QDebug::toString(rect))));
 
-        // Bottom left: the stock margin right of the tool strip or the lidar band's inner edge,
-        // whichever reaches further in, and the same margin above the forward window or the
-        // detection card, whichever stands taller.
+        // Bottom left: on the left column's inset, the one the tool strip and the forward window
+        // stand on, and the stock margin above the forward window or the detection card,
+        // whichever stands taller. The lidar glow's left band may light behind it.
         const qreal margin = dashboard->property("_toolsMargin").toReal();
         QVERIFY(margin > 0);
-        const qreal leftEdge = qMax(left.right(), leftBand.right());
-        const qreal floor    = qMin(forward.top(), card.top());
-        QVERIFY2(qAbs(rect.left() - (leftEdge + margin)) <= kEdgeSlack,
-                 qPrintable(QStringLiteral("Map scale left %1 is not a %2 margin right of %3")
-                                .arg(rect.left()).arg(margin).arg(leftEdge)));
+        const qreal floor = qMin(forward.top(), card.top());
+        QVERIFY2(qAbs(rect.left() - left.left()) <= kEdgeSlack,
+                 qPrintable(QStringLiteral("Map scale left %1 is not the tool strip's left %2")
+                                .arg(rect.left()).arg(left.left())));
+        QVERIFY2(qAbs(rect.left() - forward.left()) <= kEdgeSlack,
+                 qPrintable(QStringLiteral("Map scale left %1 is not the forward window's left %2")
+                                .arg(rect.left()).arg(forward.left())));
         QVERIFY2(qAbs(rect.bottom() - (floor - margin)) <= kEdgeSlack,
                  qPrintable(QStringLiteral("Map scale bottom %1 is not a %2 margin above %3")
                                 .arg(rect.bottom()).arg(margin).arg(floor)));
@@ -1187,7 +1168,7 @@ void PoliceGuidedActionUITest::_testMapScale()
                  qPrintable(QStringLiteral("Map scale %1 is not on the map below the top bar")
                                 .arg(QDebug::toString(rect))));
 
-        QList<QPair<QString, QRectF>> blocks {
+        const QList<QPair<QString, QRectF>> blocks {
             { QStringLiteral("forward window"),     forward },
             { QStringLiteral("zoom window"),        sceneRect(items[kZoomWindow]) },
             { QStringLiteral("thermal window"),     sceneRect(items[kThermalWindow]) },
@@ -1197,9 +1178,6 @@ void PoliceGuidedActionUITest::_testMapScale()
             { QStringLiteral("guided tool strip"),  left },
             { QStringLiteral("camera tool strip"),  sceneRect(items[kCameraStrip]) },
         };
-        for (int i = 0; i < bands.size(); ++i) {
-            blocks.append({ QStringLiteral("lidar band %1").arg(i), sceneRect(bands[i]) });
-        }
         for (const auto &block : blocks) {
             QVERIFY2(!rect.intersects(block.second),
                      qPrintable(QStringLiteral("Map scale %1 overlaps the %2 %3")
@@ -1240,6 +1218,25 @@ void PoliceGuidedActionUITest::_testMapScale()
     });
     QTest::qWait(kSettleMs);
     checkScale(QStringLiteral("map_scale_1_connected"));
+    if (QTest::currentTestFailed()) {
+        return;
+    }
+
+    // Now that the scale shares the strip's column, the strip at its tallest must still stop
+    // above it: in flight 착륙, 복귀 and 일시정지 appear and 이륙 goes away. PX4 sends the takeoff
+    // altitude as AMSL and refuses until it is known; the flying transition creates QGCPressure,
+    // which warns on hosts without a pressure backend.
+    QVERIFY_TRUE_WAIT(!qIsNaN(vehicle->altitudeAMSL()->rawValue().toDouble()), TestTimeout::longMs());
+    ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
+                     QRegularExpression(QStringLiteral("Failed to connect to pressure backend")));
+    ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
+                     QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
+    QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
+    QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000), "Confirm control never appeared");
+    QVERIFY(_holdButton(kConfirmButton));
+    QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
+    QTest::qWait(kSettleMs);
+    checkScale(QStringLiteral("map_scale_2_flying"));
 }
 
 void PoliceGuidedActionUITest::_testStateChipColours()
