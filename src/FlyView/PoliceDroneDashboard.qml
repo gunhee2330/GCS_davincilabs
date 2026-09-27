@@ -1135,6 +1135,7 @@ Item {
             FlyViewAdditionalActionsButton { text: qsTr("동작") },
             FlyViewGripperButton           { text: qsTr("그리퍼") },
             ToolStripAction {
+                objectName:         "policeToolRtlAlt"
                 text:               qsTr("복귀고도")
                 iconSource:         "qrc:/InstrumentValueIcons/home.svg"
                 // Ternary rather than &&: the controller is null before the guided layer is
@@ -1999,6 +2000,7 @@ Item {
         id: rtlAltComponent
 
         ColumnLayout {
+            objectName: "policeRtlAltPanel"
             spacing: 6
 
             onVisibleChanged: customAltField.text = ""

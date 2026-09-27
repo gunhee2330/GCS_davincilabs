@@ -42,6 +42,8 @@ const QString kConfirmHost = QStringLiteral("policeGuidedConfirmHost");
 /// Tool strip entries. ToolStripHoverButton takes its objectName from the action's.
 const QString kTakeoffButton      = QStringLiteral("policeToolTakeoff");
 const QString kStartMissionButton = QStringLiteral("policeToolStartMission");
+const QString kRtlAltButton       = QStringLiteral("policeToolRtlAlt");
+const QString kRtlAltPanel        = QStringLiteral("policeRtlAltPanel");
 
 const QString kSlider    = QStringLiteral("guidedValueSlider");
 const QString kDashboard = QStringLiteral("policeDroneDashboard");
@@ -770,6 +772,48 @@ void PoliceGuidedActionUITest::_testMissionStartFromToolStrip()
                           TestTimeout::longMs());
         QVERIFY2(mockLink->receivedMavlinkMessageCount(MAVLINK_MSG_ID_SET_MODE) > 0,
                  "Mission start armed the vehicle without asking for the mission flight mode");
+    });
+}
+
+void PoliceGuidedActionUITest::_testRtlAltitudeFromToolStrip()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        // Stock showRTL is false on the ground, and the entry follows it.
+        QVERIFY(verifyEnabled(kRtlAltButton, false, QStringLiteral("on the ground")));
+
+        // PX4 sends the takeoff altitude as AMSL and refuses until it is known; the flying
+        // transition creates QGCPressure, which warns on hosts without a pressure backend.
+        QVERIFY_TRUE_WAIT(!qIsNaN(vehicle->altitudeAMSL()->rawValue().toDouble()), TestTimeout::longMs());
+        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
+                         QRegularExpression(QStringLiteral("Failed to connect to pressure backend")));
+        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
+                         QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
+        QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
+        QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000), "Confirm control never appeared");
+        QVERIFY(_holdButton(kConfirmButton));
+        QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
+        QTest::qWait(kSettleMs);
+
+        // The regression: the entry stayed greyed in flight because the dashboard was handed
+        // its own undefined controller rather than the fly view's.
+        QVERIFY(verifyEnabled(kRtlAltButton, true, QStringLiteral("in flight")));
+        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+            _grab(QStringLiteral("rtl_alt_0_strip_flying"));
+            if (QTest::currentTestFailed()) return;
+        }
+
+        QVERIFY2(!findVisibleItem(_rootItem, kRtlAltPanel, 0), "Return altitude panel was open before the tap");
+        QVERIFY2(clickButton(kRtlAltButton), "Could not click the 복귀고도 tool strip entry");
+        QVERIFY2(findVisibleItem(_rootItem, kRtlAltPanel, 3000), "Return altitude panel never opened");
+        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+            _grab(QStringLiteral("rtl_alt_1_panel"));
+        }
     });
 }
 

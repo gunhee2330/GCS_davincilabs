@@ -208,7 +208,7 @@ Item {
 
         PoliceDroneDashboard {
             anchors.fill:     parent
-            guidedController: _guidedController
+            guidedController: guidedActionsController
             // The dashboard mirrors the map into a picture-in-picture while a camera is
             // full screen; it needs the live item, not a second map.
             mapItem:          _mapControl

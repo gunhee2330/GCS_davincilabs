@@ -33,6 +33,11 @@ private slots:
     /// holding it starts the mission.
     void _testMissionStartFromToolStrip();
 
+    /// 복귀고도 follows the guided controller's showRTL: greyed on the ground, live in flight,
+    /// and a tap in flight opens the return altitude panel. Grabs rtl_alt_0_strip_flying and
+    /// rtl_alt_1_panel when QGC_SCREENSHOT_DIR is set.
+    void _testRtlAltitudeFromToolStrip();
+
     /// Capture slot. Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureGuidedScreens();
 
