@@ -1286,7 +1286,6 @@ Item {
             ToolStripAction {
                 text:        App.SpeakerController.playing ? qsTr("방송정지") : qsTr("경고방송")
                 iconSource:  "/qmlimages/Megaphone.svg"
-                visible:     QGroundControl.settingsManager.speakerSettings.enabled.rawValue
                 enabled:     App.SpeakerController.connected
                 onTriggered: (source) => {
                     if (App.SpeakerController.playing) {

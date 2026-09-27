@@ -10917,6 +10917,12 @@
       <translation>카메라 설정</translation>
     </message>
     <message>
+      <extracomment>.groups[Loudspeaker Payload].heading</extracomment>
+      <location filename="../src/AppSettings/pages/Video.SettingsUI.json"/>
+      <source>Loudspeaker Payload</source>
+      <translation>스피커 설정</translation>
+    </message>
+    <message>
       <extracomment>.groups[Video Source].heading</extracomment>
       <location filename="/home/runner/work/qgroundcontrol/qgroundcontrol/src/AppSettings/pages/Video.SettingsUI.json"/>
       <source>Video Source</source>

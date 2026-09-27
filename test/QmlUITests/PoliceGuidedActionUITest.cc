@@ -34,6 +34,7 @@
 #include "SiyiAiProtocol.h"
 #include "SiyiCameraSettings.h"
 #include "SiyiLongProtocol.h"
+#include "SpeakerSettings.h"
 #include "Vehicle.h"
 #include "VehicleLinkManager.h"
 
@@ -823,6 +824,39 @@ void PoliceGuidedActionUITest::_testRtlAltitudeFromToolStrip()
         QVERIFY2(findVisibleItem(_rootItem, kRtlAltPanel, 3000), "Return altitude panel never opened");
         if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
             _grab(QStringLiteral("rtl_alt_1_panel"));
+        }
+    });
+}
+
+void PoliceGuidedActionUITest::_testBroadcastActionAlwaysShown()
+{
+    _ignorePreexistingQmlWarnings();
+
+    // Off, to prove the switch no longer hides the entry, and back to what it was afterwards.
+    Fact *const speakerEnabled = SettingsManager::instance()->speakerSettings()->enabled();
+    QVERIFY2(speakerEnabled->rawValue().toBool(), "The speaker is not on by default");
+    speakerEnabled->setRawValue(false);
+    const auto restore = qScopeGuard([speakerEnabled] { speakerEnabled->setRawValue(true); });
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const strip = findVisibleItem(_rootItem, kCameraStrip, 5000);
+        QVERIFY2(strip, "Camera tool strip is not on screen");
+        QList<QQuickItem *> entries;
+        collectStripEntries(strip, entries);
+        QQuickItem *broadcast = nullptr;
+        for (QQuickItem *const entry : entries) {
+            if (entry->property("text").toString() == QStringLiteral("경고방송")) {
+                broadcast = entry;
+            }
+        }
+        QVERIFY2(broadcast, "경고방송 is not on the camera grid with the speaker switch off");
+        QVERIFY2(!broadcast->isEnabled(), "경고방송 is live with no speaker answering");
+        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+            _grab(QStringLiteral("speaker_0_right_rail"));
         }
     });
 }

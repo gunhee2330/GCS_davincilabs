@@ -4,11 +4,11 @@
     "QGC.MetaData.Facts": [
         {
             "name": "enabled",
-            "shortDesc": "Enable loudspeaker payload",
+            "shortDesc": "Enable speaker",
             "longDesc": "Control a loudspeaker payload that answers on the aircraft network. The payload stores the audio files; the ground station only selects which one to play.",
             "type": "bool",
-            "default": false,
-            "label": "Enable loudspeaker payload",
+            "default": true,
+            "label": "Enable speaker",
             "keywords": "speaker,broadcast,loudspeaker,payload,warning"
         },
         {

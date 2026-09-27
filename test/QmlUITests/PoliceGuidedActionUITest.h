@@ -100,6 +100,11 @@ private slots:
     /// detection_card_2_screen and detection_card_3_ceiling when QGC_SCREENSHOT_DIR is set.
     void _testDetectionCardCells();
 
+    /// 경고방송 is on the camera grid whatever the speaker switch says, and greyed while no
+    /// speaker answers. The switch is on by default. Grabs speaker_0_right_rail when
+    /// QGC_SCREENSHOT_DIR is set.
+    void _testBroadcastActionAlwaysShown();
+
 private:
     /// Pre-existing QML warnings that the strict log check would otherwise fail on.
     void _ignorePreexistingQmlWarnings();

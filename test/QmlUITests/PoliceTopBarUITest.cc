@@ -1780,6 +1780,38 @@ void PoliceTopBarUITest::_captureCameraNaming()
     });
 }
 
+void PoliceTopBarUITest::_captureSpeakerNaming()
+{
+    if (qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+        QSKIP("QGC_SCREENSHOT_DIR is not set");
+    }
+
+    _ignorePreexistingQmlWarnings();
+
+    startUI();
+    if (QTest::currentTestFailed()) return;
+
+    _window->resize(kLayoutWidth, kLayoutHeight);
+    QTest::qWait(kSettleMs);
+
+    // The heading's English source stays; the Korean catalogue reads it 스피커 설정
+    QVERIFY2(QMetaObject::invokeMethod(_window, "showSettingsTool", Q_ARG(QVariant, QVariant(QStringLiteral("Video")))),
+             "showSettingsTool is not invokable");
+    QQuickItem *const pageFlick = findVisibleItem(_rootItem, QStringLiteral("settingsPageFlickable"), 5000);
+    QVERIFY2(pageFlick, "The Video page has no flickable");
+    QTest::qWait(kSettleMs);
+    QQuickItem *const group = findVisibleItem(pageFlick, QStringLiteral("settingsGroup_LoudspeakerPayload"), 5000);
+    QVERIFY2(group, "The Video page has no speaker section");
+    if (QLocale().language() == QLocale::Korean) {
+        QVERIFY2(findVisibleItemWithExactText(group, QStringLiteral("스피커 설정")), "The speaker section is not headed 스피커 설정");
+    }
+    QQuickItem *const content = pageFlick->property("contentItem").value<QQuickItem *>();
+    const qreal maxY = qMax(0.0, pageFlick->property("contentHeight").toReal() - pageFlick->height());
+    pageFlick->setProperty("contentY", qBound(0.0, group->mapToItem(content, QPointF(0, 0)).y(), maxY));
+    _grab(QStringLiteral("speaker_1_video_settings"));
+    stopUI();
+}
+
 void PoliceTopBarUITest::_testSettingsSwitchTouchTarget()
 {
     _ignorePreexistingQmlWarnings();

@@ -122,6 +122,10 @@ private slots:
     /// Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureCameraNaming();
 
+    /// The 영상 page's speaker section is headed 스피커 설정. Also the capture. Skipped unless
+    /// QGC_SCREENSHOT_DIR is set.
+    void _captureSpeakerNaming();
+
     /// A settings switch answers a tap anywhere in a finger's minimum around its drawn pill, the
     /// tablet's figure, while the pill and its row keep the mockup's size.
     void _testSettingsSwitchTouchTarget();
