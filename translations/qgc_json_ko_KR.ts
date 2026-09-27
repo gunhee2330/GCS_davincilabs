@@ -10911,6 +10911,12 @@
   <context>
     <name>Video.SettingsUI.json</name>
     <message>
+      <extracomment>.groups[SIYI Camera Control].heading</extracomment>
+      <location filename="../src/AppSettings/pages/Video.SettingsUI.json"/>
+      <source>SIYI Camera Control</source>
+      <translation>카메라 설정</translation>
+    </message>
+    <message>
       <extracomment>.groups[Video Source].heading</extracomment>
       <location filename="/home/runner/work/qgroundcontrol/qgroundcontrol/src/AppSettings/pages/Video.SettingsUI.json"/>
       <source>Video Source</source>

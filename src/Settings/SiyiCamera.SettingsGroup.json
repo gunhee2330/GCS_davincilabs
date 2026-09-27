@@ -4,17 +4,17 @@
     "QGC.MetaData.Facts": [
         {
             "name": "enabled",
-            "shortDesc": "Enable SIYI camera control",
-            "longDesc": "Control a SIYI optical pod (ZT30, ZT6, ZR30, ZR10, A8) directly over its own Ethernet link using the SIYI SDK protocol. The ground station must share a network with the camera. On this airframe a ZT30 is always fitted, so this is on by default; with no pod answering the controller simply reports it as disconnected. Video is configured separately under Video settings.",
+            "shortDesc": "Enable camera control",
+            "longDesc": "Control an optical pod (ZT30, ZT6, ZR30, ZR10, A8) directly over its own Ethernet link using the SDK protocol. The ground station must share a network with the camera. On this airframe a ZT30 is always fitted, so this is on by default; with no pod answering the controller simply reports it as disconnected. Video is configured separately under Video settings.",
             "type": "bool",
             "default": true,
-            "label": "Enable SIYI camera control",
+            "label": "Enable camera control",
             "keywords": "siyi,zt30,gimbal,camera,payload"
         },
         {
             "name": "ipAddress",
             "shortDesc": "Camera IP address",
-            "longDesc": "IP address of the SIYI optical pod. The SIYI factory default is 192.168.144.25; on this airframe the pod is readdressed to 192.168.144.26 so the FPV camera can keep .25.",
+            "longDesc": "IP address of the optical pod. The factory default is 192.168.144.25; on this airframe the pod is readdressed to 192.168.144.26 so the FPV camera can keep .25.",
             "type": "string",
             "default": "192.168.144.26",
             "label": "Camera IP address",
@@ -23,7 +23,7 @@
         {
             "name": "port",
             "shortDesc": "Camera SDK port",
-            "longDesc": "UDP port the SIYI pod listens on for SDK commands. Factory default is 37260.",
+            "longDesc": "UDP port the pod listens on for SDK commands. Factory default is 37260.",
             "type": "uint32",
             "default": 37260,
             "min": 1,
@@ -43,17 +43,17 @@
         },
         {
             "name": "aiEnabled",
-            "shortDesc": "Enable SIYI AI tracking module",
-            "longDesc": "Talk to a SIYI AI tracking module on its own Ethernet address. The module is separate hardware between the optical pod and the SIYI link; it recognises and tracks one selected target (person, car, bus, truck). Enabling it also moves the main video window onto the module's own RTSP feed, which is where tap-to-track has to happen: the target the operator picks is only meaningful in the frame the module itself sees, and a tap on the pod's own stream lands somewhere else in the module's picture. Off by default all the same, because on this airframe the module answers RTSP DESCRIBE but sends no media - turning it on before that is fixed replaces the working pod stream with a black window.",
+            "shortDesc": "Enable AI tracking module",
+            "longDesc": "Talk to an AI tracking module on its own Ethernet address. The module is separate hardware between the optical pod and the link; it recognises and tracks one selected target (person, car, bus, truck). Enabling it also moves the main video window onto the module's own RTSP feed, which is where tap-to-track has to happen: the target the operator picks is only meaningful in the frame the module itself sees, and a tap on the pod's own stream lands somewhere else in the module's picture. Off by default all the same, because on this airframe the module answers RTSP DESCRIBE but sends no media - turning it on before that is fixed replaces the working pod stream with a black window.",
             "type": "bool",
             "default": false,
-            "label": "Enable SIYI AI tracking module",
+            "label": "Enable AI tracking module",
             "keywords": "siyi,ai,tracking,recognition"
         },
         {
             "name": "aiIpAddress",
             "shortDesc": "AI module IP address",
-            "longDesc": "IP address of the SIYI AI tracking module. Factory default is 192.168.144.60.",
+            "longDesc": "IP address of the AI tracking module. Factory default is 192.168.144.60.",
             "type": "string",
             "default": "192.168.144.60",
             "label": "AI module IP address",
@@ -62,7 +62,7 @@
         {
             "name": "aiPort",
             "shortDesc": "AI module SDK port",
-            "longDesc": "UDP port the SIYI AI tracking module listens on. Factory default is 37260.",
+            "longDesc": "UDP port the AI tracking module listens on. Factory default is 37260.",
             "type": "uint32",
             "default": 37260,
             "min": 1,
@@ -83,7 +83,7 @@
         {
             "name": "fpvRtspUrl",
             "shortDesc": "RTSP address of the FPV camera on the air unit LAN2 port.",
-            "longDesc": "RTSP address of the forward-looking FPV camera on the air unit's LAN2 port. Left empty the FPV window stays closed. On this airframe the FPV camera keeps the SIYI default 192.168.144.25 and the pod moved to .26; a third-party camera uses its own address. Probed on the airframe: this camera answers /main.264, and every video0/video1/video2 path 404s - those belong to the pod and the AI module.",
+            "longDesc": "RTSP address of the forward-looking FPV camera on the air unit's LAN2 port. Left empty the FPV window stays closed. On this airframe the FPV camera keeps the default 192.168.144.25 and the pod moved to .26; a third-party camera uses its own address. Probed on the airframe: this camera answers /main.264, and every video0/video1/video2 path 404s - those belong to the pod and the AI module.",
             "type": "string",
             "default": "rtsp://192.168.144.25:8554/main.264",
             "label": "FPV camera RTSP URL",

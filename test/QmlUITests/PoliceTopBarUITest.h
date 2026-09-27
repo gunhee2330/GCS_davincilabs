@@ -117,6 +117,11 @@ private slots:
     /// light scheme. Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureSettingsDark();
 
+    /// The pod is named 카메라 설정 wherever the operator meets it: the right rail 카메라 panel's
+    /// title with no pod answering, and the 영상 page's section heading. Also the two captures.
+    /// Skipped unless QGC_SCREENSHOT_DIR is set.
+    void _captureCameraNaming();
+
     /// A settings switch answers a tap anywhere in a finger's minimum around its drawn pill, the
     /// tablet's figure, while the pill and its row keep the mockup's size.
     void _testSettingsSwitchTouchTarget();

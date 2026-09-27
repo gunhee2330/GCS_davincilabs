@@ -2,7 +2,7 @@ import QGroundControl
 import QGroundControl.Controls
 
 ToolStripAction {
-    text:       qsTr("SIYI")
+    text:       qsTr("카메라 설정")
     iconSource: "/qmlimages/camera_photo.svg"
     visible:    QGroundControl.settingsManager.siyiCameraSettings.userVisible
                 && QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue

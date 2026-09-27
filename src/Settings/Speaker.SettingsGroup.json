@@ -14,7 +14,7 @@
         {
             "name": "ipAddress",
             "shortDesc": "Loudspeaker IP address",
-            "longDesc": "Where the ground station sends loudspeaker commands. On the SIYI datalink this is the controller's local UDP bridge (loopback), which forwards them to the payload over the air unit serial link.",
+            "longDesc": "Where the ground station sends loudspeaker commands. On the datalink this is the controller's local UDP bridge (loopback), which forwards them to the payload over the air unit serial link.",
             "type": "string",
             "default": "127.0.0.1",
             "label": "Loudspeaker IP address",
@@ -23,7 +23,7 @@
         {
             "name": "port",
             "shortDesc": "Loudspeaker command port",
-            "longDesc": "UDP port for loudspeaker commands. On the SIYI datalink this is the controller's local bridge port (19856).",
+            "longDesc": "UDP port for loudspeaker commands. On the datalink this is the controller's local bridge port (19856).",
             "type": "uint32",
             "default": 19856,
             "min": 1,

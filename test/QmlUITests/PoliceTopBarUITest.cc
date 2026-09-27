@@ -1732,6 +1732,54 @@ void PoliceTopBarUITest::_captureSettingsDark()
     });
 }
 
+void PoliceTopBarUITest::_captureCameraNaming()
+{
+    if (qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+        QSKIP("QGC_SCREENSHOT_DIR is not set");
+    }
+
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        // The right rail's 카메라 opens the pod panel. No pod answers here, so the title has no
+        // model to show and falls back to its own name
+        QQuickItem *const cameraEntry = findVisibleItemWithExactText(_rootItem, QStringLiteral("카메라"));
+        QVERIFY2(cameraEntry && cameraEntry->property("toolStripAction").isValid(), "The right rail has no 카메라 entry");
+        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier,
+                          cameraEntry->mapToScene(QPointF(cameraEntry->width() / 2, cameraEntry->height() / 2)).toPoint());
+        QVERIFY2(waitForCondition([this] { return findVisibleItemWithExactText(_rootItem, QStringLiteral("카메라 설정")) != nullptr; },
+                                  5000, QStringLiteral("camera panel titled 카메라 설정")),
+                 "The camera panel is not titled 카메라 설정");
+        QVERIFY2(!subtreeHasText(_rootItem, QStringLiteral("SIYI")), "The fly view still shows SIYI");
+        _grab(QStringLiteral("camera_1_fly_panel"));
+        if (QTest::currentTestFailed()) return;
+        QTest::keyClick(_window, Qt::Key_Escape);
+
+        // The 영상 page scrolled to the pod's section. The heading's source string names the
+        // group's objectName, so it reads 카메라 설정 through the Korean catalogue
+        QVERIFY2(QMetaObject::invokeMethod(_window, "showSettingsTool", Q_ARG(QVariant, QVariant(QStringLiteral("Video")))),
+                 "showSettingsTool is not invokable");
+        QQuickItem *const pageFlick = findVisibleItem(_rootItem, QStringLiteral("settingsPageFlickable"), 5000);
+        QVERIFY2(pageFlick, "The Video page has no flickable");
+        // The groups hidden by the page's own bindings drop out only once it settles
+        QTest::qWait(kSettleMs);
+        QQuickItem *const group = findVisibleItem(pageFlick, QStringLiteral("settingsGroup_SIYICameraControl"), 5000);
+        QVERIFY2(group, "The Video page has no camera section");
+        if (QLocale().language() == QLocale::Korean) {
+            QVERIFY2(findVisibleItemWithExactText(group, QStringLiteral("카메라 설정")), "The camera section is not headed 카메라 설정");
+            QVERIFY2(!subtreeHasText(pageFlick, QStringLiteral("SIYI")), "The Video page still shows SIYI");
+        }
+        QQuickItem *const content = pageFlick->property("contentItem").value<QQuickItem *>();
+        const qreal maxY = qMax(0.0, pageFlick->property("contentHeight").toReal() - pageFlick->height());
+        pageFlick->setProperty("contentY", qBound(0.0, group->mapToItem(content, QPointF(0, 0)).y(), maxY));
+        _grab(QStringLiteral("camera_0_video_settings"));
+    });
+}
+
 void PoliceTopBarUITest::_testSettingsSwitchTouchTarget()
 {
     _ignorePreexistingQmlWarnings();

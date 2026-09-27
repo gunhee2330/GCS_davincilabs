@@ -38,7 +38,7 @@ ColumnLayout {
         Layout.fillWidth: true
 
         QGCLabel {
-            text: SiyiCameraController.model !== "" ? SiyiCameraController.model : qsTr("SIYI")
+            text: SiyiCameraController.model !== "" ? SiyiCameraController.model : qsTr("카메라 설정")
             font.bold: true
         }
 
