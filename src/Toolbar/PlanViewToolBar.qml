@@ -47,7 +47,7 @@ Rectangle {
         id: qgcButton
         objectName: "toolbar_qgcLogo"
         anchors.left: menuButton.right
-        anchors.leftMargin: PoliceBar.margin
+        anchors.leftMargin: PoliceBar.logoGap
         height: parent.height
         leftPadding: 0
         rightPadding: 0

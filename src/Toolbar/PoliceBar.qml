@@ -45,10 +45,15 @@ QtObject {
     readonly property rect logoMarkRect: Qt.rect(0, 0, 346, 270)
     readonly property real logoMarkWidth: logoHeight * logoMarkRect.width / logoMarkRect.height
 
-    /// The leading run every bar starts with - a margin, the menu button, then the same gap
-    /// again before the brand mark. Shared because the mark was starting in three different
-    /// places across the four views, and a mark that jumps as the view changes is the one thing
-    /// on the bar the eye is guaranteed to be looking at while it does.
+    /// The leading run every bar starts with - a margin, the menu button, then logoGap before the
+    /// brand mark. Shared because the mark was starting in three different places across the four
+    /// views, and a mark that jumps as the view changes is the one thing on the bar the eye is
+    /// guaranteed to be looking at while it does.
+    /// logoGap is ten logical px short of the margin because the owner found the mark too far
+    /// right. It can come out negative: the menu glyph sits at the button's left end, so the mark
+    /// then overlaps only the empty right end of the button, and on the bars where the mark is a
+    /// button of its own that strip opens the same tool list.
     readonly property real margin:          Math.round(ScreenTools.defaultFontPixelWidth)
     readonly property real menuButtonWidth: Math.max(iconSize + (margin * 2), ScreenTools.minTouchPixels)
+    readonly property real logoGap:         margin - 10
 }

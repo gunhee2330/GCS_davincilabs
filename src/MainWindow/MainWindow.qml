@@ -488,6 +488,7 @@ ApplicationWindow {
                 QGCToolBarButton {
                     id: qgcButton
                     objectName: "toolbar_qgcLogo"
+                    Layout.leftMargin: PoliceBar.logoGap - PoliceBar.margin
                     height: parent.height
                     leftPadding: 0
                     rightPadding: 0

@@ -210,6 +210,7 @@ Rectangle {
         }
 
         Image {
+            Layout.leftMargin:      PoliceBar.logoGap - PoliceBar.margin
             Layout.preferredHeight: PoliceBar.logoHeight
             Layout.preferredWidth:  PoliceBar.logoMarkWidth
             Layout.alignment:       Qt.AlignVCenter
