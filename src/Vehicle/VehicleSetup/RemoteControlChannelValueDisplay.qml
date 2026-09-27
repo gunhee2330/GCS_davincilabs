@@ -78,7 +78,7 @@ Item {
         id: notMappedLabel
         anchors.centerIn: parent
         text: qsTr("Not Mapped")
-        font.pointSize: ScreenTools.mockupPointUnit * 1.15    // the settings rows' value
+        font.pointSize: ScreenTools.defaultFontPointSize    // the settings rows' value
         visible: control.mode === RemoteControlChannelValueDisplay.MappedValue && !control.channelMapped
     }
 

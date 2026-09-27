@@ -36,7 +36,7 @@ ColumnLayout {
         QGCLabel {
             id: _headingLabel
             text: control.heading
-            font.pointSize: ScreenTools.mockupPointUnit * 0.95
+            font.pointSize: ScreenTools.defaultFontPointSize * 0.85
             font.letterSpacing: ScreenTools.mockupUnit * 0.019    // .02em of the caption
             color: qgcPal.secondaryText
             visible: control.heading !== ""

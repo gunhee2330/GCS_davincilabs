@@ -392,7 +392,7 @@ Rectangle {
             Layout.leftMargin:  ScreenTools.mockupUnit * 1.6
             Layout.rightMargin: ScreenTools.mockupUnit * 1.6
             // The rail rows' text size, and a field as tall as it was
-            font.pointSize:     ScreenTools.mockupPointUnit * 1.35
+            font.pointSize:     ScreenTools.defaultFontPointSize
             _verticalPadding:   ScreenTools.mockupUnit
             placeholderText:    qsTr("Search configuration...")
             visible:            _fullParameterVehicleAvailable
@@ -570,7 +570,7 @@ Rectangle {
                                     QGCLabel {
                                         text:  vehicleConfigView._sectionDisplayName(compColumn.comp, modelData)
                                         color: sectionBtn.sectionChecked ? sectionBtn.textColor : qgcPal.secondaryText
-                                        font.pointSize: ScreenTools.mockupPointUnit * 1.2
+                                        font.pointSize: ScreenTools.defaultFontPointSize * 0.9
                                         horizontalAlignment: Text.AlignLeft
                                         Layout.fillWidth: true
                                     }
@@ -661,7 +661,7 @@ Rectangle {
         }
     }
 
-    // Mockup panel: padded 1.6 cqw down and 2.2 cqw across, a 1.55 cqw semibold title
+    // Mockup panel: padded 1.6 cqw down and 2.2 cqw across, a semibold title in the stock medium size
     Item {
         id:                 panelHeader
         anchors.left:       divider.right
@@ -675,7 +675,7 @@ Rectangle {
         FontMetrics {
             id:             _titleMetrics
             font.family:    ScreenTools.normalFontFamily
-            font.pointSize: ScreenTools.mockupPointUnit * 1.55
+            font.pointSize: ScreenTools.mediumFontPointSize
         }
 
         QGCLabel {
@@ -689,7 +689,7 @@ Rectangle {
             anchors.baseline:       parent.bottom
             anchors.baselineOffset: -_titleMetrics.descent
             text:                   _panelTitle
-            font.pointSize:         ScreenTools.mockupPointUnit * 1.55
+            font.pointSize:         ScreenTools.mediumFontPointSize
             // The mockup's 600. Under a Korean locale the title takes the bundled NanumGothic
             // (loaded for that locale), whose Bold is its 600: Open Sans falls back to a system
             // face for Hangul that draws no heavier weight at all

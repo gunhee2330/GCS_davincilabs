@@ -17,7 +17,7 @@ TextField {
     selectedTextColor:  qgcPal.textField
     activeFocusOnPress: true
     antialiasing:       true
-    font.pointSize:     _settingsLook ? ScreenTools.mockupPointUnit * 1.15 : ScreenTools.defaultFontPointSize
+    font.pointSize:     ScreenTools.defaultFontPointSize
     font.family:        ScreenTools.normalFontFamily
     inputMethodHints:   numericValuesOnly && !ScreenTools.isiOS ?
                             Qt.ImhFormattedNumbersOnly:  // Forces use of virtual numeric keyboard instead of full keyboard
@@ -41,7 +41,7 @@ TextField {
 
     property real _helpLayoutWidth: 0
     // Mockup field padding is 12 across and 8 down against its 18px text metric. Under the settings
-    // views, the police settings mockup's box: 1.15 cqw text padded .35 cqw down and 1 cqw across,
+    // views, the police settings mockup's box: stock-size text padded .35 cqw down and 1 cqw across,
     // a hairline in the card's line, a .4 cqw corner, and a space between the value and its units
     property real _marginPadding:   _settingsLook ? ScreenTools.mockupUnit : ScreenTools.defaultFontPixelHeight * 0.67
     property real _verticalPadding: _settingsLook ? ScreenTools.mockupUnit * 0.35 : ScreenTools.defaultFontPixelHeight * 0.44

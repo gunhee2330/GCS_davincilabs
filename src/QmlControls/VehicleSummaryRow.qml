@@ -22,14 +22,14 @@ ColumnLayout {
         Layout.bottomMargin: ScreenTools.defaultFontPixelHeight * 0.2
         spacing: ScreenTools.defaultFontPixelHeight
 
-        // The police mockup's key-value rows: 1.15 cqw, the key dimmed
+        // The police mockup's key-value rows in the stock text size, the key dimmed
         QGCLabel {
             id: label
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignLeft | Qt.AlignVCenter
             text: root.labelText
             wrapMode: Text.WordWrap
-            font.pointSize: ScreenTools.mockupPointUnit * 1.15
+            font.pointSize: ScreenTools.defaultFontPointSize
             color: QGroundControl.globalPalette.secondaryText
         }
 
@@ -41,7 +41,7 @@ ColumnLayout {
             text: root.valueText
             color: root.valueColor !== "" ? root.valueColor : QGroundControl.globalPalette.text
             wrapMode: Text.WordWrap
-            font.pointSize: ScreenTools.mockupPointUnit * 1.15
+            font.pointSize: ScreenTools.defaultFontPointSize
         }
     }
 

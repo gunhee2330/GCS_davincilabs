@@ -17,7 +17,7 @@ Button {
     property real heightFactor: 0.5
     property string iconSource: ""
     property real fontWeight: Font.Normal // default for qml Text
-    property real pointSize: _settingsLook ? ScreenTools.mockupPointUnit * 1.05 : ScreenTools.defaultFontPointSize
+    property real pointSize: ScreenTools.defaultFontPointSize
 
     property alias wrapMode: text.wrapMode
     property alias horizontalAlignment: text.horizontalAlignment
@@ -38,7 +38,7 @@ Button {
     property int _horizontalPadding: ScreenTools.defaultFontPixelWidth * 2
     property int _verticalPadding: Math.round(ScreenTools.defaultFontPixelHeight * heightFactor) - (iconSource === "" ? 0 : (_iconHeight - ScreenTools.defaultFontPixelHeight)  / 2)
     property real _iconHeight: text.height * 1.5
-    /// Under the settings views, the police settings mockup's text button: 1.05 cqw text padded
+    /// Under the settings views, the police settings mockup's text button: stock-size text padded
     /// .35 cqw down and 1.1 cqw across, a hairline in the card's line and a .4 cqw corner
     readonly property bool _settingsLook: ScreenTools.inSettingsLook(control)
     // A finger's tap target around the drawn control

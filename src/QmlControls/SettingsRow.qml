@@ -57,7 +57,7 @@ Item {
             text:               root.description
             visible:            text !== ""
             wrapMode:           Text.WordWrap
-            font.pointSize:     ScreenTools.mockupPointUnit * 0.9
+            font.pointSize:     ScreenTools.smallFontPointSize
             color:              qgcPal.secondaryText
         }
     }

@@ -17,7 +17,7 @@ T.ComboBox {
     topPadding: _settingsLook ? ScreenTools.mockupUnit * 0.35 : ScreenTools.defaultFontPixelHeight * 0.44
     bottomPadding: topPadding
     spacing: ScreenTools.defaultFontPixelWidth
-    font.pointSize: _settingsLook ? ScreenTools.mockupPointUnit * 1.15 : ScreenTools.defaultFontPointSize
+    font.pointSize: ScreenTools.defaultFontPointSize
     font.family: ScreenTools.normalFontFamily
     implicitWidth: Math.max(background.implicitWidth,
                             (control.sizeToContents ? _largestTextWidth : contentItem.implicitWidth) + leftPadding + rightPadding + padding)
@@ -31,7 +31,7 @@ T.ComboBox {
     property real _largestTextWidth: 0
     property bool _onCompleted: false
     property bool _showHighlight: enabled && pressed
-    /// Under the settings views, the police settings mockup's select: 1.15 cqw text padded .35 cqw
+    /// Under the settings views, the police settings mockup's select: stock-size text padded .35 cqw
     /// down and 1 cqw across, a hairline in the card's line, a .4 cqw corner and a dim chevron
     readonly property bool _settingsLook: ScreenTools.inSettingsLook(control)
     // A finger's tap target around the drawn control

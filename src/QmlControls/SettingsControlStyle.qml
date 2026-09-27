@@ -72,11 +72,11 @@ Item {
 
     QGCPalette { id: qgcPal; colorGroupEnabled: root.control ? root.control.enabled : true }
 
-    // Row label 1.25 cqw at the mockup's 500. Open Sans ships 400 and 600 only and 500 lands on
+    // Row label in the stock text size at the mockup's 500. Open Sans ships 400 and 600 only and 500 lands on
     // 400, which reads lighter than the mockup's label, so the nearest heavier face stands in
-    Binding { when: !!root.labelItem; target: root.labelItem; property: "font.pointSize"; value: ScreenTools.mockupPointUnit * 1.25 }
+    Binding { when: !!root.labelItem; target: root.labelItem; property: "font.pointSize"; value: ScreenTools.defaultFontPointSize }
     Binding { when: !!root.labelItem; target: root.labelItem; property: "font.weight"; value: Font.DemiBold }
-    Binding { when: !!root.valueItem; target: root.valueItem; property: "font.pointSize"; value: ScreenTools.mockupPointUnit * 1.15 }
+    Binding { when: !!root.valueItem; target: root.valueItem; property: "font.pointSize"; value: ScreenTools.defaultFontPointSize }
 
     // Mockup rows are 4.2 cqw at least, of which the card's padding pair takes 2
     Binding { when: !!root.row && !!root.control; target: root.row; property: "Layout.minimumHeight"; value: ScreenTools.mockupUnit * 2.2 }

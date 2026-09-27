@@ -42,7 +42,7 @@ ColumnLayout {
                 QGCLabel {
                     text: qsTr("Attitude Controls")
                     // The settings cards' caption
-                    font.pointSize: ScreenTools.mockupPointUnit * 0.95
+                    font.pointSize: ScreenTools.defaultFontPointSize
                     font.letterSpacing: ScreenTools.mockupUnit * 0.019
                     color: qgcPal.secondaryText
                 }
@@ -62,7 +62,7 @@ ColumnLayout {
                             Layout.fillWidth: true
                             text: modelData.name
                             // The settings rows' label
-                            font.pointSize: ScreenTools.mockupPointUnit * 1.25
+                            font.pointSize: ScreenTools.defaultFontPointSize
                             font.weight: Font.DemiBold
                         }
 
@@ -81,7 +81,7 @@ ColumnLayout {
 
                 QGCLabel {
                     text: qsTr("Aux Extensions")
-                    font.pointSize: ScreenTools.mockupPointUnit * 0.95
+                    font.pointSize: ScreenTools.defaultFontPointSize
                     font.letterSpacing: ScreenTools.mockupUnit * 0.019
                     color: qgcPal.secondaryText
                     visible: controller.pitchExtensionEnabled || controller.rollExtensionEnabled
@@ -101,7 +101,7 @@ ColumnLayout {
                             Layout.fillWidth: true
                             text: modelData.name
                             // The settings rows' label
-                            font.pointSize: ScreenTools.mockupPointUnit * 1.25
+                            font.pointSize: ScreenTools.defaultFontPointSize
                             font.weight: Font.DemiBold
                         }
 
@@ -120,7 +120,7 @@ ColumnLayout {
 
                 QGCLabel {
                     text: qsTr("Additional Axes")
-                    font.pointSize: ScreenTools.mockupPointUnit * 0.95
+                    font.pointSize: ScreenTools.defaultFontPointSize
                     font.letterSpacing: ScreenTools.mockupUnit * 0.019
                     color: qgcPal.secondaryText
                     visible: controller.additionalAxis1Enabled || controller.additionalAxis2Enabled || controller.additionalAxis3Enabled ||
@@ -145,7 +145,7 @@ ColumnLayout {
                             Layout.fillWidth: true
                             text: modelData.name
                             // The settings rows' label
-                            font.pointSize: ScreenTools.mockupPointUnit * 1.25
+                            font.pointSize: ScreenTools.defaultFontPointSize
                             font.weight: Font.DemiBold
                         }
 
@@ -207,7 +207,7 @@ ColumnLayout {
                         QGCCheckBox {
                             id: centeredThrottleCheckBox
                             text: qsTr("Centered Throttle")
-                            textFontPointSize: ScreenTools.mockupPointUnit * 1.25    // the settings rows' label size
+                            textFontPointSize: ScreenTools.defaultFontPointSize    // the settings rows' label size
                             checked: controller.centeredThrottle
                             enabled: !controller.calibrating
                             visible: !controller.joystickMode

@@ -118,7 +118,6 @@ Item {
     // there, 7.68 logical px at QT_SCALE_FACTOR 2.5 where the text metric is 18 px and the default
     // font 9 pt. Tied to the text metric so the settings screens follow UI scaling with the rest
     readonly property real mockupUnit:              defaultFontPixelHeight * 0.4267
-    readonly property real mockupPointUnit:         defaultFontPointSize * 0.64    ///< mockupUnit as a font point size
     readonly property real hairline:                1 / Screen.devicePixelRatio    ///< The mockup's 1 px line: one device pixel
 
     // It's not possible to centralize an even number of pixels, checkBoxIndicatorSize should be an odd number to allow centralization

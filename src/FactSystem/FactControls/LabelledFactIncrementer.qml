@@ -28,7 +28,7 @@ RowLayout {
     }
 
     // The police mockup's stepper: one bordered group, the two buttons filled and the value
-    // between them, each padded .35 cqw down and .9 cqw across in 1.15 cqw text. The group
+    // between them, each padded .35 cqw down and .9 cqw across in stock-size text. The group
     // carries the button fill, so only its outer corners round; the value cell covers the middle
     Rectangle {
         id:             _stepper
@@ -43,7 +43,7 @@ RowLayout {
         property real _radius:      ScreenTools.mockupUnit * 0.4
         property real _padV:        ScreenTools.mockupUnit * 0.35
         property real _padH:        ScreenTools.mockupUnit * 0.9
-        property real _pointSize:   ScreenTools.mockupPointUnit * 1.15
+        property real _pointSize:   ScreenTools.defaultFontPointSize
         // Both end cells as wide as the wider glyph, so they match
         property real _buttonWidth: Math.max(minusButton.implicitContentWidth, plusButton.implicitContentWidth) + _padH * 2
 

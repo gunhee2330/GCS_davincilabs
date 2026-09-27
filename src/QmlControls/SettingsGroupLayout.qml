@@ -26,7 +26,7 @@ ColumnLayout {
 
     // Quiet and small, the way the vehicle config sections label their cards: the heading is a
     // signpost, and shouting it competes with the values the operator came to read
-    property string defaultHeadingPointSize:    settingsLook ? ScreenTools.mockupPointUnit * 0.95 : ScreenTools.defaultFontPointSize * 0.85
+    property string defaultHeadingPointSize:    ScreenTools.defaultFontPointSize * 0.85
     property string headingPointSize:           defaultHeadingPointSize
 
     property string heading
@@ -67,7 +67,7 @@ ColumnLayout {
             Layout.fillWidth:   true
             text:               headingDescription
             wrapMode:           Text.WordWrap
-            font.pointSize:     settingsLook ? ScreenTools.mockupPointUnit * 0.9 : ScreenTools.smallFontPointSize
+            font.pointSize:     ScreenTools.smallFontPointSize
             color:              settingsLook ? QGroundControl.globalPalette.secondaryText : QGroundControl.globalPalette.text
             visible:            headingDescription !== ""
         }
