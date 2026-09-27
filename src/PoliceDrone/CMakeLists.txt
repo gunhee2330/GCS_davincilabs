@@ -1,7 +1,7 @@
 # ============================================================================
 # Police Drone Module
 # Ground-station bookkeeping the procurement spec asks for and no autopilot
-# reports: the per-airframe takeoff count, the links and payload streams a fresh
+# reports: the per-airframe takeoff count, the payload streams a fresh
 # install starts with, and the handheld's buttons wired to the SIYI pod.
 # ============================================================================
 

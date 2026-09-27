@@ -1,9 +1,8 @@
 #include "PoliceLinkDefaults.h"
 
-#include <QtCore/QLatin1String>
+#include <QtCore/QStringList>
 #include <QtCore/QVariant>
 
-#include "LinkConfiguration.h"
 #include "LinkManager.h"
 #include "QGCLoggingCategory.h"
 #include "QmlObjectListModel.h"
@@ -11,52 +10,25 @@
 
 QGC_LOGGING_CATEGORY(PoliceLinkDefaultsLog, "PoliceDrone.LinkDefaults")
 
-namespace {
-
-constexpr const char* kUniRcLinkName = "UniRC 7 (SIYI)";
-constexpr const char* kUniRcHost = "192.168.144.20";
-constexpr quint16 kUniRcPort = 19856;
-
-/// The manager exposes its configurations only as the QML list model; read it through the
-/// property rather than adding an accessor to a file the other branches also touch.
-bool linkExists(LinkManager* manager, const QLatin1String& name)
-{
-    const auto* const configs = manager->property("linkConfigurations").value<QmlObjectListModel*>();
-    if (!configs) {
-        return false;
-    }
-    for (int i = 0; i < configs->count(); ++i) {
-        const auto* const config = qobject_cast<const LinkConfiguration*>((*configs)[i]);
-        if (config && (config->name() == name)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-}  // namespace
-
-void PoliceLinkDefaults::ensureUniRcLink()
+void PoliceLinkDefaults::removeLegacyUniRcLink()
 {
     LinkManager* const manager = LinkManager::instance();
-    const QLatin1String name(kUniRcLinkName);
-    if (linkExists(manager, name)) {
+    // The manager exposes its configurations only as the QML list model; read it through the
+    // property rather than adding an accessor to a file the other branches also touch.
+    const auto* const configs = manager->property("linkConfigurations").value<QmlObjectListModel*>();
+    if (!configs) {
         return;
     }
 
-    LinkConfiguration* const created = manager->createConfiguration(LinkConfiguration::TypeUdp, name);
-    auto* const udp = qobject_cast<UDPConfiguration*>(created);
-    if (!udp) {
-        qCWarning(PoliceLinkDefaultsLog) << "UDP link type unavailable; UniRC 7 link not created";
-        delete created;
-        return;
+    const QString legacyName = QStringLiteral("UniRC 7 (SIYI)");
+    const QStringList legacyTarget{QStringLiteral("192.168.144.20:19856")};
+    // Backwards so a removal does not shift the entries still to be checked.
+    for (int i = configs->count() - 1; i >= 0; --i) {
+        auto* const udp = configs->value<UDPConfiguration*>(i);
+        if (!udp || (udp->name() != legacyName) || (udp->hostList() != legacyTarget)) {
+            continue;
+        }
+        qCInfo(PoliceLinkDefaultsLog) << "removing legacy link" << udp->name() << udp->hostList();
+        manager->removeConfiguration(udp);
     }
-
-    // SIYI's instructions say local port 0, but QGC ties an auto-connect UDP link to its
-    // standard listen port (setAutoConnect rewrites it to 14550). Either works: the ground
-    // unit answers to whichever port our heartbeats come from.
-    udp->addHost(QLatin1String(kUniRcHost), kUniRcPort);
-    udp->setAutoConnect(true);
-    manager->endCreateConfiguration(udp);
-    qCDebug(PoliceLinkDefaultsLog) << "created" << name << kUniRcHost << kUniRcPort;
 }

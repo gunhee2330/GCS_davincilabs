@@ -380,10 +380,10 @@ void QGCApplication::_initForNormalAppBoot()
                            .arg(applicationName()));
     }
 
-    // The UniRC 7 handheld's UDP link and the pod's video stream ship pre-configured so the
-    // first start on the controller connects and shows a picture without the operator
-    // adding anything.
-    PoliceLinkDefaults::ensureUniRcLink();
+    // The pod's video stream ships pre-configured so the first start on the controller shows a
+    // picture without the operator adding anything. Earlier builds also saved a UniRC 7 UDP
+    // link; the aircraft connects over Bluetooth, so that link is removed.
+    PoliceLinkDefaults::removeLegacyUniRcLink();
     PoliceVideoDefaults::ensurePodStream();
 
     // Connect links with flag AutoconnectLink
