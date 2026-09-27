@@ -29,15 +29,21 @@ QtObject {
     /// drawer never saw them: they sized their glyphs off the app font instead, which put the
     /// brand mark on the settings screen at nearly twice the size it has on the flight screen
     /// and the hamburger at three times. Floors so a small screen still leaves them hittable.
-    /// logoHeight is the one figure here someone else drew: the mockup gives the mark 171 px
-    /// across on the tablet's 1920-wide screen, and the mark is nine and a half times wider than
-    /// it is tall, so off a 54 px bar its height is this small a ratio. The old 0.19 with a 14 px
-    /// floor drew it at twice that width - a banner rather than a signature. The floor stays, low
-    /// enough not to be what wins on the tablet but there so a small desktop bar still shows the
-    /// mark rather than a hairline.
+    /// logoHeight sizes the brand mark, which is the D of the Davinci Labs logo on its own. On the
+    /// tablet's layout (768 logical px across) the whole logo would need to be 205 px wide for its
+    /// wordmark to stand 14 px tall, three times the 68 px the old wordmark took on every bar, and
+    /// squeezed into those 68 px its letters come out under 5 px. The D alone at this ratio is
+    /// about one and a half times the bar's text size and narrower than the old wordmark, so
+    /// nothing after it loses room. The floor stays, low enough not to be what wins on the tablet
+    /// but there so a small desktop bar still shows the mark rather than a hairline.
     readonly property real iconSize:   Math.max(12, height * 0.13)
-    readonly property real logoHeight: Math.max(7, height * 0.134)
+    readonly property real logoHeight: Math.max(7, height * 0.44)
     readonly property real textSize:   Math.max(12, height * 0.27)
+
+    /// Where the D sits in /res/DavinciLabsLogo.png (the full logo), in the image's own pixels.
+    /// Bars cut it out with Image.sourceClipRect and draw it untinted, so it keeps its colours.
+    readonly property rect logoMarkRect: Qt.rect(0, 0, 346, 270)
+    readonly property real logoMarkWidth: logoHeight * logoMarkRect.width / logoMarkRect.height
 
     /// The leading run every bar starts with - a margin, the menu button, then the same gap
     /// again before the brand mark. Shared because the mark was starting in three different

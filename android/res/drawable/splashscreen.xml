@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Window background and Qt's splash (android.app.splash_screen_drawable). The picture is drawn
+     at its own 1920x1200 pixels (drawable-nodpi, no scaling), centred: on the tablet it fills the
+     screen exactly, on another screen it is cropped about its centre rather than stretched, and
+     any screen larger than it shows the ground colour around it. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="#000000"/>
+            <solid android:color="#0c1218"/>
         </shape>
     </item>
     <item>
-        <bitmap android:src="@drawable/icon" android:gravity="center"/>
+        <bitmap android:src="@drawable/splash_image" android:gravity="center"/>
     </item>
 </layer-list>

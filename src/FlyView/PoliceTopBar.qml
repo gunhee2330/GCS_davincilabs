@@ -211,11 +211,13 @@ Rectangle {
 
         Image {
             Layout.preferredHeight: PoliceBar.logoHeight
-            Layout.preferredWidth:  Layout.preferredHeight * (1153 / 122)
+            Layout.preferredWidth:  PoliceBar.logoMarkWidth
             Layout.alignment:       Qt.AlignVCenter
             source:                 "/res/DavinciLabsLogo.png"
+            sourceClipRect:         PoliceBar.logoMarkRect
             fillMode:               Image.PreserveAspectFit
             smooth:                 true
+            mipmap:                 true
         }
 
         // The first thing read on the bar. A band the full height of the bar rather than a pill:

@@ -491,11 +491,23 @@ ApplicationWindow {
                     height: parent.height
                     leftPadding: 0
                     rightPadding: 0
-                    icon.source: "/res/DavinciLabsLogo.png"
-                    iconAspectRatio: 1153 / 122
-                    iconHeight: PoliceBar.logoHeight
-                    iconColor: PoliceBar.content
                     onClicked: mainWindow.showToolSelectDialog()
+                    // The mark keeps its own colours: the button's icon path would tint it all one colour.
+                    contentItem: Item {
+                        implicitWidth: PoliceBar.logoMarkWidth
+
+                        Image {
+                            anchors.left:           parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            width:                  PoliceBar.logoMarkWidth
+                            height:                 PoliceBar.logoHeight
+                            source:                 "/res/DavinciLabsLogo.png"
+                            sourceClipRect:         PoliceBar.logoMarkRect
+                            fillMode:               Image.PreserveAspectFit
+                            smooth:                 true
+                            mipmap:                 true
+                        }
+                    }
                 }
 
                 QGCLabel {
