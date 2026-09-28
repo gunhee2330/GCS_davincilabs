@@ -78,6 +78,7 @@ qt_add_qml_module(FlyViewModule
         PoliceDronePersonOverlay.qml
         PoliceDroneProximityRing.qml
         PoliceDroneTargetOverlay.qml
+        PoliceFlightRecordsPage.qml
         PoliceGuidedConfirmHost.qml
         PoliceStatusPage.qml
         PoliceTopBar.qml

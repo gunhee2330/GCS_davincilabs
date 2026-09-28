@@ -36,6 +36,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         ${CMAKE_CURRENT_SOURCE_DIR}/FlyViewROIUITest.h
         ${CMAKE_CURRENT_SOURCE_DIR}/FlyViewGeoUITest.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/FlyViewGeoUITest.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/PoliceFlightRecordsUITest.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/PoliceFlightRecordsUITest.h
         ${CMAKE_CURRENT_SOURCE_DIR}/PoliceGuidedActionUITest.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/PoliceGuidedActionUITest.h
         ${CMAKE_CURRENT_SOURCE_DIR}/PoliceRecordingsUITest.cc
@@ -81,6 +83,7 @@ add_qgc_test(AppCloseWarningUITest LABELS Integration NoSanitizer TIMEOUT 120)
 add_qgc_test(FlyViewProximityRadarUITest LABELS Integration NoSanitizer TIMEOUT 120)
 add_qgc_test(FlyViewROIUITest LABELS Integration NoSanitizer TIMEOUT 120)
 add_qgc_test(FlyViewROIAPMUITest LABELS Integration NoSanitizer TIMEOUT 120)
+add_qgc_test(PoliceFlightRecordsUITest LABELS Integration NoSanitizer TIMEOUT 180)
 add_qgc_test(PoliceGuidedActionUITest LABELS Integration NoSanitizer TIMEOUT 180)
 add_qgc_test(PoliceRecordingsUITest LABELS Integration NoSanitizer TIMEOUT 180)
 add_qgc_test(PoliceTopBarUITest LABELS Integration NoSanitizer TIMEOUT 180)

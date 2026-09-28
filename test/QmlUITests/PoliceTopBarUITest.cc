@@ -5,8 +5,6 @@
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
 #include <QtCore/QElapsedTimer>
-#include <QtCore/QJsonArray>
-#include <QtCore/QJsonDocument>
 #include <QtCore/QLocale>
 #include <QtCore/QMetaObject>
 #include <QtCore/QRegularExpression>
@@ -227,6 +225,12 @@ void startTakeoffCounter()
 }
 
 }  // namespace
+
+void PoliceTopBarUITest::init()
+{
+    QVERIFY(QDir(TakeoffCounter::recordsDirectory()).removeRecursively());
+    QmlUITestBase::init();
+}
 
 void PoliceTopBarUITest::_ignorePreexistingQmlWarnings()
 {
@@ -832,16 +836,11 @@ void PoliceTopBarUITest::_testFlightLogListsFlightsNewestFirst()
         // A long log scrolls inside its list rather than growing the drawer. Thirty flights are
         // put on disk under this airframe's key and read back the way a log already on disk
         // comes in, on the airframe's UID arriving.
-        QJsonArray longLog = QJsonArray::fromVariantList(TakeoffCounter::instance()->flights());
+        QVariantList longLog = TakeoffCounter::instance()->flights();
         while (longLog.size() < 30) {
             longLog.append(longLog.last());
         }
-        {
-            QSettings settings;
-            settings.beginGroup(QStringLiteral("PoliceDrone/TakeoffCount"));
-            settings.setValue(QStringLiteral("sysid-%1-flights").arg(vehicle->id()),
-                              QString::fromUtf8(QJsonDocument(longLog).toJson(QJsonDocument::Compact)));
-        }
+        QVERIFY(TakeoffCounter::writeFlights(QStringLiteral("sysid-%1").arg(vehicle->id()), longLog));
         QCOMPARE(vehicle->vehicleUID(), quint64(0));
         emit vehicle->vehicleUIDChanged();
         QCOMPARE(TakeoffCounter::instance()->flights().size(), 30);

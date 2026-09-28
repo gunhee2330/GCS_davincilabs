@@ -198,6 +198,43 @@ ToolIndicatorPage {
                         }
                     }
                 }
+
+                // Every flight of every airframe, on a page of its own for any span of days and the
+                // export the spec asks for. There whatever this list holds: another airframe's
+                // flights may be all there is.
+                Item {
+                    objectName:         "policeFlightRecordsLink"
+                    Layout.fillWidth:   true
+                    implicitHeight:     recordsLinkLabel.implicitHeight
+
+                    QGCLabel {
+                        id:                     recordsLinkLabel
+                        anchors.left:           parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        text:                   qsTr("전체 기록")
+                        color:                  QGroundControl.globalPalette.buttonHighlight
+                        font.weight:            Font.DemiBold
+                    }
+
+                    QGCColoredImage {
+                        anchors.right:          parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        width:                  ScreenTools.defaultFontPixelHeight * 0.7
+                        height:                 width
+                        source:                 "/InstrumentValueIcons/cheveron-right.svg"
+                        color:                  QGroundControl.globalPalette.secondaryText
+                    }
+
+                    QGCMouseArea {
+                        fillItem: parent
+                        onClicked: {
+                            if (mainWindow.allowViewSwitch()) {
+                                mainWindow.closeIndicatorDrawer()
+                                mainWindow.showTool(qsTr("비행 기록"), "qrc:/qml/QGroundControl/FlyView/PoliceFlightRecordsPage.qml", "")
+                            }
+                        }
+                    }
+                }
             }
         }
     }

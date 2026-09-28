@@ -14,6 +14,11 @@ class PoliceTopBarUITest : public QmlUITestBase
 {
     Q_OBJECT
 
+protected slots:
+    /// The flight records live in files of their own, which the per-test settings reset does
+    /// not reach, so each slot starts from none as it does from empty settings.
+    void init() override;
+
 private slots:
     /// Every item on the bar, by the objectName the layout and these tests know it by.
     void _testBarItemsExist();

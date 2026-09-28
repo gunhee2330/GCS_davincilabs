@@ -8,19 +8,31 @@ class TakeoffCounterTest : public VehicleTest
 {
     Q_OBJECT
 
+protected slots:
+    /// The records live in files of their own, which the per-test settings reset does not reach.
+    void init() override;
+
 private slots:
-    /// One cycle leaves one record, newest first: when it lifted off, how long it flew and the
-    /// vehicle's flightDistance at the landing. The disarm after the landing adds nothing, and the
-    /// record is in the settings file under the airframe's key.
+    /// One cycle leaves one record, newest first: when it lifted off and landed, how long it flew,
+    /// the vehicle's flightDistance at the landing, the highest altitude, the airframe's label and
+    /// the flight's telemetry log. The disarm after the landing adds nothing, and the record is in
+    /// the airframe's records file. The log is a stock-format tlog named by the takeoff, holding
+    /// the flight and closed at the disarm.
     void _flightIsRecordedAtLanding_test();
 
     /// A landed state that drops out in the air is one flight: the second landing of the cycle
     /// replaces the cycle's record with the longer flight and the larger distance.
     void _landedFlickerKeepsOneRecord_test();
 
-    /// A log already at the limit is read back from the settings file, and the next flight
-    /// drops the oldest record to make room rather than growing past it.
-    void _logIsLoadedAndKeepsLatestHundred_test();
+    /// A log the settings file held, at its old hundred-record limit, moves to the records file
+    /// at the start and leaves the settings file; the next flight goes on top without dropping the
+    /// oldest, and a restart reads all of them.
+    void _settingsLogMovesToFileWithoutLimit_test();
+
+    /// A records file that is there but will not parse reads as a failure, unlike no file. The
+    /// landing then leaves it as it was rather than writing the one flight over the history, and
+    /// the flight still shows in the list.
+    void _unreadableRecordsAreNotOverwritten_test();
 
     /// takeoffTime is empty while armed on the pad, set at the first liftoff to the string the
     /// record keeps, left alone by a second liftoff and the disarm, and cleared by the next arm.

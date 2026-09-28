@@ -9,6 +9,8 @@ target_sources(${CMAKE_PROJECT_NAME}
     PRIVATE
         ControllerBattery.cc
         ControllerBattery.h
+        FlightRecords.cc
+        FlightRecords.h
         PoliceCorePlugin.cc
         PoliceCorePlugin.h
         PoliceGimbalJoystick.cc
