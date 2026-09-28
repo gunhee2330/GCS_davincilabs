@@ -308,4 +308,73 @@ void MissionAutoRecordTest::_lateConfirmationIsStopped_test()
     QVERIFY(!pod.recording);
 }
 
+void MissionAutoRecordTest::_unconfirmedStopIsSentAgain_test()
+{
+    const QVariant saved = autoRecordSetting()->rawValue();
+    const auto restore = qScopeGuard([saved] { autoRecordSetting()->setRawValue(saved); });
+    autoRecordSetting()->setRawValue(true);
+
+    FakePod pod;
+    pod.reply();
+
+    _takeOff();
+    if (QTest::currentTestFailed()) return;
+    _setMode(vehicle()->missionFlightMode());
+    if (QTest::currentTestFailed()) return;
+    QCOMPARE(pod.toggles, 1);
+    pod.reply();
+
+    // Every stop is lost: sent again after each run of replies still recording, then given up
+    pod.dropToggles = true;
+    _land();
+    if (QTest::currentTestFailed()) return;
+    QCOMPARE(pod.toggles, 2);
+    for (int reply = 0; reply < MissionAutoRecord::kConfirmReplies * MissionAutoRecord::kStartAttempts; ++reply) {
+        pod.reply();
+    }
+    QCOMPARE(pod.toggles, 1 + MissionAutoRecord::kStartAttempts);
+    pod.reply();
+    QCOMPARE(pod.toggles, 1 + MissionAutoRecord::kStartAttempts);
+    QVERIFY(pod.recording);
+
+    // The operator stops that one. Next mission the stop gets through: sent once
+    pod.dropToggles = false;
+    pod.operatorToggle();
+    _takeOff();
+    if (QTest::currentTestFailed()) return;
+    QCOMPARE(pod.toggles, 2 + MissionAutoRecord::kStartAttempts);
+    pod.reply();
+    _setMode(vehicle()->pauseFlightMode());
+    if (QTest::currentTestFailed()) return;
+    QCOMPARE(pod.toggles, 3 + MissionAutoRecord::kStartAttempts);
+    QVERIFY(!pod.recording);
+    for (int reply = 0; reply < MissionAutoRecord::kConfirmReplies * MissionAutoRecord::kStartAttempts; ++reply) {
+        pod.reply();
+    }
+    QCOMPARE(pod.toggles, 3 + MissionAutoRecord::kStartAttempts);
+
+    // Out and back into the mission with the stop lost: nothing more sent in the mission, and ours
+    // is stopped at the landing
+    _setMode(vehicle()->missionFlightMode());
+    if (QTest::currentTestFailed()) return;
+    QCOMPARE(pod.toggles, 4 + MissionAutoRecord::kStartAttempts);
+    pod.reply();
+    pod.dropToggles = true;
+    _setMode(vehicle()->pauseFlightMode());
+    if (QTest::currentTestFailed()) return;
+    _setMode(vehicle()->missionFlightMode());
+    if (QTest::currentTestFailed()) return;
+    QCOMPARE(pod.toggles, 5 + MissionAutoRecord::kStartAttempts);
+    for (int reply = 0; reply < MissionAutoRecord::kConfirmReplies * MissionAutoRecord::kStartAttempts; ++reply) {
+        pod.reply();
+    }
+    QCOMPARE(pod.toggles, 5 + MissionAutoRecord::kStartAttempts);
+    QVERIFY(pod.recording);
+    pod.dropToggles = false;
+    _land();
+    if (QTest::currentTestFailed()) return;
+    QCOMPARE(pod.toggles, 6 + MissionAutoRecord::kStartAttempts);
+    QVERIFY(!pod.recording);
+}
+
 UT_REGISTER_TEST(MissionAutoRecordTest, TestLabel::Integration, TestLabel::Vehicle)

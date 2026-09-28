@@ -27,7 +27,8 @@ public:
     /// Config replies still saying "not recording" after a start before it counts as lost or
     /// refused. The pod is asked right after the toggle and then once a second
     static constexpr int kConfirmReplies = 5;
-    /// Starts sent per mission, the first included, while the pod keeps saying "not recording"
+    /// Starts sent per mission, the first included, while the pod keeps saying "not recording".
+    /// Stops of our recording are sent as many times while it keeps saying "recording"
     static constexpr int kStartAttempts = 3;
 
     /// \a toggleRecording is the pod's record toggle: SiyiCameraController in the app, a fake in the tests.
@@ -49,8 +50,9 @@ private:
     /// Sends what the vehicle state asks for, once the pod's state is known.
     void _act();
 
-    /// Whose recording is on the pod: none of ours, one asked for, one the pod confirmed.
-    enum class Own { None, Asked, Recording };
+    /// Whose recording is on the pod: none of ours, one asked for, one the pod confirmed, ours
+    /// asked to stop.
+    enum class Own { None, Asked, Recording, Stopping };
 
     std::function<void()> _toggleRecording;
     QPointer<Vehicle> _vehicle;
@@ -61,4 +63,5 @@ private:
     Own _own = Own::None;
     int _unconfirmedReplies = 0;
     int _startsLeft = 0;
+    int _stopsLeft = 0;
 };

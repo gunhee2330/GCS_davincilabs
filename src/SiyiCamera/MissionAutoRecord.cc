@@ -66,9 +66,19 @@ void MissionAutoRecord::podState(std::optional<bool> recording)
     if (*recording) {
         if (_own == Own::Asked) {
             _own = Own::Recording;
+        } else if ((_own == Own::Stopping) && (++_unconfirmedReplies >= kConfirmReplies)) {
+            // The stop was lost or refused. Back in the mission it is simply ours again
+            _unconfirmedReplies = 0;
+            if (_active) {
+                _own = Own::Recording;
+            } else if (_stopsLeft-- > 0) {
+                _toggleRecording();
+            } else {
+                _own = Own::None;
+            }
         }
-    } else if (_own == Own::Recording) {
-        // Stopped by hand or by the pod. Whatever is started after this is the operator's
+    } else if ((_own == Own::Recording) || (_own == Own::Stopping)) {
+        // Stopped by us, by hand or by the pod. Whatever is started after this is the operator's
         _own = Own::None;
     } else if ((_own == Own::Asked) && (++_unconfirmedReplies >= kConfirmReplies)) {
         // The start was lost or refused. Unclaimed, so a recording started later is not taken for ours
@@ -94,8 +104,8 @@ void MissionAutoRecord::_act()
         if (_startPending) {
             // A recording on the pod is left alone: the operator's, or ours still running
             // ponytail: a mission left and re-entered within the second before the pod confirms
-            // our stop reads as "already recording" and stays unrecorded; track the stop if that
-            // turns up in the field.
+            // our stop reads as "already recording" and stays unrecorded; start again when that
+            // stop is confirmed if it turns up in the field.
             _startPending = false;
             if ((_own == Own::None) && !*_pod) {
                 --_startsLeft;
@@ -109,7 +119,9 @@ void MissionAutoRecord::_act()
 
     // A start confirmed after the mission ended is stopped here too, on that confirmation
     if ((_own == Own::Recording) && *_pod) {
-        _own = Own::None;
+        _own = Own::Stopping;
+        _unconfirmedReplies = 0;
+        _stopsLeft = kStartAttempts - 1;
         _toggleRecording();
     }
 }

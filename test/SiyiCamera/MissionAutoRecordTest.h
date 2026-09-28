@@ -31,6 +31,10 @@ private slots:
     /// A start the pod confirms only after the mission has ended is stopped on that confirmation.
     void _lateConfirmationIsStopped_test();
 
+    /// A stop of ours the pod never confirms is sent again, as often as a start, then given up;
+    /// one it confirms is sent once, and one lost as the mission resumes leaves ours running.
+    void _unconfirmedStopIsSentAgain_test();
+
 private:
     /// Arms the mock and lifts it off to 1.5 m.
     void _takeOff();
