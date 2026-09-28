@@ -15,8 +15,10 @@
 #include <QtGui/QFont>
 #include <QtGui/QFontMetricsF>
 #include <QtGui/QImage>
+#include <QtNetwork/QNetworkDatagram>
 #include <QtNetwork/QTcpServer>
 #include <QtNetwork/QTcpSocket>
+#include <QtNetwork/QUdpSocket>
 #include <QtQml/QQmlContext>
 #include <QtQml/QQmlExpression>
 #include <QtQuick/QQuickItem>
@@ -32,8 +34,10 @@
 #include "SettingsManager.h"
 #include "SiyiAiController.h"
 #include "SiyiAiProtocol.h"
+#include "SiyiCameraController.h"
 #include "SiyiCameraSettings.h"
 #include "SiyiLongProtocol.h"
+#include "SiyiProtocol.h"
 #include "SpeakerSettings.h"
 #include "Vehicle.h"
 #include "VehicleLinkManager.h"
@@ -2164,5 +2168,150 @@ void PoliceGuidedActionUITest::_testFullscreenFlightStrip()
         QVERIFY(dashboard->setProperty("expandedPanel", QString()));
         QTest::qWait(kSettleMs);
         QVERIFY2(!strip->isVisible(), "Flight strip stayed up after leaving full screen");
+    });
+}
+
+void PoliceGuidedActionUITest::_testThermalTemperatureReadout()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        const bool capture = !qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty();
+        QQuickItem *const dashboard = findVisibleItem(_rootItem, kDashboard, 5000);
+        QVERIFY2(dashboard, "Police dashboard not found - the layout under test is not up");
+        QQuickItem *const window = findVisibleItem(_rootItem, kThermalWindow, 5000);
+        QVERIFY2(window, "Thermal window not found");
+        QQuickItem *const chip = window->findChild<QQuickItem *>(kTitleChip);
+        QVERIFY2(chip, "Thermal window has no name chip");
+        QQuickItem *const temps = chip->findChild<QQuickItem *>(QStringLiteral("cameraWindowExtraDetail"));
+        QVERIFY2(temps, "Thermal name chip has no reading after the LRF");
+        QVERIFY2(!temps->isVisible(), "Temperatures are up with no pod answering");
+
+        // A fake pod on loopback, the controller pointed at it the way the controller test does.
+        // Test builds never init the controller, so it is started here the way the detection card
+        // test starts the AI one.
+        QUdpSocket pod;
+        QVERIFY(pod.bind(QHostAddress::LocalHost, 0));
+        SiyiCameraController *const camera = SiyiCameraController::instance();
+        SiyiCameraSettings *const settings = SettingsManager::instance()->siyiCameraSettings();
+        const QVariant savedAddress = settings->ipAddress()->rawValue();
+        const QVariant savedPort    = settings->port()->rawValue();
+        const auto restorePod = qScopeGuard([camera, settings, savedAddress, savedPort] {
+            camera->stop();
+            settings->ipAddress()->setRawValue(savedAddress);
+            settings->port()->setRawValue(savedPort);
+        });
+        settings->ipAddress()->setRawValue(QStringLiteral("127.0.0.1"));
+        settings->port()->setRawValue(pod.localPort());
+        camera->start();
+
+        QHostAddress controllerAddress;
+        quint16 controllerPort = 0;
+        QTRY_VERIFY_WITH_TIMEOUT(pod.hasPendingDatagrams(), 5000);
+        QByteArray probe(static_cast<int>(pod.pendingDatagramSize()), Qt::Uninitialized);
+        QVERIFY(pod.readDatagram(probe.data(), probe.size(), &controllerAddress, &controllerPort) > 0);
+
+        // GetTempFullImage: max and min in hundredths of a degree, then the two pixel positions.
+        const auto le16 = [](QByteArray &data, int value) {
+            data.append(static_cast<char>(value & 0xFF));
+            data.append(static_cast<char>((value >> 8) & 0xFF));
+        };
+        QByteArray tempReply;
+        QByteArray laserReply;
+        const auto setTemps = [&](int maxCenti, int minCenti) {
+            QByteArray data;
+            le16(data, maxCenti);
+            le16(data, minCenti);
+            for (int i = 0; i < 4; ++i) {
+                le16(data, 100 + i);
+            }
+            tempReply = SiyiProtocol::encodeRaw(static_cast<quint8>(SiyiProtocol::CommandId::GetTempFullImage), data);
+        };
+        setTemps(4250, 1820);
+
+        // Twice a second, well inside the controller's three second timeout.
+        QTimer answering;
+        answering.setInterval(500);
+        (void) connect(&answering, &QTimer::timeout, &pod, [&] {
+            while (pod.hasPendingDatagrams()) {
+                (void) pod.receiveDatagram();
+            }
+            (void) pod.writeDatagram(tempReply, controllerAddress, controllerPort);
+            if (!laserReply.isEmpty()) {
+                (void) pod.writeDatagram(laserReply, controllerAddress, controllerPort);
+            }
+        });
+        answering.start();
+
+        const QString kFirst = QStringLiteral("최고 42.5 °C  최저 18.2 °C");
+        QTRY_COMPARE_WITH_TIMEOUT(temps->property("text").toString(), kFirst, 5000);
+        QVERIFY2(temps->isVisible(), "Temperatures are not up with the pod answering");
+        const auto checkInside = [&] {
+            QVERIFY2(sceneRect(chip).contains(sceneRect(temps)), "Temperatures hang out of the name chip");
+            QVERIFY2(sceneRect(window).contains(sceneRect(chip)),
+                     qPrintable(QStringLiteral("Name chip %1 runs past the thermal window %2")
+                                    .arg(QDebug::toString(sceneRect(chip)), QDebug::toString(sceneRect(window)))));
+        };
+        checkInside();
+        if (QTest::currentTestFailed()) return;
+        if (capture) {
+            _grab(QStringLiteral("thermal_temp_0_window"));
+            if (QTest::currentTestFailed()) return;
+        }
+
+        // The laser reads out as well: LRF first, then the temperatures, one chip gap apart - beside
+        // it where the window is wide enough, under it where it is not, and inside the window
+        // either way.
+        QByteArray range;
+        le16(range, 1234);
+        laserReply = SiyiProtocol::encodeRaw(static_cast<quint8>(SiyiProtocol::CommandId::ReadRangefinder), range);
+        QTRY_VERIFY_WITH_TIMEOUT(findVisibleTextItem(chip, QStringLiteral("LRF 123.4 m")), 5000);
+        QTest::qWait(kSettleMs);
+        QQuickItem *const laser = findVisibleTextItem(chip, QStringLiteral("LRF 123.4 m"));
+        const QRectF laserRect = sceneRect(laser);
+        const QRectF tempsRect = sceneRect(temps);
+        const qreal spacing = temps->parentItem()->property("spacing").toReal();
+        const bool beside = qAbs(tempsRect.top() - laserRect.top()) < 1.0;
+        const qreal gap = beside ? (tempsRect.left() - laserRect.right()) : (tempsRect.top() - laserRect.bottom());
+        QVERIFY2((beside || qAbs(tempsRect.left() - laserRect.left()) < 1.0) && qAbs(gap - spacing) < 1.0,
+                 qPrintable(QStringLiteral("LRF %1 and temperatures %2 are not one chip gap (%3) apart")
+                                .arg(QDebug::toString(laserRect), QDebug::toString(tempsRect)).arg(spacing)));
+        checkInside();
+        if (QTest::currentTestFailed()) return;
+
+        // Live: a new reading replaces the old one, below zero included.
+        setTemps(4300, -1050);
+        QTRY_COMPARE_WITH_TIMEOUT(temps->property("text").toString(), QStringLiteral("최고 43.0 °C  최저 -10.5 °C"), 5000);
+        QTest::qWait(kSettleMs);
+        checkInside();
+        if (QTest::currentTestFailed()) return;
+        if (capture) {
+            _grab(QStringLiteral("thermal_temp_1_with_lrf"));
+            if (QTest::currentTestFailed()) return;
+        }
+
+        // Full screen: the window's chip goes with the window, the panel's name chip carries it.
+        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("shared")));
+        QQuickItem *const fullTemps = findVisibleItem(_rootItem, QStringLiteral("policeCameraTitleDetail"), 3000);
+        QVERIFY2(fullTemps, "Temperatures are not up with the thermal window full screen");
+        QCOMPARE(fullTemps->property("text").toString(), QStringLiteral("최고 43.0 °C  최저 -10.5 °C"));
+        QQuickItem *const fullTitle = findVisibleTextItem(fullTemps->parentItem(), QStringLiteral("열상"));
+        QVERIFY2(fullTitle, "Full screen name chip does not carry the window name next to the temperatures");
+        QVERIFY2(sceneRect(fullTitle).right() < sceneRect(fullTemps).left(), "Temperatures are not after the name");
+        if (capture) {
+            _grab(QStringLiteral("thermal_temp_2_fullscreen"));
+            if (QTest::currentTestFailed()) return;
+        }
+
+        // The pod falls silent: the reading goes rather than sitting there stale.
+        answering.stop();
+        QTRY_VERIFY_WITH_TIMEOUT(!fullTemps->isVisible(), 6000);
+        QVERIFY(dashboard->setProperty("expandedPanel", QString()));
+        QTest::qWait(kSettleMs);
+        QVERIFY2(!temps->isVisible(), "Temperatures stayed up on the window after the pod fell silent");
     });
 }

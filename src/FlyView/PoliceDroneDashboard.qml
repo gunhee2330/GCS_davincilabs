@@ -996,6 +996,8 @@ Item {
 
         property string title
         property string detail
+        /// A second reading after detail, drawn the same way with the chip's own gap between.
+        property string extraDetail
         property string panelKey
         property alias slot: contentSlot
         /// The forward window and the zoom/thermal stack are at two different scales.
@@ -1052,12 +1054,36 @@ Item {
                     font.pixelSize: Math.max(11, ScreenTools.defaultFontPixelHeight * 0.62)
                     text:           win.title
                 }
-                Text {
+                // The two readings side by side where they fit. The thermal window is too narrow
+                // for the laser and both temperatures on one line, so the second folds under the
+                // first rather than running off the screen.
+                Flow {
+                    readonly property bool _both: (win.detail.length > 0) && (win.extraDetail.length > 0)
+
                     anchors.verticalCenter: parent.verticalCenter
-                    color:          "#9fb2c4"
-                    font.pixelSize: Math.max(10, ScreenTools.defaultFontPixelHeight * 0.55)
-                    text:           win.detail
-                    visible:        win.detail.length > 0
+                    spacing:        nameChip.spacing
+                    // Summed in the order Flow itself adds them, so a fit is never lost to rounding.
+                    // 26 is the chip's 6 margin on either side and its 14 of padding.
+                    width:          Math.min(detailText.implicitWidth + (_both ? spacing : 0) + extraDetailText.implicitWidth,
+                                             win.width - 26 - x)
+                    visible:        (win.detail.length > 0) || (win.extraDetail.length > 0)
+
+                    Text {
+                        id:             detailText
+                        color:          "#9fb2c4"
+                        font.pixelSize: Math.max(10, ScreenTools.defaultFontPixelHeight * 0.55)
+                        text:           win.detail
+                        visible:        win.detail.length > 0
+                    }
+                    Text {
+                        id:             extraDetailText
+                        // Read by the thermal readout test inside the thermal window's subtree.
+                        objectName:     "cameraWindowExtraDetail"
+                        color:          "#9fb2c4"
+                        font.pixelSize: Math.max(10, ScreenTools.defaultFontPixelHeight * 0.55)
+                        text:           win.extraDetail
+                        visible:        win.extraDetail.length > 0
+                    }
                 }
             }
         }
@@ -1094,6 +1120,13 @@ Item {
         // on this window's bar once readings arrive. No reading, no text.
         detail:     App.SiyiCameraController.rangefinderAvailable
                         ? qsTr("LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
+                        : ""
+        // RFP p11: the pod's whole-frame hottest and coldest, always up next to the name rather
+        // than inside the camera panel. No reading, no text, the same as the laser.
+        extraDetail: App.SiyiCameraController.thermalRangeAvailable
+                        ? qsTr("최고 %1 °C  최저 %2 °C")
+                              .arg(Number(App.SiyiCameraController.thermalMaxTempC).toFixed(1))
+                              .arg(Number(App.SiyiCameraController.thermalMinTempC).toFixed(1))
                         : ""
     }
 
@@ -2376,6 +2409,8 @@ Item {
         parent:               root.expandedPanel === "shared" ? fullscreenLayer : sharedWindow.slot
         anchors.fill:         parent
         panelTitle:           qsTr("열상")
+        // Full screen hides the window's own chip, so the temperatures ride on this one.
+        panelTitleDetail:     sharedWindow.extraDetail
         showChrome:           root.expandedPanel === "shared"
         streamObjectName:     "thermalVideo"
         // No target picking here any more: this window is always thermal now, and a tap on

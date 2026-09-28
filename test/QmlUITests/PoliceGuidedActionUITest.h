@@ -114,6 +114,13 @@ private slots:
     /// fullscreen_strip_2_thermal_flying when QGC_SCREENSHOT_DIR is set.
     void _testFullscreenFlightStrip();
 
+    /// The pod's whole-frame hottest and coldest, fed from a fake gimbal on loopback, read
+    /// 최고 … °C  최저 … °C on the thermal window's name chip after the LRF reading and follow the
+    /// pod live; the same text rides the name chip with the thermal window full screen, and both go
+    /// once the pod stops answering. Grabs thermal_temp_0_window, thermal_temp_1_with_lrf and
+    /// thermal_temp_2_fullscreen when QGC_SCREENSHOT_DIR is set.
+    void _testThermalTemperatureReadout();
+
 private:
     /// Pre-existing QML warnings that the strict log check would otherwise fail on.
     void _ignorePreexistingQmlWarnings();

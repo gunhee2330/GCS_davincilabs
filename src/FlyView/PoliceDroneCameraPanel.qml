@@ -10,6 +10,8 @@ Item {
     id: root
 
     property string panelTitle
+    /// Drawn after the title inside the name chip, the way a window's chip carries its reading.
+    property string panelTitleDetail
     property string panelDetail
     /// Windowed panels sit under a title bar that already names them, so the chips only come
     /// out full screen, where there is no bar and the operator needs to know what they are on.
@@ -136,13 +138,27 @@ Item {
         color:          "#c0121b24"
         visible:        root.showChrome
 
-        Text {
+        Row {
             id:             panelHeading
             anchors.centerIn: parent
-            color:          "white"
-            font.bold:      true
-            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.7
-            text:           root.panelTitle
+            spacing:        6
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                color:          "white"
+                font.bold:      true
+                font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.7
+                text:           root.panelTitle
+            }
+            Text {
+                objectName:     "policeCameraTitleDetail"
+                anchors.verticalCenter: parent.verticalCenter
+                color:          "#9fb2c4"
+                // Title to reading in the same proportion as the window chip, 0.55 to 0.62.
+                font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.62
+                text:           root.panelTitleDetail
+                visible:        root.panelTitleDetail.length > 0
+            }
         }
     }
 
