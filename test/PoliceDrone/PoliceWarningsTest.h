@@ -35,7 +35,8 @@ private slots:
     void _dismiss_test();
 
     /// Which autopilot lines are the English low and critical battery announcements Vehicle then
-    /// leaves unspoken, that it does so only while a PoliceWarnings watches that vehicle, and that
-    /// PX4's (events) never reach the function that speaks a status text at all.
+    /// leaves unspoken, that it does so only while a PoliceWarnings watches that vehicle, for the
+    /// status text and the pack's charge state alike, and that PX4's (events) never reach the
+    /// function that speaks a status text at all.
     void _stockBatteryVoice_test();
 };

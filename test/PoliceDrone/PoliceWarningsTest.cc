@@ -1,5 +1,7 @@
 #include "PoliceWarningsTest.h"
 
+#include <algorithm>
+
 #include <QtCore/QtNumeric>
 #include <QtTest/QSignalSpy>
 #include <QtTest/QTest>
@@ -28,6 +30,20 @@ bool setParam(Vehicle* vehicle, const QString& name, double value)
     }
     fact->containerSetRawValue(value);
     return true;
+}
+
+/// A charge state for pack 3, one the mock never sends itself.
+void sendBatteryState(MockLink* mockLink, Vehicle* vehicle, MAV_BATTERY_CHARGE_STATE state)
+{
+    uint16_t voltages[10];
+    std::fill(std::begin(voltages), std::end(voltages), UINT16_MAX);
+    uint16_t voltagesExt[4]{};
+    mavlink_message_t msg{};
+    (void) mavlink_msg_battery_status_pack_chan(
+        static_cast<uint8_t>(vehicle->id()), MAV_COMP_ID_AUTOPILOT1, mockLink->outgoingMavlinkChannel(), &msg,
+        3, MAV_BATTERY_FUNCTION_ALL, MAV_BATTERY_TYPE_LIPO, INT16_MAX, voltages, -1, -1, -1, 20, 0, state,
+        voltagesExt, 0, 0);
+    mockLink->respondWithMavlinkMessage(msg);
 }
 
 }  // namespace
@@ -371,18 +387,45 @@ void PoliceWarningsTest::_stockBatteryVoice_test()
     // A STATUSTEXT goes through Vehicle::_textMessageReceived, the one function that speaks a
     // status text, and it announces each one it handles with textMessageReceived. PX4 sends its
     // battery warnings as events instead, and those are listed without passing through it.
-    PoliceWarnings dashboard;
-    dashboard.setVehicle(watched);
     MockLink* const mockLink = this->mockLink();
     QVERIFY(mockLink);
     MAVLinkEventManager* const events = watched->findChild<MAVLinkEventManager*>();
     QVERIFY(events);
     QSignalSpy handled(watched, &Vehicle::textMessageReceived);
     QVERIFY(handled.isValid());
+    QSignalSpy spoken(watched, &Vehicle::spoke);
+    QVERIFY(spoken.isValid());
+    const QString lowText = QStringLiteral("Battery 1 is low 14.20V used 1234 mAh");
+    // What the stock voice said of the two: the status text itself, and the third pack's state in
+    // whatever language the app runs in, numbered only while the vehicle lists more than one pack.
+    const QString packLow = Vehicle::tr("battery %1 level low");
+    const auto spokenBattery = [&spoken, &lowText, &packLow] {
+        return std::count_if(spoken.cbegin(), spoken.cend(), [&](const QList<QVariant>& args) {
+            const QString said = args.first().toString();
+            return (said == lowText) || said.contains(packLow.arg(QString())) || said.contains(packLow.arg(3));
+        });
+    };
 
-    mockLink->sendStatusTextMessage(MAV_SEVERITY_WARNING, QStringLiteral("Battery 1 is low 14.20V used 1234 mAh"));
+    // Nobody watching: the stock voice speaks both. A pack's first state is only noted, so it is
+    // OK before it is LOW.
+    mockLink->sendStatusTextMessage(MAV_SEVERITY_WARNING, lowText);
     QVERIFY_TRUE_WAIT(handled.count() == 1, TestTimeout::mediumMs());
-    QCOMPARE(handled.first().at(3).toString(), QStringLiteral("Battery 1 is low 14.20V used 1234 mAh"));
+    QCOMPARE(spokenBattery(), 1);
+    sendBatteryState(mockLink, watched, MAV_BATTERY_CHARGE_STATE_OK);
+    sendBatteryState(mockLink, watched, MAV_BATTERY_CHARGE_STATE_LOW);
+    QVERIFY_TRUE_WAIT(spokenBattery() == 2, TestTimeout::mediumMs());
+
+    // Watched: neither. The line after them is handled only once both have been.
+    PoliceWarnings dashboard;
+    dashboard.setVehicle(watched);
+    handled.clear();
+    mockLink->sendStatusTextMessage(MAV_SEVERITY_WARNING, lowText);
+    sendBatteryState(mockLink, watched, MAV_BATTERY_CHARGE_STATE_OK);
+    sendBatteryState(mockLink, watched, MAV_BATTERY_CHARGE_STATE_LOW);
+    mockLink->sendStatusTextMessage(MAV_SEVERITY_INFO, QStringLiteral("after the battery"));
+    QVERIFY_TRUE_WAIT(handled.count() == 2, TestTimeout::mediumMs());
+    QCOMPARE(handled.first().at(3).toString(), lowText);
+    QCOMPARE(spokenBattery(), 2);
 
     handled.clear();
     const QString px4 = QStringLiteral("Low battery level, return advised");

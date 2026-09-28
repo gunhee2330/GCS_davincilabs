@@ -1232,6 +1232,8 @@ public:
 
 signals:
     void textMessageReceived(int sysid, int componentid, int severity, QString text, QString description);
+    /// Police fork: each announcement handed to the audio output, so a test can see what is spoken
+    void spoke(const QString& text);
 
     void messagesReceivedChanged();
     void messagesSentChanged();
