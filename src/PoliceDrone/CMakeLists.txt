@@ -19,6 +19,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         PoliceLinkDefaults.h
         PoliceVideoDefaults.cc
         PoliceVideoDefaults.h
+        PoliceWarnings.cc
+        PoliceWarnings.h
         TakeoffCounter.cc
         TakeoffCounter.h
 )

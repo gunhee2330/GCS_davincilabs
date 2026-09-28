@@ -8,6 +8,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         PoliceLidarMonitorTest.h
         PoliceLinkDefaultsTest.cc
         PoliceLinkDefaultsTest.h
+        PoliceWarningsTest.cc
+        PoliceWarningsTest.h
         TakeoffCounterTest.cc
         TakeoffCounterTest.h
 )
@@ -16,4 +18,5 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_
 
 add_qgc_test(PoliceLidarMonitorTest LABELS Integration Vehicle)
 add_qgc_test(PoliceLinkDefaultsTest LABELS Unit Comms)
+add_qgc_test(PoliceWarningsTest LABELS Integration Vehicle)
 add_qgc_test(TakeoffCounterTest LABELS Integration Vehicle)

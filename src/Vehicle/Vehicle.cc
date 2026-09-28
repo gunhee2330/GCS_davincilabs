@@ -45,6 +45,7 @@
 #include "MultiVehicleManager.h"
 #include "ParameterManager.h"
 #include "PlanMasterController.h"
+#include "PoliceWarnings.h"
 #include "PositionManager.h"
 #include "AppMessages.h"
 #include "QGCMath.h"
@@ -1167,6 +1168,12 @@ void Vehicle::_handleBatteryStatus(mavlink_message_t& message)
             batteryMessage = tr("battery %1 unhealthy");
         }
         break;
+    }
+
+    // Police fork: the dashboard's Korean battery warning speaks for low and critical.
+    if (((batteryStatus.charge_state == MAV_BATTERY_CHARGE_STATE_LOW) || (batteryStatus.charge_state == MAV_BATTERY_CHARGE_STATE_CRITICAL))
+        && PoliceWarnings::voicesBattery(this)) {
+        batteryMessage.clear();
     }
 
     if (!batteryMessage.isEmpty()) {
@@ -3443,6 +3450,11 @@ void Vehicle::_textMessageReceived(MAV_COMPONENT componentid, MAV_SEVERITY sever
         readAloud = true;
     } else if (severity <= MAV_SEVERITY::MAV_SEVERITY_NOTICE) {
         readAloud = true;
+    }
+
+    // Police fork: the dashboard's Korean battery warning speaks for this one.
+    if (readAloud && PoliceWarnings::voicesBattery(this) && PoliceWarnings::isBatteryAnnouncement(text)) {
+        readAloud = false;
     }
 
     if (readAloud && !skipSpoken) {

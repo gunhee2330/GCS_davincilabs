@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Shapes
 
 import QGC as App
 import QGroundControl
@@ -905,6 +906,8 @@ Item {
                                     ? linkLostBanner.y + linkLostBanner.height - obstacleGlow.y : 0,
                                 followModeBanner.visible
                                     ? followModeBanner.y + followModeBanner.height - obstacleGlow.y : 0,
+                                warningStrips.height > 0
+                                    ? warningStrips.y + warningStrips.height - obstacleGlow.y : 0,
                                 guidedConfirmHost.contentBottom > 0
                                     ? guidedConfirmHost.y + guidedConfirmHost.contentBottom - obstacleGlow.y : 0)
     }
@@ -1184,7 +1187,7 @@ Item {
         objectName:         "policeGuidedToolStrip"
         anchors.left:       parent.left
         anchors.leftMargin: 8
-        anchors.top:        topBar.bottom
+        anchors.top:        warningStrips.bottom
         anchors.topMargin:  8
         z:                  4
         // ToolStrip's own default, which still clears four Korean characters at the strip's
@@ -1348,7 +1351,7 @@ Item {
         id:                 cameraToolStrip
         objectName:         "policeCameraToolStrip"
         x:                  root._cameraStripRight - width
-        anchors.top:        topBar.bottom
+        anchors.top:        warningStrips.bottom
         anchors.topMargin:  8
         // Under the left strip's click-away layer (its z - 1), so a tap here while the
         // 복귀고도 panel is open closes that panel instead of firing a camera command.
@@ -1755,7 +1758,7 @@ Item {
         id:                  photoVideoLoader
         anchors.right:       parent.right
         anchors.rightMargin: 8
-        anchors.top:         topBar.bottom
+        anchors.top:         warningStrips.bottom
         anchors.topMargin:   8
         z:                   3
         sourceComponent:     root._activeVehicle && root._activeVehicle.cameraManager
@@ -1838,7 +1841,7 @@ Item {
         z:       25
 
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top:              linkLostBanner.visible ? linkLostBanner.bottom : topBar.bottom
+        anchors.top:              linkLostBanner.visible ? linkLostBanner.bottom : warningStrips.bottom
         anchors.topMargin:        ScreenTools.defaultFontPixelHeight
         width:                    followModeText.implicitWidth + ScreenTools.defaultFontPixelWidth * 4
         height:                   followModeText.implicitHeight + ScreenTools.defaultFontPixelHeight
@@ -1857,6 +1860,160 @@ Item {
             font.bold:           true
             font.pixelSize:      Math.max(13, ScreenTools.defaultFontPixelHeight * 0.85)
             text:                root._followModeWarning
+        }
+    }
+
+    // ------------------------------------------------------------------ warning strips
+    //
+    // RFP p6 아 and p8: low battery, the altitude and radius limits, and wind the aircraft cannot
+    // hold against. One full-width amber strip each, directly under the bar and stacked in a fixed
+    // order. The tool strips, the follow banner and the confirm control hang under the stack, so
+    // they step down by its height rather than being covered. The red link banner keeps its own
+    // place and is drawn over the stack where the two meet. A tap hides a strip until its condition
+    // clears and comes back, or until the battery turns critical. What is up, what it says, the
+    // voice and the dismissals are PoliceWarnings'; this only draws it.
+    App.PoliceWarnings {
+        id:             policeWarnings
+        vehicle:        root._activeVehicle
+        batteryLevel:   root._batteryCritical ? 2 : (root._batteryLow ? 1 : 0)
+        batteryPercent: root._batteryPercent
+        flying:         root._activeVehicle ? root._activeVehicle.flying : false
+        altitude:       root._activeVehicle ? root._activeVehicle.altitudeRelative.rawValue : NaN
+        homeDistance:   root._activeVehicle ? root._activeVehicle.distanceToHome.rawValue : NaN
+        windSpeed:      root._activeVehicle ? root._activeVehicle.wind.speed.rawValue : NaN
+    }
+
+    // 64 px on the 1920 px capture, where the bar is 135: sized off the bar so it scales with it.
+    readonly property real _warningStripHeight: _statusHeight * 64 / 135
+
+    component WarningStrip : Rectangle {
+        id: strip
+
+        property string title
+        property string line
+        property int    warning
+
+        // One pixel of the 1920 px mockup the strip was drawn on.
+        readonly property real _u: height / 64
+
+        visible: line.length > 0
+        width:   parent ? parent.width : 0
+        height:  root._warningStripHeight
+        color:   "#b35c00"
+
+        Rectangle {
+            anchors.left:   parent.left
+            anchors.right:  parent.right
+            anchors.bottom: parent.bottom
+            height:         2 * strip._u
+            color:          Qt.rgba(0, 0, 0, 0.3)
+        }
+
+        Row {
+            anchors.left:           parent.left
+            anchors.leftMargin:     34 * strip._u
+            anchors.verticalCenter: parent.verticalCenter
+            spacing:                18 * strip._u
+
+            // White warning triangle with the strip's amber mark cut into it.
+            Item {
+                id:                     warningIcon
+                anchors.verticalCenter: parent.verticalCenter
+                width:                  38 * strip._u
+                height:                 width
+
+                readonly property real _g: width / 24
+
+                Shape {
+                    anchors.fill: parent
+
+                    ShapePath {
+                        fillColor:   "white"
+                        strokeColor: "white"
+                        strokeWidth: 1.6 * warningIcon._g
+                        joinStyle:   ShapePath.RoundJoin
+                        startX:      12 * warningIcon._g
+                        startY:      2.5 * warningIcon._g
+                        PathLine { x: 22.8 * warningIcon._g; y: 21.5 * warningIcon._g }
+                        PathLine { x: 1.2 * warningIcon._g;  y: 21.5 * warningIcon._g }
+                        PathLine { x: 12 * warningIcon._g;   y: 2.5 * warningIcon._g }
+                    }
+                }
+
+                Rectangle {
+                    x:      (12 - 1.3) * warningIcon._g
+                    y:      9.2 * warningIcon._g
+                    width:  2.6 * warningIcon._g
+                    height: 5.6 * warningIcon._g
+                    radius: width / 2
+                    color:  strip.color
+                }
+
+                Rectangle {
+                    x:      (12 - 1.5) * warningIcon._g
+                    y:      (18.1 - 1.5) * warningIcon._g
+                    width:  3 * warningIcon._g
+                    height: width
+                    radius: width / 2
+                    color:  strip.color
+                }
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                color:                  "white"
+                font.bold:              true
+                font.pixelSize:         34 * strip._u
+                text:                   strip.title
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                leftPadding:            10 * strip._u
+                color:                  "white"
+                font.pixelSize:         30 * strip._u
+                text:                   strip.line
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked:    policeWarnings.dismiss(strip.warning)
+        }
+    }
+
+    Column {
+        id:            warningStrips
+        objectName:    "policeWarningStrips"
+        anchors.left:  parent.left
+        anchors.right: parent.right
+        anchors.top:   topBar.bottom
+        // Under the red link banner (25), over the full-screen camera layer (20).
+        z:             24
+
+        WarningStrip {
+            objectName: "policeWarningBattery"
+            warning:    App.PoliceWarnings.Battery
+            title:      policeWarnings.batteryCritical ? qsTr("배터리 위험") : qsTr("배터리 부족")
+            line:       policeWarnings.batteryText
+        }
+        WarningStrip {
+            objectName: "policeWarningAltitude"
+            warning:    App.PoliceWarnings.Altitude
+            title:      qsTr("고도 초과")
+            line:       policeWarnings.altitudeText
+        }
+        WarningStrip {
+            objectName: "policeWarningRadius"
+            warning:    App.PoliceWarnings.Radius
+            title:      qsTr("반경 초과")
+            line:       policeWarnings.radiusText
+        }
+        WarningStrip {
+            objectName: "policeWarningWind"
+            warning:    App.PoliceWarnings.Wind
+            title:      qsTr("강풍 경고")
+            line:       policeWarnings.windText
         }
     }
 
@@ -2427,7 +2584,7 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top:              followModeBanner.visible
                                       ? followModeBanner.bottom
-                                      : (linkLostBanner.visible ? linkLostBanner.bottom : topBar.bottom)
+                                      : (linkLostBanner.visible ? linkLostBanner.bottom : warningStrips.bottom)
         anchors.topMargin:        ScreenTools.defaultFontPixelHeight / 2
         z:                        40
     }
