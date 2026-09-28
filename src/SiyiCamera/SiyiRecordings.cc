@@ -694,9 +694,21 @@ QString SiyiRecordings::exportCopy(const QString &key)
     if (name.isEmpty() || !QFile::exists(source) || folder.isEmpty() || !QDir().mkpath(folder)) {
         return QString();
     }
-    const QString target = QDir(folder).filePath(name);
-    // Exported before: the same file is there already.
-    return (QFile::exists(target) || QFile::copy(source, target)) ? target : QString();
+    // Exported before: the same file is there already. Another file under the name is kept, and
+    // the copy goes beside it with a number, as a download does.
+    // ponytail: same size taken for the same file; compare the bytes if two ever differ at one size
+    const qint64 size = QFileInfo(source).size();
+    QString localName = name;
+    for (int n = 2; ; n++) {
+        const QString target = QDir(folder).filePath(localName);
+        if (!QFile::exists(target)) {
+            return QFile::copy(source, target) ? target : QString();
+        }
+        if (QFileInfo(target).size() == size) {
+            return target;
+        }
+        localName = QFileInfo(name).completeBaseName() + QStringLiteral("_%1.mp4").arg(n);
+    }
 }
 
 QUrl SiyiRecordings::playbackUrl(const QString &key) const

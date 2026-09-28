@@ -202,6 +202,19 @@ void SiyiRecordingsTest::_listsAndDownloads_test()
     const QString exported = recordings.exportCopy(namedKey);
     QCOMPARE(exported, QDir(SettingsManager::instance()->appSettings()->videoSavePath()).filePath(expected));
     QCOMPARE(readFile(exported), video);
+    QCOMPARE(recordings.exportCopy(namedKey), exported);
+    // Another file under that name is kept, and the copy goes beside it
+    {
+        QFile other(exported);
+        QVERIFY(other.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        QVERIFY(other.write("another file") > 0);
+    }
+    const QString beside = recordings.exportCopy(namedKey);
+    QVERIFY2(beside.endsWith(QStringLiteral("_2.mp4")), qPrintable(beside));
+    QCOMPARE(readFile(beside), video);
+    QCOMPARE(readFile(exported), QByteArray("another file"));
+    QCOMPARE(recordings.exportCopy(namedKey), beside);
+    QVERIFY(QFile::remove(beside));
     QVERIFY(QFile::remove(exported));
 
     // Delete: the copy goes, the pod's file stays listed
