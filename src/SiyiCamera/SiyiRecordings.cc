@@ -20,6 +20,7 @@
 #include <QtNetwork/QNetworkRequest>
 #include <QtQml/QJSEngine>
 
+#include "AppMessages.h"
 #include "AppSettings.h"
 #include "Fact.h"
 #include "MultiVehicleManager.h"
@@ -168,7 +169,10 @@ void SiyiRecordings::logRecordingStart(qint64 ms, const QGeoCoordinate &position
 
 QString SiyiRecordings::storeDirectory()
 {
-    return QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)).filePath(QStringLiteral("PodRecordings"));
+    // Test runs keep them in their own save folder, which the run removes when it exits
+    const QString root = QGC::runningUnitTests() ? SettingsManager::instance()->appSettings()->savePath()->rawValue().toString()
+                                                 : QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    return QDir(root).filePath(QStringLiteral("PodRecordings"));
 }
 
 QString SiyiRecordings::rfpName(qint64 startMs, bool withPosition, double lat, double lon)

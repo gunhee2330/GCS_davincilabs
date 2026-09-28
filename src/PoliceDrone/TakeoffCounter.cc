@@ -13,6 +13,7 @@
 
 #include <cmath>
 
+#include "AppMessages.h"
 #include "AppSettings.h"
 #include "Fact.h"
 #include "MAVLinkLib.h"
@@ -263,7 +264,10 @@ QString TakeoffCounter::airframeKey(const Vehicle* vehicle)
 
 QString TakeoffCounter::recordsDirectory()
 {
-    return QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)).filePath(QStringLiteral("FlightRecords"));
+    // Test runs keep them in their own save folder, which the run removes when it exits
+    const QString root = QGC::runningUnitTests() ? SettingsManager::instance()->appSettings()->savePath()->rawValue().toString()
+                                                 : QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    return QDir(root).filePath(QStringLiteral("FlightRecords"));
 }
 
 QVariantList TakeoffCounter::readFlights(const QString& airframe, bool* ok)
