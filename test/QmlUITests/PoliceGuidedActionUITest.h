@@ -105,6 +105,15 @@ private slots:
     /// QGC_SCREENSHOT_DIR is set.
     void _testBroadcastActionAlwaysShown();
 
+    /// Full screen, the flight strip stands in for the hidden top bar: on the zoom and on the
+    /// thermal window it is up, reads the date and time, 비행 중 with the elapsed time and the
+    /// top bar's distance in flight and a dash on the ground, the relative altitude and the
+    /// battery, keeps ticking, and stays clear of the window's name chip, its 추종/추적 chips and
+    /// its 추적해제 button. Gone again once no window is full screen. Grabs
+    /// fullscreen_strip_0_zoom_ground, fullscreen_strip_1_zoom_flying and
+    /// fullscreen_strip_2_thermal_flying when QGC_SCREENSHOT_DIR is set.
+    void _testFullscreenFlightStrip();
+
 private:
     /// Pre-existing QML warnings that the strict log check would otherwise fail on.
     void _ignorePreexistingQmlWarnings();

@@ -2017,3 +2017,152 @@ void PoliceGuidedActionUITest::_testDetectionCardCells()
         }
     });
 }
+
+void PoliceGuidedActionUITest::_testFullscreenFlightStrip()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        const QString kStrip = QStringLiteral("policeFullscreenFlightStrip");
+        const bool capture = !qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty();
+
+        QQuickItem *const dashboard = findVisibleItem(_rootItem, kDashboard, 5000);
+        QVERIFY2(dashboard, "Police dashboard not found - the layout under test is not up");
+        QQuickItem *const zoomPanel = findVisibleItem(_rootItem, kZoomPanel, 5000);
+        QVERIFY2(zoomPanel, "Zoom camera panel not found");
+        // The release button follows the AI module's own state, which no mock link can drive, so
+        // it is put up the way the release button test puts it up.
+        QVERIFY(zoomPanel->setProperty("targetPickEnabled", true));
+
+        QVERIFY2(!findVisibleItem(_rootItem, kStrip, 0), "Flight strip is up with no camera full screen");
+
+        const auto text = [](QQuickItem *strip, const char *name) {
+            QQuickItem *const item = strip->findChild<QQuickItem *>(QLatin1String(name));
+            return item ? item->property("text").toString() : QStringLiteral("<no %1>").arg(QLatin1String(name));
+        };
+
+        // Every figure on the strip against where the top bar and the aircraft have it.
+        const auto checkStrip = [&](QQuickItem *strip, bool flying) {
+            const QString clock = text(strip, "policeFullscreenStripDateTime");
+            QVERIFY2(QRegularExpression(QStringLiteral("^\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d$")).match(clock).hasMatch(),
+                     qPrintable(QStringLiteral("Strip clock reads '%1'").arg(clock)));
+
+            const QString flight = text(strip, "policeFullscreenStripFlight");
+            QQuickItem *const distance = strip->findChild<QQuickItem *>(QStringLiteral("policeFullscreenStripDistance"));
+            QVERIFY2(distance, "Strip has no distance figure");
+            if (flying) {
+                QVERIFY2(QRegularExpression(QStringLiteral("^비행 중 \\d\\d:\\d\\d$")).match(flight).hasMatch(),
+                         qPrintable(QStringLiteral("Strip flight time reads '%1'").arg(flight)));
+                QQuickItem *const barDistance = findVisibleItem(_rootItem, QStringLiteral("policeStatusDistance"), 0);
+                QVERIFY2(barDistance, "Top bar distance is not up in flight");
+                QVERIFY(distance->isVisible());
+                QCOMPARE(distance->property("text").toString(), barDistance->property("text").toString());
+            } else {
+                QCOMPARE(flight, QStringLiteral("—"));
+                QVERIFY2(!distance->isVisible(), "Strip shows a distance on the ground");
+            }
+
+            const QString altitude = text(strip, "policeFullscreenStripAltitude");
+            const QRegularExpressionMatch alt = QRegularExpression(QStringLiteral("^(-?\\d+\\.\\d) m$")).match(altitude);
+            QVERIFY2(alt.hasMatch(), qPrintable(QStringLiteral("Strip altitude reads '%1'").arg(altitude)));
+            const double relative = vehicle->altitudeRelative()->rawValue().toDouble();
+            QVERIFY2(qAbs(alt.captured(1).toDouble() - relative) <= 0.051,
+                     qPrintable(QStringLiteral("Strip altitude '%1' against a relative altitude of %2")
+                                    .arg(altitude).arg(relative)));
+
+            const double percent = dashboard->property("_batteryPercent").toDouble();
+            QVERIFY2(!qIsNaN(percent), "The mock pack reports no percentage");
+            QCOMPARE(text(strip, "policeFullscreenStripBattery"), QStringLiteral("%1 %").arg(qRound(percent)));
+        };
+
+        // Clear of the window's own chrome: its name chip, found by the name it prints inside the
+        // full screen layer, and on the zoom window the state chips and the release button.
+        const auto checkClear = [&](QQuickItem *strip, const QString &title, bool zoom) {
+            const QRectF stripRect = sceneRect(strip);
+            QVERIFY2(QRectF(0, 0, _window->width(), _window->height()).contains(stripRect),
+                     qPrintable(QStringLiteral("Strip %1 hangs off the screen").arg(QDebug::toString(stripRect))));
+            QQuickItem *const titleText = findVisibleTextItem(strip->parentItem(), title);
+            QVERIFY2(titleText, qPrintable(QStringLiteral("Full screen name chip '%1' is not on screen").arg(title)));
+            QList<QPair<QString, QQuickItem *>> chrome { { QStringLiteral("name chip"), titleText->parentItem() } };
+            if (zoom) {
+                chrome.append({ QStringLiteral("state chips"), findVisibleItem(zoomPanel, kStateChips, 0) });
+                chrome.append({ QStringLiteral("release button"), findVisibleItem(zoomPanel, kTrackCancel, 0) });
+            }
+            for (const auto &item : chrome) {
+                QVERIFY2(item.second, qPrintable(QStringLiteral("Full screen %1 is not on screen").arg(item.first)));
+                QVERIFY2(!stripRect.intersects(sceneRect(item.second)),
+                         qPrintable(QStringLiteral("Strip %1 covers the %2 %3")
+                                        .arg(QDebug::toString(stripRect), item.first,
+                                             QDebug::toString(sceneRect(item.second)))));
+            }
+        };
+
+        // On the ground, zoom full screen.
+        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
+        QQuickItem *const strip = findVisibleItem(_rootItem, kStrip, 3000);
+        QVERIFY2(strip, "Flight strip is not up with the zoom window full screen");
+        QTest::qWait(kSettleMs);
+        checkStrip(strip, false);
+        if (QTest::currentTestFailed()) return;
+        checkClear(strip, zoomPanel->property("panelTitle").toString(), true);
+        if (QTest::currentTestFailed()) return;
+        if (capture) {
+            _grab(QStringLiteral("fullscreen_strip_0_zoom_ground"));
+            if (QTest::currentTestFailed()) return;
+        }
+        QVERIFY(dashboard->setProperty("expandedPanel", QString()));
+        QTest::qWait(kSettleMs);
+        QVERIFY2(!strip->isVisible(), "Flight strip stayed up after leaving full screen");
+
+        // Take off, the way the return altitude test does.
+        QVERIFY_TRUE_WAIT(!qIsNaN(vehicle->altitudeAMSL()->rawValue().toDouble()), TestTimeout::longMs());
+        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
+                         QRegularExpression(QStringLiteral("Failed to connect to pressure backend")));
+        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
+                         QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
+        QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
+        QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000), "Confirm control never appeared");
+        QVERIFY(_holdButton(kConfirmButton));
+        QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
+        QTest::qWait(kSettleMs * 2);
+
+        // In flight, zoom full screen, and the figures keep moving while it is up.
+        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
+        QVERIFY2(findVisibleItem(_rootItem, kStrip, 3000), "Flight strip is not up with the zoom window full screen in flight");
+        QTest::qWait(kSettleMs);
+        checkStrip(strip, true);
+        if (QTest::currentTestFailed()) return;
+        checkClear(strip, zoomPanel->property("panelTitle").toString(), true);
+        if (QTest::currentTestFailed()) return;
+        const QString clockBefore  = text(strip, "policeFullscreenStripDateTime");
+        const QString flightBefore = text(strip, "policeFullscreenStripFlight");
+        QTest::qWait(2200);
+        QVERIFY2(text(strip, "policeFullscreenStripDateTime") != clockBefore, "Strip clock stood still");
+        QVERIFY2(text(strip, "policeFullscreenStripFlight") != flightBefore, "Strip flight time stood still");
+        if (capture) {
+            _grab(QStringLiteral("fullscreen_strip_1_zoom_flying"));
+            if (QTest::currentTestFailed()) return;
+        }
+
+        // Thermal full screen, straight from the zoom one.
+        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("shared")));
+        QTest::qWait(kSettleMs);
+        QVERIFY2(strip->isVisible(), "Flight strip is not up with the thermal window full screen");
+        checkStrip(strip, true);
+        if (QTest::currentTestFailed()) return;
+        checkClear(strip, QStringLiteral("열상"), false);
+        if (QTest::currentTestFailed()) return;
+        if (capture) {
+            _grab(QStringLiteral("fullscreen_strip_2_thermal_flying"));
+            if (QTest::currentTestFailed()) return;
+        }
+
+        QVERIFY(dashboard->setProperty("expandedPanel", QString()));
+        QTest::qWait(kSettleMs);
+        QVERIFY2(!strip->isVisible(), "Flight strip stayed up after leaving full screen");
+    });
+}

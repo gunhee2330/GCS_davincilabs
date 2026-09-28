@@ -2050,6 +2050,14 @@ Item {
         }
     }
 
+    /// One figure on the full screen flight strip, in the top bar's face and weight.
+    component StripText : Text {
+        anchors.verticalCenter: parent.verticalCenter
+        font.family:            "Open Sans"
+        font.weight:            Font.DemiBold
+        font.pixelSize:         root._labelSize
+    }
+
     Item {
         id: fullscreenLayer
         anchors.fill: parent
@@ -2173,6 +2181,103 @@ Item {
                 color:          "white"
                 font.pixelSize: Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
                 text:           qsTr("화면 터치 또는 뒤로가기: 분할화면")
+            }
+        }
+
+        // Full screen covers the top bar, and with it the flight's date, time and distance that
+        // procurement wants readable off the video (RFP p9). The bar's own values and colours,
+        // top centre between the window's name chip and its state chips.
+        Rectangle {
+            id:                       flightStrip
+            objectName:               "policeFullscreenFlightStrip"
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top:              parent.top
+            anchors.topMargin:        8
+            width:                    stripRow.implicitWidth + root._labelSize * 1.6
+            height:                   stripRow.implicitHeight + root._labelSize * 0.5
+            radius:                   3
+            color:                    "#c0121b24"
+            z:                        2
+
+            // The banner's armed branch, the only one that carries a distance.
+            readonly property bool _flying: root._status.distance !== undefined
+
+            Row {
+                id:               stripRow
+                anchors.centerIn: parent
+                spacing:          root._labelSize * 1.15
+
+                StripText {
+                    id:         stripClock
+                    objectName: "policeFullscreenStripDateTime"
+                    color:      root._labelColor
+
+                    Timer {
+                        interval:         1000
+                        repeat:           true
+                        running:          fullscreenLayer.visible
+                        triggeredOnStart: true
+                        onTriggered:      stripClock.text = Qt.formatDateTime(new Date(), "MM-dd HH:mm:ss")
+                    }
+                }
+
+                Row {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing:                root._labelSize * 0.5
+
+                    StripText {
+                        objectName: "policeFullscreenStripFlight"
+                        color:      flightStrip._flying ? root._status.accent : root._labelColor
+                        text:       flightStrip._flying ? root._status.text : "—"
+                    }
+
+                    StripText {
+                        objectName: "policeFullscreenStripDistance"
+                        color:      root._status.accent
+                        text:       flightStrip._flying ? root._status.distance : ""
+                        visible:    text !== ""
+                    }
+                }
+
+                Row {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing:                root._labelSize * 0.3
+
+                    StripText {
+                        color:       root._labelColor
+                        font.weight: Font.Normal
+                        text:        qsTr("고도")
+                    }
+
+                    StripText {
+                        objectName: "policeFullscreenStripAltitude"
+                        readonly property real _alt: root._activeVehicle ? root._activeVehicle.altitudeRelative.rawValue : NaN
+                        color:      "white"
+                        text:       isNaN(_alt) ? "—" : qsTr("%1 m").arg(_alt.toFixed(1))
+                    }
+                }
+
+                Row {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing:                root._labelSize * 0.3
+
+                    StripText {
+                        color:       root._labelColor
+                        font.weight: Font.Normal
+                        text:        qsTr("배터리")
+                    }
+
+                    // The top bar's own reading: percentage, or the voltage when the pack sends none.
+                    StripText {
+                        objectName: "policeFullscreenStripBattery"
+                        color:      root._batteryColor
+                        text:       !root._lowestBattery
+                                        ? "—"
+                                        : (isNaN(root._batteryPercent)
+                                               ? root._lowestBattery.voltage.valueString + qsTr(" V")
+                                               : qsTr("%1 %").arg(Math.round(root._batteryPercent)))
+                    }
+                }
             }
         }
     }
