@@ -2443,7 +2443,8 @@ Item {
                         objectName: "policeFullscreenStripAltitude"
                         readonly property real _alt: root._activeVehicle ? root._activeVehicle.altitudeRelative.rawValue : NaN
                         color:      "white"
-                        text:       isNaN(_alt) ? "—" : qsTr("%1 m").arg(_alt.toFixed(1))
+                        // In the app's vertical unit, the way the distance takes the horizontal one
+                        text:       isNaN(_alt) ? "—" : root._activeVehicle.altitudeRelative.valueString + " " + root._activeVehicle.altitudeRelative.units
                     }
                 }
 

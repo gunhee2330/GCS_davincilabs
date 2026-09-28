@@ -39,6 +39,7 @@
 #include "SiyiLongProtocol.h"
 #include "SiyiProtocol.h"
 #include "SpeakerSettings.h"
+#include "UnitsSettings.h"
 #include "Vehicle.h"
 #include "VehicleLinkManager.h"
 
@@ -2026,6 +2027,16 @@ void PoliceGuidedActionUITest::_testFullscreenFlightStrip()
 {
     _ignorePreexistingQmlWarnings();
 
+    // In feet, so the altitude has to follow the app's unit rather than the metres it arrives in.
+    // A fact takes the unit it is made with, so this is set before the vehicle connects.
+    Fact *const verticalUnits = SettingsManager::instance()->unitsSettings()->verticalDistanceUnits();
+    QVERIFY(verticalUnits);
+    const QVariant savedUnits = verticalUnits->rawValue();
+    const auto restoreUnits = qScopeGuard([verticalUnits, savedUnits] { verticalUnits->setRawValue(savedUnits); });
+    ignoreLogMessage("API.QGCApplication.AppMessage", QtDebugMsg,
+                     QRegularExpression(QStringLiteral("Restart application for changes to take effect")));
+    verticalUnits->setRawValue(UnitsSettings::VerticalDistanceUnitsFeet);
+
     runWithMockLink([] { return MockLink::startPX4MockLink(); },
                     [this](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
         _window->resize(kLayoutWidth, kLayoutHeight);
@@ -2070,13 +2081,9 @@ void PoliceGuidedActionUITest::_testFullscreenFlightStrip()
                 QVERIFY2(!distance->isVisible(), "Strip shows a distance on the ground");
             }
 
-            const QString altitude = text(strip, "policeFullscreenStripAltitude");
-            const QRegularExpressionMatch alt = QRegularExpression(QStringLiteral("^(-?\\d+\\.\\d) m$")).match(altitude);
-            QVERIFY2(alt.hasMatch(), qPrintable(QStringLiteral("Strip altitude reads '%1'").arg(altitude)));
-            const double relative = vehicle->altitudeRelative()->rawValue().toDouble();
-            QVERIFY2(qAbs(alt.captured(1).toDouble() - relative) <= 0.051,
-                     qPrintable(QStringLiteral("Strip altitude '%1' against a relative altitude of %2")
-                                    .arg(altitude).arg(relative)));
+            QCOMPARE(text(strip, "policeFullscreenStripAltitude"),
+                     vehicle->altitudeRelative()->cookedValueString() + QStringLiteral(" ")
+                         + FactMetaData::appSettingsVerticalDistanceUnitsString());
 
             const double percent = dashboard->property("_batteryPercent").toDouble();
             QVERIFY2(!qIsNaN(percent), "The mock pack reports no percentage");
