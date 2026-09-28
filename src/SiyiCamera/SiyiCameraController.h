@@ -17,6 +17,7 @@
 
 Q_DECLARE_LOGGING_CATEGORY(SiyiCameraControllerLog)
 
+class MissionAutoRecord;
 class QQmlEngine;
 class QJSEngine;
 class QUdpSocket;
@@ -248,6 +249,8 @@ private:
     void _handleFunctionFeedback(quint8 code);
     void _resetCameraState();
     void _setConnected(bool connected);
+    /// toggleRecording() without marking the recording as the operator's
+    void _sendRecordingToggle();
 
     QUdpSocket *_socket = nullptr;
     QTimer _pollTimer;
@@ -263,6 +266,7 @@ private:
     QElapsedTimer _lastThermalRangeTimer;
     bool _connected = false;
     bool _initialized = false;
+    MissionAutoRecord *_autoRecord = nullptr;
     int _pollTicks = 0;
 
     int _yawRate = 0;

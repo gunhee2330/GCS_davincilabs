@@ -129,6 +129,10 @@
                     "setting": "siyiCameraSettings.fpvRtspUrl"
                 },
                 {
+                    "setting": "siyiCameraSettings.autoRecordMission",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue"
+                },
+                {
                     "setting": "siyiCameraSettings.aiEnabled"
                 },
                 {

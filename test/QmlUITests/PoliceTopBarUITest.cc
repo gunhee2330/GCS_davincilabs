@@ -35,6 +35,7 @@
 #include "QmlObjectListModel.h"
 #include "SettingsManager.h"
 #include "SimpleMissionItem.h"
+#include "SiyiCameraSettings.h"
 #include "TakeoffCounter.h"
 #include "Vehicle.h"
 #include "VehicleComponent.h"
@@ -1809,6 +1810,118 @@ void PoliceTopBarUITest::_captureSpeakerNaming()
     const qreal maxY = qMax(0.0, pageFlick->property("contentHeight").toReal() - pageFlick->height());
     pageFlick->setProperty("contentY", qBound(0.0, group->mapToItem(content, QPointF(0, 0)).y(), maxY));
     _grab(QStringLiteral("speaker_1_video_settings"));
+    stopUI();
+}
+
+void PoliceTopBarUITest::_testPlanAutoRecordSwitch()
+{
+    _ignorePreexistingQmlWarnings();
+    // Each editor the tree makes sizes its not-ready "?" off a zero width; see _testPlanSelectedItemStats
+    ignoreLogMessage("default", QtWarningMsg,
+                     QRegularExpression(QStringLiteral(
+                         "^QFont::setPointSizeF: Point size <= 0 \\(0\\.000000\\), must be greater than 0$")));
+
+    Fact *const autoRecord = SettingsManager::instance()->siyiCameraSettings()->autoRecordMission();
+    const QVariant saved = autoRecord->rawValue();
+    const auto restore = qScopeGuard([autoRecord, saved] { autoRecord->setRawValue(saved); });
+    autoRecord->setRawValue(false);
+
+    startUI();
+    if (QTest::currentTestFailed()) return;
+    _window->resize(kLayoutWidth, kLayoutHeight);
+    QTest::qWait(kSettleMs);
+
+    QVERIFY2(QMetaObject::invokeMethod(_window, "showPlanView"), "showPlanView is not invokable");
+    QQuickItem *const planView = findVisibleItem(_rootItem, QStringLiteral("mainView_plan"), 5000);
+    QVERIFY2(planView, "The plan view did not appear");
+    MissionController *const missionController =
+        qobject_cast<MissionController *>(planView->property("_missionController").value<QObject *>());
+    QVERIFY2(missionController, "The plan view has no mission controller");
+
+    // A takeoff and a waypoint under the mission start, the waypoint selected, so the mission
+    // start and the takeoff are closed rows as in the mockup
+    const QGeoCoordinate home(37.5665, 126.9780);
+    missionController->setHomePosition(home);
+    QVERIFY(missionController->insertTakeoffItem(home, missionController->visualItems()->count()));
+    QVERIFY(missionController->insertSimpleMissionItem(home.atDistanceAndAzimuth(200, 45),
+                                                       missionController->visualItems()->count()));
+    VisualMissionItem *const waypoint = qobject_cast<VisualMissionItem *>(
+        missionController->visualItems()->get(missionController->visualItems()->count() - 1));
+    QVERIFY(waypoint);
+    missionController->setCurrentPlanViewSeqNum(waypoint->sequenceNumber(), true);
+    // The plan tree rebuilds its rows once the new items settle, and an editor found before
+    // that is torn down under the test
+    QTest::qWait(kSettleMs);
+    // Selecting the waypoint scrolled the tree down to its editor. Back to the mission group's
+    // header at the top, the way the mockup shows the list
+    QQuickItem *const planTree = findVisibleItem(_rootItem, QStringLiteral("planView_planTree"), 5000);
+    QVERIFY(planTree);
+    planTree->setProperty("contentY", 0);
+    QTest::qWait(kSettleMs);
+    QQuickItem *const missionGroup = findVisibleItem(planTree, QStringLiteral("planTree_missionGroupHeader"), 5000);
+    QVERIFY2(missionGroup, "The plan tree shows no 임무 항목 header");
+    planTree->setProperty("contentY", sceneRect(missionGroup).top() - sceneRect(planTree).top());
+    QTest::qWait(kSettleMs);
+
+    const QString switchName = QStringLiteral("missionSettings_autoRecordMission");
+    QQuickItem *const control = findVisibleItem(planTree, switchName, 5000);
+    QVERIFY2(control, "The closed mission start has no 임무 중 자동 녹화 switch under it");
+    QQuickItem *const row = control->parentItem() ? control->parentItem()->parentItem() : nullptr;
+    QVERIFY2(row && findVisibleItemWithExactText(row, QStringLiteral("임무 중 자동 녹화")),
+             "The switch's row is not labelled 임무 중 자동 녹화");
+    QVERIFY2(findVisibleItemWithExactText(row, QStringLiteral("임무를 시작하면 녹화를 시작하고 끝나면 멈춥니다")),
+             "The switch's row has no description");
+    QVERIFY(!control->property("checked").toBool());
+
+    // Between the mission start and the takeoff, as the mockup draws it
+    QQuickItem *const missionStart = findVisibleItemWithExactText(planTree, QStringLiteral("초기 카메라 설정"));
+    QQuickItem *const takeoff = findVisibleItemWithExactText(planTree, QStringLiteral("이륙"));
+    QStringList treeTexts;
+    collectTexts(planTree, treeTexts);
+    QVERIFY2(missionStart && takeoff,
+             qPrintable(QStringLiteral("The plan tree shows no 초기 카메라 설정 or 이륙 row: %1").arg(treeTexts.join(QStringLiteral(" | ")))));
+    const QRectF rowRect = sceneRect(row);
+    QVERIFY2((rowRect.top() > sceneRect(missionStart).bottom()) && (rowRect.bottom() < sceneRect(takeoff).top()),
+             qPrintable(QStringLiteral("The row (%1..%2) is not between 초기 카메라 설정 (ends %3) and 이륙 (starts %4)")
+                            .arg(rowRect.top()).arg(rowRect.bottom())
+                            .arg(sceneRect(missionStart).bottom()).arg(sceneRect(takeoff).top())));
+
+    for (const bool on : { true, false }) {
+        QQuickItem *const target = findVisibleItem(planTree, switchName, 5000);
+        QVERIFY(target);
+        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, sceneRect(target).center().toPoint());
+        QVERIFY2(waitForCondition([&] { return autoRecord->rawValue().toBool() == on; }, 2000,
+                                  QStringLiteral("setting follows the switch")),
+                 qPrintable(QStringLiteral("A tap on the switch did not turn the setting %1").arg(on ? "on" : "off")));
+        QQuickItem *const after = findVisibleItem(planTree, switchName, 5000);
+        QVERIFY(after);
+        QCOMPARE(after->property("checked").toBool(), on);
+        // A tap on the row is the setting's alone: the mission start stays closed
+        QCOMPARE(missionController->currentPlanViewSeqNum(), waypoint->sequenceNumber());
+        if (on) {
+            _grabIfCapturing(QStringLiteral("autorecord_0_plan"));
+            if (QTest::currentTestFailed()) return;
+        }
+    }
+
+    if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+        // With the mission start open the row follows its editor
+        autoRecord->setRawValue(true);
+        missionController->setCurrentPlanViewSeqNum(0, true);
+        QTest::qWait(kSettleMs);
+        QVERIFY2(findVisibleItem(planTree, switchName, 5000), "The open mission start lost the switch under it");
+        _grab(QStringLiteral("autorecord_2_plan_open"));
+
+        // The same setting on the 영상 page's camera section
+        QVERIFY2(QMetaObject::invokeMethod(_window, "showSettingsTool", Q_ARG(QVariant, QVariant(QStringLiteral("Video")))),
+                 "showSettingsTool is not invokable");
+        QTest::qWait(kSettleMs);
+        QQuickItem *const settingsSwitch = findVisibleItemScrolled(QStringLiteral("settingsCheckBox_autoRecordMission"),
+                                                                   QStringLiteral("settingsPageFlickable"));
+        QVERIFY2(settingsSwitch, "The Video page shows no 임무 중 자동 녹화 switch");
+        QVERIFY(settingsSwitch->property("checked").toBool());
+        _grab(QStringLiteral("autorecord_1_settings"));
+    }
     stopUI();
 }
 

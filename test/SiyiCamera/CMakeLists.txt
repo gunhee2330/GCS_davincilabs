@@ -5,6 +5,8 @@
 
 target_sources(${CMAKE_PROJECT_NAME}
     PRIVATE
+        MissionAutoRecordTest.cc
+        MissionAutoRecordTest.h
         SiyiAiControllerTest.cc
         SiyiAiControllerTest.h
         SiyiCameraControllerTest.cc
@@ -21,3 +23,4 @@ add_qgc_test(SiyiProtocolTest LABELS Unit)
 add_qgc_test(SiyiLongProtocolTest LABELS Unit)
 add_qgc_test(SiyiAiControllerTest LABELS Unit)
 add_qgc_test(SiyiCameraControllerTest LABELS Unit)
+add_qgc_test(MissionAutoRecordTest LABELS Integration Vehicle)

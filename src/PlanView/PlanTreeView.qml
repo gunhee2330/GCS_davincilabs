@@ -212,7 +212,7 @@ TreeView {
     delegate: Item {
         id: delegateRoot
         implicitWidth: root.width
-        implicitHeight: _hiddenGroup ? 0 : (loader.item ? loader.item.height : 1) + (separatorLine.visible ? separatorLine.height + root.touchRowGap : 0)
+        implicitHeight: _hiddenGroup ? 0 : (loader.item ? loader.item.height : 1) + autoRecordRow.height + (separatorLine.visible ? separatorLine.height + root.touchRowGap : 0)
         visible: !_hiddenGroup
         enabled: !root._createNewPlanMode || _enabledInCreateMode
         opacity: enabled ? 1 : root.editorMap._nonInteractiveOpacity
@@ -348,11 +348,20 @@ TreeView {
             }
         }
 
+        // 임무 시작(초기 카메라 설정) 밑의 임무 중 자동 녹화 줄
+        Loader {
+            id: autoRecordRow
+            anchors.top: loader.bottom
+            width: parent.width
+            active: delegateRoot.nodeType === "missionItem" && !!delegateRoot.nodeObject && delegateRoot.nodeObject.sequenceNumber === 0
+            sourceComponent: MissionAutoRecordRow { }
+        }
+
         Rectangle {
             id: separatorLine
             anchors.margins: ScreenTools.defaultFontPixelWidth * 0.5
             anchors.topMargin: root.touchRowGap
-            anchors.top: loader.bottom
+            anchors.top: autoRecordRow.bottom
             anchors.left: parent.left
             anchors.right: parent.right
             height: 1

@@ -130,6 +130,11 @@ private slots:
     /// tablet's figure, while the pill and its row keep the mockup's size.
     void _testSettingsSwitchTouchTarget();
 
+    /// The 임무 중 자동 녹화 row stands under the closed mission start, above the takeoff, and a tap
+    /// on its switch turns the app setting on and off without opening the mission start. Also the
+    /// plan and 영상 page captures, when a capture directory is set.
+    void _testPlanAutoRecordSwitch();
+
     /// Capture slot for the radio page on an ArduPilot aircraft, which has no PX4 switch rows.
     /// Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureArduPilotRadio();

@@ -6,6 +6,7 @@
 #include <QtQml/QJSEngine>
 
 #include "Fact.h"
+#include "MissionAutoRecord.h"
 #include "QGCLoggingCategory.h"
 #include "SettingsManager.h"
 #include "SiyiCameraSettings.h"
@@ -108,6 +109,21 @@ void SiyiCameraController::init()
     for (Fact *const fact : {settings->enabled(), settings->ipAddress(), settings->port()}) {
         (void) connect(fact, &Fact::rawValueChanged, this, [applySettings](const QVariant &) { applySettings(); });
     }
+
+    // 임무 중 자동 녹화. It hears only the pod's own replies: the defaults a link loss resets
+    // _config to, and the time before the first reply, are "unknown", not "not recording"
+    _autoRecord = new MissionAutoRecord(this, [this] { _sendRecordingToggle(); });
+    (void) connect(this, &SiyiCameraController::connectedChanged, _autoRecord, [this] {
+        if (!_connected) {
+            _autoRecord->podState(std::nullopt);
+        }
+    });
+    (void) connect(this, &SiyiCameraController::configChanged, _autoRecord, [this] {
+        if (_connected) {
+            _autoRecord->podState(recording());
+        }
+    });
+    _autoRecord->init();
 
     _initialized = true;
     applySettings();
@@ -243,6 +259,15 @@ void SiyiCameraController::takePhoto()
 }
 
 void SiyiCameraController::toggleRecording()
+{
+    // Every hand on the record button comes through here, so what is on the pod is now the operator's
+    if (_autoRecord) {
+        _autoRecord->operatorToggled();
+    }
+    _sendRecordingToggle();
+}
+
+void SiyiCameraController::_sendRecordingToggle()
 {
     _sendSingleByte(SiyiProtocol::CommandId::PhotoAndMode, static_cast<quint8>(SiyiProtocol::PhotoFunction::ToggleRecording));
     // The camera does not report recording state spontaneously.

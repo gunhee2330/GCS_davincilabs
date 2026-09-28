@@ -5,6 +5,8 @@
 
 target_sources(${CMAKE_PROJECT_NAME}
     PRIVATE
+        MissionAutoRecord.cc
+        MissionAutoRecord.h
         SiyiAiController.cc
         SiyiAiController.h
         SiyiAiProtocol.cc

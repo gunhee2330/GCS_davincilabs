@@ -88,6 +88,15 @@
             "default": "rtsp://192.168.144.25:8554/main.264",
             "label": "FPV camera RTSP URL",
             "keywords": "fpv,rtsp,camera,lan2,forward"
+        },
+        {
+            "name": "autoRecordMission",
+            "shortDesc": "임무를 시작하면 녹화를 시작하고 끝나면 멈춥니다",
+            "longDesc": "기체가 시동이 걸린 채 떠서 임무 비행 모드로 날고 있는 동안 카메라 녹화를 켭니다. 임무 모드를 벗어나거나 착륙하거나 시동이 꺼지면 이 기능이 시작한 녹화만 끕니다. 조종자가 직접 시작한 녹화는 끄지 않습니다. 카메라는 비행 제어기가 아니라 이 앱이 직접 다루므로 앱이 켜져 있어야 동작합니다.",
+            "type": "bool",
+            "default": false,
+            "label": "임무 중 자동 녹화",
+            "keywords": "mission,record,auto,녹화,임무,자동"
         }
     ]
 }

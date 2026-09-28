@@ -22,4 +22,5 @@ public:
     DEFINE_SETTINGFACT(aiPort)
     DEFINE_SETTINGFACT(aiRtspUrl)
     DEFINE_SETTINGFACT(fpvRtspUrl)
+    DEFINE_SETTINGFACT(autoRecordMission)
 };
