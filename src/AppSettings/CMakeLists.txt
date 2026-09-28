@@ -92,6 +92,7 @@ qt_add_qml_module(AppSettingsModule
         PX4LogFileManager.qml
         PX4LogUploadSettings.qml
         QmlTest.qml
+        RecordingFileNameSettings.qml
         RemoteIDGpsLocation.qml
         SerialSettings.qml
         DeveloperModeSettings.qml

@@ -97,6 +97,39 @@
             "default": false,
             "label": "임무 중 자동 녹화",
             "keywords": "mission,record,auto,녹화,임무,자동"
+        },
+        {
+            "name": "recordingFileName",
+            "shortDesc": "Name given to a pod video downloaded to this tablet.",
+            "longDesc": "The procurement spec (p9) names a video after the moment its recording started, yyyyMMddhhmmsszzz.mp4, or that and the aircraft's position then, yyyyMMddhhmmsszzz_lat_lon.mp4. 0 is the time alone, 1 the time and position.",
+            "type": "uint32",
+            "default": 1,
+            "min": 0,
+            "max": 1,
+            "decimalPlaces": 0,
+            "label": "Recording file name",
+            "keywords": "recording,file name,video"
+        },
+        {
+            "name": "recordingAutoDeleteDays",
+            "shortDesc": "Days a downloaded pod video is kept on this tablet, 0 for no limit.",
+            "longDesc": "Downloaded copies older than this are deleted when the app starts and once a day. The videos on the pod's SD card are not touched.",
+            "type": "uint32",
+            "default": 30,
+            "min": 0,
+            "max": 3650,
+            "decimalPlaces": 0,
+            "label": "Auto delete",
+            "keywords": "recording,delete,retention"
+        },
+        {
+            "name": "recordingAdminOnly",
+            "shortDesc": "Only an administrator may open the video records.",
+            "longDesc": "Off, an operator lists, downloads and plays the pod's videos and an administrator is needed to delete or export one. On, an administrator is needed for all of it.",
+            "type": "bool",
+            "default": false,
+            "label": "Video records for administrators only",
+            "keywords": "recording,access,administrator"
         }
     ]
 }

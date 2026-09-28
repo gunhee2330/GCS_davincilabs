@@ -48,6 +48,21 @@ ToolIndicatorPage {
                 }
             }
 
+            // The pod's recorded videos and their copies on the tablet (RFP p5, p6 차, p9)
+            SubMenuButton {
+                objectName: "toolbar_viewRecordings"
+                implicitHeight: root._toolButtonHeight
+                Layout.fillWidth: true
+                text: qsTr("영상 기록")
+                imageResource: "/qml/QGroundControl/SiyiCamera/police_menu_recordings.svg"
+                onClicked: {
+                    if (mainWindow.allowViewSwitch()) {
+                        mainWindow.closeIndicatorDrawer()
+                        mainWindow.showTool(qsTr("영상 기록"), "qrc:/qml/QGroundControl/SiyiCamera/PoliceRecordingsPage.qml", "/qml/QGroundControl/SiyiCamera/police_menu_recordings.svg")
+                    }
+                }
+            }
+
             SubMenuButton {
                 objectName: "toolbar_viewGeoTest"
                 implicitHeight: root._toolButtonHeight

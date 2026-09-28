@@ -95,6 +95,16 @@
             ]
         },
         {
+            "component": "RecordingFileNameSettings",
+            "sectionName": "녹화",
+            "showWhen": "QGroundControl.settingsManager.siyiCameraSettings.userVisible",
+            "keywords": [
+                "녹화 파일 이름",
+                "recording",
+                "file name"
+            ]
+        },
+        {
             "heading": "SIYI Camera Control",
             "keywords": [
                 "siyi",

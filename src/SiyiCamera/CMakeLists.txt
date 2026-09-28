@@ -17,6 +17,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         SiyiLongProtocol.h
         SiyiProtocol.cc
         SiyiProtocol.h
+        SiyiRecordings.cc
+        SiyiRecordings.h
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -31,8 +33,11 @@ qt_add_qml_module(SiyiCameraModule
     VERSION 1.0
     RESOURCE_PREFIX /qml
     QML_FILES
+        PoliceRecordingsPage.qml
         SiyiCameraControlPanel.qml
         SiyiCameraToolStripAction.qml
+    RESOURCES
+        police_menu_recordings.svg
     NO_PLUGIN
 )
 

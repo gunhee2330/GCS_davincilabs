@@ -23,4 +23,7 @@ public:
     DEFINE_SETTINGFACT(aiRtspUrl)
     DEFINE_SETTINGFACT(fpvRtspUrl)
     DEFINE_SETTINGFACT(autoRecordMission)
+    DEFINE_SETTINGFACT(recordingFileName)
+    DEFINE_SETTINGFACT(recordingAutoDeleteDays)
+    DEFINE_SETTINGFACT(recordingAdminOnly)
 };

@@ -10,6 +10,7 @@
 #include "QGCLoggingCategory.h"
 #include "SettingsManager.h"
 #include "SiyiCameraSettings.h"
+#include "SiyiRecordings.h"
 
 QGC_LOGGING_CATEGORY(SiyiCameraControllerLog, "SiyiCamera.SiyiCameraController")
 
@@ -126,6 +127,8 @@ void SiyiCameraController::init()
     _autoRecord->init();
 
     _initialized = true;
+    // The recording log follows this controller from app start, whether or not the page is opened
+    SiyiRecordings::instance()->init();
     applySettings();
 }
 
