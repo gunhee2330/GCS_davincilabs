@@ -46,6 +46,13 @@ Item {
     /// laser range. Empty hides it.
     property string aiTargetInfo:       ""
 
+    /// The laser's aim point and its reading under it. Set on the zoom panel full screen with
+    /// the laser switched on; drawn only with the chrome, so never on the small window.
+    property bool   lrfOverlayVisible:  false
+    property string lrfText:            ""
+    /// Whether lrfText is a reading rather than the no-reading word, which is drawn dimmer.
+    property bool   lrfHasReading:      false
+
     /// Whether the module is following a target, drawn as a chip in the corner opposite the
     /// window's name. Null on the panels that have nothing to say about tracking, which is
     /// every one but the module's own picture.
@@ -129,6 +136,64 @@ Item {
                             Math.max(1, Math.min(ringRadius * 0.22 / ScreenTools.defaultFontPixelHeight, 1.6))
 
         readonly property real _strokeCap: ScreenTools.defaultFontPixelHeight * 0.6
+    }
+
+    // Laser aim point: four thin arms with a gap at the centre, and the reading on a dark pill
+    // under it. Sizes are the mockup's at the tablet's 45 px font height, as shares of it.
+    Item {
+        id:           lrfOverlay
+        objectName:   "policeLrfOverlay"
+        anchors.fill: parent
+        visible:      root.showChrome && root.lrfOverlayVisible
+
+        readonly property real _gap:   ScreenTools.defaultFontPixelHeight * 0.22
+        readonly property real _arm:   ScreenTools.defaultFontPixelHeight * 0.67
+        readonly property real _thick: Math.max(2, ScreenTools.defaultFontPixelHeight * 0.07)
+
+        Repeater {
+            model: 4
+
+            Item {
+                anchors.centerIn: parent
+                width:            (lrfOverlay._gap + lrfOverlay._arm) * 2
+                height:           width
+                rotation:         index * 90
+
+                // A dark edge under the white so the arm holds on sky and snow alike.
+                Rectangle {
+                    x:      parent.width / 2 + lrfOverlay._gap - 1.5
+                    y:      (parent.height - height) / 2
+                    width:  lrfOverlay._arm + 3
+                    height: lrfOverlay._thick + 3
+                    color:  "#96000000"
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width:            parent.width - 3
+                        height:           parent.height - 3
+                        color:            "white"
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            anchors.horizontalCenter: parent.horizontalCenter
+            y:      parent.height / 2 + lrfOverlay._gap + lrfOverlay._arm + ScreenTools.defaultFontPixelHeight * 0.62
+            width:  lrfLabel.implicitWidth + lrfLabel.font.pixelSize * 1.23
+            height: lrfLabel.font.pixelSize * 1.62
+            radius: height / 2
+            color:  "#96000000"
+
+            Text {
+                id:               lrfLabel
+                objectName:       "policeLrfOverlayText"
+                anchors.centerIn: parent
+                color:            root.lrfHasReading ? "white" : "#9aa3ab"
+                font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.7
+                text:             root.lrfText
+            }
+        }
     }
 
     Rectangle {

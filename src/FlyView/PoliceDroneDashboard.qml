@@ -2630,6 +2630,11 @@ Item {
         aiTargetHeight:       root.aiTargetHeight
         aiTargetLabel:        root.aiTargetLabel
         aiTargetInfo:         root.aiTargetInfo
+        lrfOverlayVisible:    root.expandedPanel === "secondary" && App.SiyiCameraController.laserEnabled
+        lrfHasReading:        App.SiyiCameraController.rangefinderAvailable
+        lrfText:              lrfHasReading
+                                  ? qsTr("LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
+                                  : qsTr("범위 밖")
         // A target the module has lost is not one it is following: it keeps hasTarget up while
         // it hunts for the object again, and a green chip through that is a claim nothing backs.
         trackingActive:       App.SiyiAiController.hasTarget && !App.SiyiAiController.targetLost
