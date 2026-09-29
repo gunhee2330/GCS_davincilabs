@@ -104,13 +104,20 @@ Item {
     }
 
     // The module rejects selections that arrive in the wrong mode or on an unsupported
-    // stream; without this the operator would just see nothing happen.
+    // stream; without this the operator would just see nothing happen. Shown as the first
+    // warning strip for 3 s; a new refusal starts it over.
+    property string _pickRefusal
     Connections {
         target: App.SiyiAiController
         function onTrackRequestFailed(code, reason) {
-            trackToast.text = reason
-            trackToast.show()
+            root._pickRefusal = reason
+            pickRefusalTimer.restart()
         }
+    }
+    Timer {
+        id:          pickRefusalTimer
+        interval:    3000
+        onTriggered: root._pickRefusal = ""
     }
 
     Rectangle {
@@ -1950,6 +1957,12 @@ Item {
         // on a strip takes it away and shows what it covered.
         z:             24
 
+        WarningStrip {
+            objectName: "policeWarningTargetPick"
+            title:      qsTr("표적 지정 실패")
+            line:       root._pickRefusal
+            onTapped:   root._pickRefusal = ""
+        }
         WarningStrip {
             objectName: "policeWarningLinkLost"
             color:      "#e5484d"

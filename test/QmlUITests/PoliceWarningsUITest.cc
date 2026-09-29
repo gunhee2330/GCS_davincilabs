@@ -5,6 +5,7 @@
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
+#include <QtCore/QElapsedTimer>
 #include <QtCore/QRegularExpression>
 #include <QtCore/QTimer>
 #include <QtGui/QColor>
@@ -21,6 +22,7 @@
 #include "MockLink.h"
 #include "ParameterManager.h"
 #include "PoliceWarnings.h"
+#include "SiyiAiController.h"
 #include "Vehicle.h"
 #include "VehicleLinkManager.h"
 
@@ -34,6 +36,7 @@ const QString kRadius   = QStringLiteral("policeWarningRadius");
 const QString kWind     = QStringLiteral("policeWarningWind");
 const QString kLinkLost = QStringLiteral("policeWarningLinkLost");
 const QString kFollow   = QStringLiteral("policeWarningFollowMode");
+const QString kPick     = QStringLiteral("policeWarningTargetPick");
 
 const QString kStrips      = QStringLiteral("policeWarningStrips");
 const QString kLeftStrip   = QStringLiteral("policeGuidedToolStrip");
@@ -658,6 +661,100 @@ void PoliceWarningsUITest::_testFollowModeStrip()
         QTest::qWait(300);
         QVERIFY(dashboard->setProperty("_followEngaged", true));
         QVERIFY(verifyVisibility(kFollow, true, QStringLiteral("follow warning back")));
+    });
+}
+
+void PoliceWarningsUITest::_testTargetPickRefusalStrip()
+{
+    _ignorePreexistingWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> mockLink, Vehicle *vehicle) {
+        QVERIFY(mockLink);
+        QVERIFY(vehicle);
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const dashboard = findVisibleItem(_rootItem, QStringLiteral("policeDroneDashboard"), 5000);
+        QVERIFY2(dashboard, "The police dashboard is not up");
+        QQuickItem *const topBar = findVisibleItem(_rootItem, QStringLiteral("policeTopBar"), 5000);
+        QVERIFY2(topBar, "The police top bar is not up");
+        SiyiAiController *const ai = SiyiAiController::instance();
+        QVERIFY(ai);
+        const bool capture = !qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty();
+        const QString noTarget = QStringLiteral("지정한 곳에 대상이 없습니다");
+        const QString stillTracking = QStringLiteral("추적 중입니다. 먼저 추적을 해제하십시오");
+
+        QVERIFY(verifyVisibility(kPick, false, QStringLiteral("no refusal yet")));
+
+        // Alone, as the mockup draws it: under the bar, between the two columns.
+        emit ai->trackRequestFailed(0, noTarget);
+        QVERIFY(verifyVisibility(kPick, true, QStringLiteral("refusal 0")));
+        if (capture) {
+            _grab(QStringLiteral("pick_strip_normal"));
+            if (QTest::currentTestFailed()) return;
+        }
+        QQuickItem *const pick = findVisibleItem(_rootItem, kPick, 0);
+        QVERIFY(pick);
+        QCOMPARE(pick->property("title").toString(), QStringLiteral("표적 지정 실패"));
+        QCOMPARE(pick->property("line").toString(), noTarget);
+        QCOMPARE(pick->property("color").value<QColor>(), QColor(QStringLiteral("#b35c00")));
+        QVERIFY(qAbs(sceneRect(pick).top() - sceneRect(topBar).bottom()) < 1.0);
+        QVERIFY(qAbs(pick->height() - topBar->height() * kStripToBar) < 0.5);
+        QTRY_VERIFY_WITH_TIMEOUT(!findVisibleItem(_rootItem, kPick, 0), 5000);
+
+        // First in the stack, over a warning that is already up.
+        injectBattery(mockLink, vehicle, 20, MAV_BATTERY_CHARGE_STATE_LOW);
+        QVERIFY(verifyVisibility(kBattery, true, QStringLiteral("low")));
+        QElapsedTimer shown;
+        emit ai->trackRequestFailed(6, stillTracking);
+        shown.start();
+        QVERIFY(verifyVisibility(kPick, true, QStringLiteral("refusal 6")));
+        QTest::qWait(300);
+        QQuickItem *const battery = findVisibleItem(_rootItem, kBattery, 0);
+        QVERIFY(battery);
+        QCOMPARE(pick->property("line").toString(), stillTracking);
+        QVERIFY(qAbs(sceneRect(pick).top() - sceneRect(topBar).bottom()) < 1.0);
+        QVERIFY(qAbs(sceneRect(battery).top() - sceneRect(pick).bottom()) < 1.0);
+
+        // Gone by itself after 3 s, and not before.
+        QTRY_VERIFY_WITH_TIMEOUT(!findVisibleItem(_rootItem, kPick, 0), 5000);
+        QVERIFY2(shown.elapsed() >= 2900,
+                 qPrintable(QStringLiteral("The strip went after %1 ms").arg(shown.elapsed())));
+        QVERIFY(verifyVisibility(kBattery, true, QStringLiteral("pick strip gone")));
+
+        // A new refusal 2 s in starts the 3 s over.
+        emit ai->trackRequestFailed(0, noTarget);
+        QVERIFY(verifyVisibility(kPick, true, QStringLiteral("first refusal")));
+        QTest::qWait(2000);
+        emit ai->trackRequestFailed(7, QStringLiteral("모델이 초기화되지 않았습니다"));
+        QTest::qWait(2000);
+        QVERIFY2(findVisibleItem(_rootItem, kPick, 0), "A second refusal did not restart the strip's 3 s");
+        QCOMPARE(pick->property("line").toString(), QStringLiteral("모델이 초기화되지 않았습니다"));
+        QVERIFY(verifyVisibility(kPick, false, QStringLiteral("second refusal after 3 s")));
+
+        // A tap hides it at once, and only it.
+        emit ai->trackRequestFailed(0, noTarget);
+        QVERIFY(verifyVisibility(kPick, true, QStringLiteral("refusal before tap")));
+        QVERIFY2(clickItemFraction(kPick, 0.5, 0.5), "Could not tap the pick strip");
+        QTRY_VERIFY_WITH_TIMEOUT(!findVisibleItem(_rootItem, kPick, 0), 500);
+        QVERIFY(verifyVisibility(kBattery, true, QStringLiteral("pick strip tapped")));
+
+        // Full screen: full width under the flight strip, like the others.
+        QVERIFY2(clickItemFraction(kBattery, 0.5, 0.5), "Could not tap the battery strip");
+        QVERIFY(verifyVisibility(kBattery, false, QStringLiteral("battery tapped")));
+        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
+        QTest::qWait(kSettleMs);
+        emit ai->trackRequestFailed(6, stillTracking);
+        QVERIFY(verifyVisibility(kPick, true, QStringLiteral("refusal full screen")));
+        if (capture) {
+            _grab(QStringLiteral("pick_strip_fullscreen"));
+            if (QTest::currentTestFailed()) return;
+        }
+        QVERIFY(qAbs(sceneRect(pick).left() - sceneRect(dashboard).left()) < 1.0);
+        QVERIFY(qAbs(pick->width() - dashboard->width()) < 1.0);
+        QVERIFY(dashboard->setProperty("expandedPanel", QString()));
+        QTest::qWait(kSettleMs);
     });
 }
 

@@ -27,6 +27,11 @@ private slots:
     /// The follow warning: an amber strip last in the stack, with its words, hidden by a tap.
     void _testFollowModeStrip();
 
+    /// A refused target pick: an amber strip first in the stack, 표적 지정 실패 with the module's
+    /// reason, gone by itself after 3 s, restarted by a new refusal, hidden by a tap. Grabs
+    /// pick_strip_normal and pick_strip_fullscreen when QGC_SCREENSHOT_DIR is set.
+    void _testTargetPickRefusalStrip();
+
     /// The takeoff panel, opened under one strip, stays up and over it and a second one; a tap on
     /// a strip closes it, and a tap on a strip right over the tool strip still takes it away.
     void _testPanelOverStrips();
