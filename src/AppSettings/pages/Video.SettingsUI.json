@@ -1,6 +1,9 @@
 {
     "version": 1,
     "fileType": "SettingsUI",
+    "imports": [
+        "QGC as App"
+    ],
     "bindings": {
         "videoSource": "QGroundControl.settingsManager.videoSettings.videoSource.rawValue",
         "autoStreamConfig": "QGroundControl.videoManager.autoStreamConfigured",
@@ -156,6 +159,64 @@
                 {
                     "setting": "siyiCameraSettings.aiRtspUrl",
                     "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.sendFcDataToGimbal",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.fcDataLayout",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.sendFcDataToGimbal.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.crowdModerateCount",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.crowdDenseCount",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue"
+                }
+            ]
+        },
+        {
+            "heading": "Thermal Measurement",
+            "keywords": [
+                "thermal",
+                "temperature",
+                "emissivity",
+                "humidity",
+                "calibration",
+                "열화상",
+                "온도",
+                "방사율"
+            ],
+            "showWhen": "QGroundControl.settingsManager.siyiCameraSettings.userVisible",
+            "controls": [
+                {
+                    "setting": "siyiCameraSettings.thermalCorrectionEnabled",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.thermalEmissivity",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.thermalCorrectionEnabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.thermalHumidity",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.thermalCorrectionEnabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.thermalAmbientTempC",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.thermalCorrectionEnabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.thermalReflectedTempC",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.thermalCorrectionEnabled.rawValue"
+                },
+                {
+                    "comment": "The path length is the one constant nobody types: the rangefinder measures it.",
+                    "control": "info",
+                    "label": "측정 거리",
+                    "value": "App.SiyiCameraController.thermalCalibrationDistanceM > 0 ? qsTr(\"%1 m (거리계)\").arg(App.SiyiCameraController.thermalCalibrationDistanceM.toFixed(0)) : qsTr(\"거리계 대기 중\")"
                 }
             ]
         },

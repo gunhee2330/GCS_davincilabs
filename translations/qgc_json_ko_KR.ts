@@ -10923,6 +10923,12 @@
       <translation>스피커 설정</translation>
     </message>
     <message>
+      <extracomment>.groups[Thermal Measurement].heading</extracomment>
+      <location filename="../src/AppSettings/pages/Video.SettingsUI.json"/>
+      <source>Thermal Measurement</source>
+      <translation>열상 측온</translation>
+    </message>
+    <message>
       <extracomment>.groups[Video Source].heading</extracomment>
       <location filename="/home/runner/work/qgroundcontrol/qgroundcontrol/src/AppSettings/pages/Video.SettingsUI.json"/>
       <source>Video Source</source>
