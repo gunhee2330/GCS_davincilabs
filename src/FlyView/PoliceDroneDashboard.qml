@@ -36,14 +36,14 @@ Item {
     // sits in the module's 1280×720 frame, how big it is, and the laser range if the pod has
     // one. Empty when nothing is tracked, so the panels can key visibility on it.
     readonly property string _trackedInfo: aiTargetVisible
-        ? qsTr("%1 · 위치 (%2, %3) · 크기 %4×%5 px%6")
+        ? qsTr("%1, 위치 (%2, %3), 크기 %4×%5 px%6")
               .arg(aiTargetLabel)
               .arg(Math.round(App.SiyiAiController.targetCentreX * _aiRefWidth))
               .arg(Math.round(App.SiyiAiController.targetCentreY * _aiRefHeight))
               .arg(Math.round(aiTargetWidth))
               .arg(Math.round(aiTargetHeight))
               .arg(App.SiyiCameraController.rangefinderAvailable
-                   ? qsTr(" · LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
+                   ? qsTr(", LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
                    : "")
         : ""
 
@@ -59,7 +59,7 @@ Item {
         : ""
 
     readonly property string aiTargetInfo:
-        (_trackedInfo.length > 0 && _laserInfo.length > 0) ? (_trackedInfo + " · " + _laserInfo)
+        (_trackedInfo.length > 0 && _laserInfo.length > 0) ? (_trackedInfo + ", " + _laserInfo)
                                                            : (_trackedInfo + _laserInfo)
 
     /// Target picking only makes sense once the module is up and recognising.
@@ -496,9 +496,9 @@ Item {
         // health bit of MAV_SYS_STATUS_PREARM_CHECK - the prearm checks themselves having failed,
         // which is the refusal, not a note beside it. Stock paints these amber; amber here reads
         // as "warnings, but it will still arm" and sends the operator to a switch that does
-        // nothing. On an airframe without health reports - ArduPilot, which is what this is
-        // delivered on - this rung is the only one that ever runs, so amber here left red
-        // unreachable and the operator with no colour for a refused arm.
+        // nothing. On an airframe without health reports (ArduPilot, or a PX4 too old to send
+        // them) this rung is the only one that ever runs, so amber here left red unreachable
+        // and the operator with no colour for a refused arm.
         if (_activeVehicle.readyToFlyAvailable) {
             return _activeVehicle.readyToFly
                 ? { text: qsTr("시동 가능"), accent: _statusOkColor }
@@ -565,13 +565,14 @@ Item {
     // the return begins, and no threshold chosen here could put the screen and the aircraft on
     // two different plans.
     //
-    // But it is often not speaking, and this bar shipped once already reading nothing else.
-    // ArduPilot - the delivery airframe - leaves chargeState at MAV_BATTERY_CHARGE_STATE_UNDEFINED,
-    // and a link carrying HIGH_LATENCY / HIGH_LATENCY2 fills percentRemaining and nothing else
-    // (BatteryFactGroupListModel.cc:88,98). On those two paths the aircraft's verdict alone left a
-    // pack at 5 % drawing plain white for the whole flight with no warning anywhere - worse than
-    // any threshold this program could pick wrong. So percentage stands in, and only where the
-    // aircraft has said nothing: once chargeState is set its numbers win and these are not read.
+    // But it is not always speaking, and this bar shipped once already reading nothing else.
+    // PX4, the delivery airframe, does fill chargeState; ArduPilot leaves it at
+    // MAV_BATTERY_CHARGE_STATE_UNDEFINED, and a link carrying HIGH_LATENCY / HIGH_LATENCY2 fills
+    // percentRemaining and nothing else (BatteryFactGroupListModel.cc:88,98). On those two paths
+    // the aircraft's verdict alone left a pack at 5 % drawing plain white for the whole flight
+    // with no warning anywhere - worse than any threshold this program could pick wrong. So
+    // percentage stands in, and only where the aircraft has said nothing: once chargeState is
+    // set its numbers win and these are not read.
     readonly property int  kBatteryLowPercent:      30
     readonly property int  kBatteryCriticalPercent: 20
     readonly property bool _batteryStateKnown: _batteryState > 0
@@ -1490,7 +1491,7 @@ Item {
                         visible:             App.SpeakerController.trackCount > 0 &&
                                              App.SpeakerController.trackCount !==
                                                  App.SpeakerController.messageNames.length
-                        text:                qsTr("페이로드 파일 %1개 · 이름 %2개 — 설정에서 맞춰주세요")
+                        text:                qsTr("페이로드 파일 %1개, 이름 %2개 — 설정에서 맞춰주세요")
                                                  .arg(App.SpeakerController.trackCount)
                                                  .arg(App.SpeakerController.messageNames.length)
                     }
@@ -2523,7 +2524,7 @@ Item {
         anchors.fill:         parent
         // Named for the sensor on screen, not the pipe it came through: AI pins the main
         // stream to the zoom camera, so its feed is the zoom picture with boxes drawn in.
-        panelTitle:           root._aiStreamActive ? qsTr("줌 · AI")
+        panelTitle:           root._aiStreamActive ? qsTr("줌 (AI)")
                                                     : (root.eoShowsWideAngle ? qsTr("광각") : qsTr("줌"))
         showChrome:           root.expandedPanel === "secondary"
         streamObjectName:     "videoContent"

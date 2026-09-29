@@ -42,11 +42,11 @@ ToolIndicatorPage {
         return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
     }
 
-    /// PX4 answers the question in machine-readable form. ArduPilot - the delivery airframe -
+    /// PX4, the delivery airframe, answers the question in machine-readable form. ArduPilot
     /// sends its refusals as STATUSTEXT instead, and nothing in this fork collects those into a
     /// list of their own: they arrive in the vehicle message list, which the pictogram beside
-    /// this banner opens. So the sentence below sends the operator there rather than a second
-    /// reporting pipeline being built for it here.
+    /// this banner opens. So where the report is not supported the sentence below sends the
+    /// operator there rather than a second reporting pipeline being built for it here.
     readonly property bool _reasonsAvailable:
         page.activeVehicle && page.activeVehicle.healthAndArmingCheckReport.supported
 

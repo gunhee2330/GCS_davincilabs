@@ -184,7 +184,7 @@
       <extracomment>.QGC.MetaData.Facts[HoverAndCapture].shortDesc</extracomment>
       <location filename="/home/runner/work/qgroundcontrol/qgroundcontrol/src/MissionManager/TransectStyle.SettingsGroup.json"/>
       <source>Stop and Hover at each image point before taking image</source>
-      <translation>각 촬영 지점에서 정지·제자리 비행한 뒤 촬영합니다</translation>
+      <translation>각 촬영 지점에서 정지해 제자리 비행한 뒤 촬영합니다</translation>
     </message>
     <message>
       <extracomment>.QGC.MetaData.Facts[Refly90Degrees].shortDesc</extracomment>
