@@ -1841,15 +1841,18 @@ Item {
     // The gimbal's own shutter is the 촬영 button on the control bar; this is QGC's control for
     // a MAVLink camera reporting through the autopilot — photo/video mode, storage and stream
     // selection. Loaded only once a camera manager exists, which is what lets PhotoVideoControl
-    // dereference it without null checks throughout.
+    // dereference it without null checks throughout, and only with the pod control off: it sits
+    // over the camera grid and records under the stock file name rather than the pod's.
     Loader {
         id:                  photoVideoLoader
+        objectName:          "photoVideoLoader"
         anchors.right:       parent.right
         anchors.rightMargin: 8
         anchors.top:         warningStrips.bottom
         anchors.topMargin:   8
         z:                   3
         sourceComponent:     root._activeVehicle && root._activeVehicle.cameraManager
+                                 && !QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue
                                  ? photoVideoComponent
                                  : undefined
 
@@ -2696,6 +2699,7 @@ Item {
         // The camera rail's 추적해제 is behind the picture full screen, which is where the
         // operator is drawing boxes; this panel carries its own.
         trackCancelEnabled:   App.SiyiAiController.hasTarget
+        trackCancelVisible:   root.expandedPanel === "secondary"
         onActivated:          root._toggleExpanded("secondary")
         onTargetBoxPicked:    (l, t, r, b) => App.SiyiAiController.trackBox(l, t, r, b)
         onTrackCancelRequested: App.SiyiAiController.cancelTracking()

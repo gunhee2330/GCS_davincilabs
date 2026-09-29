@@ -41,6 +41,9 @@ Item {
     /// coordinates. Drawn through contentRect, so a cropped picture still marks the right spot.
     property var markers: []
 
+    /// Shows the release button on the picture. Set only while this panel is full screen.
+    property bool trackCancelVisible: false
+
     property bool aiTargetVisible:      false
     property real aiTargetX:            0
     property real aiTargetY:            0
@@ -282,7 +285,8 @@ Item {
 
     // Letting the target go, on the picture the operator is watching it on. The camera rail
     // carries the same command, but the rail sits at z 2 and a full screen camera at 20, so full
-    // screen - which is where boxes get drawn - the rail's button is behind the picture.
+    // screen - which is where boxes get drawn - the rail's button is behind the picture. In the
+    // corner the rail button is reachable and this one would only cover the small picture.
     // Greyed rather than hidden, for the rail button's reason: the module drops hasTarget on a
     // 1.5 s gap in the target stream, and a button that comes and goes is one the operator
     // reaches for and misses.
@@ -295,7 +299,7 @@ Item {
         anchors.bottomMargin: ScreenTools.defaultFontPixelHeight
         height:               Math.max(implicitHeight, ScreenTools.minTouchPixels)
         text:                 qsTr("추적해제")
-        visible:              root.targetPickEnabled
+        visible:              root.targetPickEnabled && root.trackCancelVisible
         enabled:              root.trackCancelEnabled
         onClicked:            root.trackCancelRequested()
     }

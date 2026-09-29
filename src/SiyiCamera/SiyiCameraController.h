@@ -71,6 +71,9 @@ class SiyiCameraController : public QObject
     /// it once the pod answers; until then range and target coordinate both read as absent.
     /// Reads false on a pod that does not answer 0x31, whose laser may still be lit.
     Q_PROPERTY(bool laserOn READ laserOn NOTIFY laserStateChanged)
+    /// The operator's choice for the laser, kept for the session and re-applied on every pod
+    /// connect. On by default. Off stops the controller from ever lighting it.
+    Q_PROPERTY(bool laserEnabled READ laserEnabled WRITE setLaserEnabled NOTIFY laserStateChanged)
 
     /// Hottest and coldest temperature in the thermal image, NaN when unavailable.
     Q_PROPERTY(double   thermalMaxTempC     READ thermalMaxTempC        NOTIFY thermalRangeChanged)
@@ -183,14 +186,6 @@ public:
     Q_INVOKABLE void toggleRecording();
     Q_INVOKABLE void toggleHdr();
 
-    /// Lights or puts out the laser. The poll lights it on connect by itself, because 0x15/0x17
-    /// answer an unlit laser with zeroes and both readouts stay blank with nothing saying why;
-    /// this is how an operator puts it out again. Off stays off for the rest of the connection -
-    /// the beam is an eye hazard, and a station that relit it behind the operator would be worse
-    /// than one that never lit it.
-    Q_INVOKABLE void setLaser(bool on);
-    Q_INVOKABLE void toggleLaser();
-
     /// A handset button asking the fly view to swap which picture fills the screen, EO or IR.
     /// Nothing goes to the pod: this class only relays it, because it is where the handset's
     /// pod buttons already arrive and the screen already listens to it. The fly view decides
@@ -252,6 +247,8 @@ public:
     [[nodiscard]] QGeoCoordinate rangefinderTarget() const { return _rangefinderTarget; }
     [[nodiscard]] bool rangefinderTargetAvailable() const { return _rangefinderTarget.isValid(); }
     [[nodiscard]] bool laserOn() const { return _laserOn; }
+    [[nodiscard]] bool laserEnabled() const { return _laserEnabled; }
+    void setLaserEnabled(bool on);
     [[nodiscard]] bool aiFollowEnabled() const { return _aiFollowEnabled; }
     [[nodiscard]] int aiFollowError() const { return static_cast<int>(_aiFollowError); }
     [[nodiscard]] bool aiFollowStale() const { return _aiFollowStale; }
@@ -355,6 +352,7 @@ private:
     double _rangefinderDistance = std::numeric_limits<double>::quiet_NaN();
     QGeoCoordinate _rangefinderTarget;
     bool _laserOn = false;
+    bool _laserEnabled = true;
 
     /// Laser on-commands the poll may still send on this link. Primed by _resetCameraState(),
     /// spent as soon as the pod confirms the laser lit.

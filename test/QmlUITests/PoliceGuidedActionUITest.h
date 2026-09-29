@@ -105,6 +105,10 @@ private slots:
     /// QGC_SCREENSHOT_DIR is set.
     void _testBroadcastActionAlwaysShown();
 
+    /// The stock photo/video control loads only with the pod camera control off, so it never sits
+    /// over the camera grid's 촬영. Grabs stock_record_hidden when QGC_SCREENSHOT_DIR is set.
+    void _testStockPhotoVideoOnlyWithPodOff();
+
     /// Full screen, the flight strip stands in for the hidden top bar: on the zoom and on the
     /// thermal window it is up, reads the date and time, 비행 중 with the elapsed time and the
     /// top bar's distance in flight and a dash on the ground, the relative altitude and the
@@ -117,8 +121,8 @@ private slots:
     /// The pod's whole-frame hottest and coldest, fed from a fake gimbal on loopback, read
     /// 최고 … °C  최저 … °C on the thermal window's name chip after the LRF reading and follow the
     /// pod live; the same text rides the name chip with the thermal window full screen, and both go
-    /// once the pod stops answering. Grabs thermal_temp_0_window, thermal_temp_1_with_lrf and
-    /// thermal_temp_2_fullscreen when QGC_SCREENSHOT_DIR is set.
+    /// once the pod stops answering. Grabs thermal_temp_0_window, thermal_temp_1_with_lrf,
+    /// thermal_temp_2_fullscreen and lrf_switch_panel when QGC_SCREENSHOT_DIR is set.
     void _testThermalTemperatureReadout();
 
 private:

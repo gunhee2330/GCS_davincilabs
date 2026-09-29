@@ -518,3 +518,64 @@ void SiyiCameraControllerTest::_newFollowRequestDropsTheOldRefusal_test()
 }
 
 UT_REGISTER_TEST(SiyiCameraControllerTest, TestLabel::Unit)
+
+/// The operator's laser switch has to hold against the controller's own auto-on: neither the poll
+/// nor a fresh connect may light a laser the operator switched off, and switching it back on has
+/// to reach the pod.
+void SiyiCameraControllerTest::_laserSwitchIsTheOperatorsChoice_test()
+{
+    QUdpSocket gimbal;
+    QHostAddress address;
+    quint16 port = 0;
+
+    SiyiCameraController controller(nullptr);
+    openFakeGimbal(gimbal, controller, address, port);
+
+    // "7A" is a ZT30, the only model the laser is driven on.
+    const QByteArray zt30 = SiyiProtocol::encodeRaw(static_cast<quint8>(SiyiProtocol::CommandId::AcquireHardwareId), QByteArray("7A"));
+    QCOMPARE(gimbal.writeDatagram(zt30, address, port), zt30.size());
+    QTRY_VERIFY_WITH_TIMEOUT(controller.isZT30(), TestTimeout::shortMs());
+    QVERIFY(controller.laserEnabled());
+
+    QList<QByteArray> laserPayloads;
+    const auto collectLaserPayloads = [&]() {
+        for (const SiyiProtocol::Frame &frame : drainFrames(gimbal)) {
+            if (frame.commandId == SiyiProtocol::CommandId::SetLaserState) {
+                laserPayloads.append(frame.data);
+            }
+        }
+        return laserPayloads.size();
+    };
+
+    (void) collectLaserPayloads();
+    laserPayloads.clear();
+    controller.setLaserEnabled(false);
+    QVERIFY(!controller.laserEnabled());
+    QTRY_VERIFY_WITH_TIMEOUT(collectLaserPayloads() >= 1, TestTimeout::shortMs());
+    QCOMPARE(laserPayloads.at(0), QByteArray(1, '\0'));
+
+    // Several rangefinder ticks, each of which would have re-sent "on" with attempts left.
+    QTest::qWait(1500);
+    (void) collectLaserPayloads();
+    QVERIFY(!laserPayloads.contains(QByteArray(1, '\1')));
+
+    // A reconnect re-primes the auto-on; the operator's "off" has to survive it.
+    controller.stop();
+    (void) collectLaserPayloads();
+    controller.start();
+    QVERIFY(gimbal.waitForReadyRead(TestTimeout::shortMs()));
+    QByteArray probe(static_cast<int>(gimbal.pendingDatagramSize()), Qt::Uninitialized);
+    QVERIFY(gimbal.readDatagram(probe.data(), probe.size(), &address, &port) > 0);
+    QCOMPARE(gimbal.writeDatagram(zt30, address, port), zt30.size());
+    QTRY_VERIFY_WITH_TIMEOUT(controller.isZT30(), TestTimeout::shortMs());
+    QVERIFY(!controller.laserEnabled());
+    QTest::qWait(1500);
+    (void) collectLaserPayloads();
+    QVERIFY(!laserPayloads.contains(QByteArray(1, '\1')));
+
+    laserPayloads.clear();
+    controller.setLaserEnabled(true);
+    QVERIFY(controller.laserEnabled());
+    QTRY_VERIFY_WITH_TIMEOUT(collectLaserPayloads() >= 1, TestTimeout::shortMs());
+    QCOMPARE(laserPayloads.at(0), QByteArray(1, '\1'));
+}

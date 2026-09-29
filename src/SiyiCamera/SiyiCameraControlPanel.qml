@@ -289,15 +289,22 @@ ColumnLayout {
         font.pointSize:     ScreenTools.smallFontPointSize
     }
 
-    // The laser lights itself on connect, because the range and the target readouts are blank
-    // without it and nothing on screen would say why. This is how it gets put out again: the beam
-    // is an eye hazard, and flying low over people is exactly when an operator wants it off.
-    QGCButton {
+    RowLayout {
         Layout.fillWidth:   true
         visible:            root._isZT30
         enabled:            root._connected
-        text:               SiyiCameraController.laserOn ? qsTr("레이저 끄기") : qsTr("레이저 켜기")
-        onClicked:          SiyiCameraController.toggleLaser()
+
+        QGCLabel {
+            Layout.fillWidth:   true
+            text:               qsTr("레이저 거리계")
+            font.pointSize:     ScreenTools.smallFontPointSize
+        }
+
+        QGCCheckBoxSlider {
+            objectName: "siyiLaserSwitch"
+            checked:    SiyiCameraController.laserEnabled
+            onClicked:  SiyiCameraController.laserEnabled = checked
+        }
     }
 
     // ------------------------------------------------------------------ picture

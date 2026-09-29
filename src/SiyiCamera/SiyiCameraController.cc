@@ -331,24 +331,6 @@ void SiyiCameraController::_sendRecordingToggle()
     _sendCommand(SiyiProtocol::CommandId::AcquireConfigInfo);
 }
 
-void SiyiCameraController::setLaser(bool on)
-{
-    if (!isZT30()) {
-        return;
-    }
-    // Disarm the connect-time relight when putting it out, and re-arm it when lighting: without
-    // this the poll at kRangefinderInterval would light it again a moment after the operator
-    // asked for it off.
-    _laserOnAttemptsLeft = on ? kLaserOnAttempts : 0;
-    _send(SiyiProtocol::encodeSetLaserState(on, _sequence++));
-    qCDebug(SiyiCameraControllerLog) << "laser requested" << on;
-}
-
-void SiyiCameraController::toggleLaser()
-{
-    setLaser(!_laserOn);
-}
-
 void SiyiCameraController::requestEoIrViewToggle()
 {
     emit eoIrViewToggleRequested();
@@ -479,6 +461,20 @@ void SiyiCameraController::stopPointTemperature()
     _pointNoReply = false;
     _pointTempC = std::numeric_limits<double>::quiet_NaN();
     emit pointTemperatureChanged();
+}
+
+void SiyiCameraController::setLaserEnabled(bool on)
+{
+    if (_laserEnabled != on) {
+        _laserEnabled = on;
+        emit laserStateChanged();
+    }
+    // Sent even when unchanged: the switch is also how the operator retries a lost datagram.
+    // Turning on re-arms the poll's retries; the 0x31 that follows the ack updates laserOn.
+    _laserOnAttemptsLeft = on ? kLaserOnAttempts : 0;
+    if (isZT30()) {
+        _send(SiyiProtocol::encodeSetLaserState(on, _sequence++));
+    }
 }
 
 void SiyiCameraController::setAiFollow(bool on)
@@ -933,7 +929,7 @@ void SiyiCameraController::_poll()
             // An unlit laser answers 0x15/0x17 with zeroes, which both parsers refuse, so the
             // range and target readouts stay blank with nothing on screen saying why. The pod
             // powers up unlit and forgets across a power cycle, so light it here.
-            if (!_laserOn && (_laserOnAttemptsLeft > 0)) {
+            if (_laserEnabled && !_laserOn && (_laserOnAttemptsLeft > 0)) {
                 --_laserOnAttemptsLeft;
                 _send(SiyiProtocol::encodeSetLaserState(true, _sequence++));
             }
