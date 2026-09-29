@@ -38,6 +38,7 @@ const QString kFollow   = QStringLiteral("policeWarningFollowMode");
 const QString kStrips      = QStringLiteral("policeWarningStrips");
 const QString kLeftStrip   = QStringLiteral("policeGuidedToolStrip");
 const QString kRightStrip  = QStringLiteral("policeCameraToolStrip");
+const QString kGridHandle  = QStringLiteral("policeCameraStripHandle");
 
 constexpr int kSettleMs = 1500;
 
@@ -257,9 +258,22 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
         QVERIFY2(leftStrip, "The left tool strip is not up");
         QQuickItem *const rightStrip = findItem(_rootItem, kRightStrip);
         QVERIFY2(rightStrip, "The dashboard has no right tool strip");
+        QQuickItem *const gridHandle = findItem(_rootItem, kGridHandle);
+        QVERIFY2(gridHandle, "The dashboard has no camera grid handle");
 
         const double barBottom = sceneRect(topBar).bottom();
         const double stripHeight = topBar->height() * kStripToBar;
+        // A strip spans the map between the columns: 8 px right of the left tool strip, 8 px left
+        // of whichever of the camera grid (while it is open) and its handle is further left.
+        const auto checkSpan = [&](const QRectF &rect, const QString &context) {
+            const double left = sceneRect(leftStrip).right() + 8;
+            const double gridLeft = rightStrip->isVisible() ? sceneRect(rightStrip).left() : sceneRect(gridHandle).left();
+            const double right = qMin(sceneRect(gridHandle).left(), gridLeft) - 8;
+            if (qAbs(rect.left() - left) >= 1.0 || qAbs(rect.right() - right) >= 1.0) {
+                return QStringLiteral("%1: strip runs %2 to %3, not %4 to %5").arg(context).arg(rect.left()).arg(rect.right()).arg(left).arg(right);
+            }
+            return QString();
+        };
         // Both tool strips stay 8 px under the bar however many strips are up, and the stack is
         // drawn over them rather than pushing them down.
         QVERIFY(strips->parentItem() == leftStrip->parentItem() && strips->parentItem() == rightStrip->parentItem());
@@ -304,18 +318,31 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
         QVERIFY(verifyProperty(kBattery, "title", QStringLiteral("배터리 부족"), QStringLiteral("low")));
         QCOMPARE(lastSpoken(), QStringLiteral("배터리가 부족합니다. 잔량 20퍼센트. 복귀를 준비하십시오."));
 
-        // Full width, straight under the bar, the mockup's height, and the tool strips where they were.
+        // Between the columns, straight under the bar, the mockup's height, and the tool strips where they were.
         QQuickItem *const battery = findVisibleItem(_rootItem, kBattery, 0);
         QVERIFY(battery);
         QTest::qWait(300);
         const QRectF batteryRect = sceneRect(battery);
         QVERIFY2(qAbs(batteryRect.top() - barBottom) < 1.0,
                  qPrintable(QStringLiteral("The strip starts at %1, the bar ends at %2").arg(batteryRect.top()).arg(barBottom)));
-        QCOMPARE(batteryRect.left(), 0.0);
-        QCOMPARE(batteryRect.width(), static_cast<qreal>(_window->width()));
+        offset = checkSpan(batteryRect, QStringLiteral("battery"));
+        QVERIFY2(offset.isEmpty(), qPrintable(offset));
         QVERIFY2(qAbs(batteryRect.height() - stripHeight) < 0.5,
                  qPrintable(QStringLiteral("The strip is %1 tall, not %2").arg(batteryRect.height()).arg(stripHeight)));
         offset = checkToolStrips(QStringLiteral("battery"));
+        QVERIFY2(offset.isEmpty(), qPrintable(offset));
+
+        // The grid folded away: the strip follows its handle to the right edge, and back.
+        QQuickItem *const dashboard = strips->parentItem();
+        QVERIFY(dashboard);
+        QVERIFY(dashboard->setProperty("cameraStripOpen", false));
+        QTest::qWait(kSettleMs);
+        offset = checkSpan(sceneRect(battery), QStringLiteral("grid folded"));
+        QVERIFY2(offset.isEmpty(), qPrintable(offset));
+        QVERIFY2(sceneRect(battery).right() > batteryRect.right() + 1.0, "The strip did not widen with the grid folded");
+        QVERIFY(dashboard->setProperty("cameraStripOpen", true));
+        QTest::qWait(kSettleMs);
+        offset = checkSpan(sceneRect(battery), QStringLiteral("grid open again"));
         QVERIFY2(offset.isEmpty(), qPrintable(offset));
 
         injectBattery(mockLink, vehicle, 18, MAV_BATTERY_CHARGE_STATE_CRITICAL);
@@ -357,7 +384,7 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
         QVERIFY_TRUE_WAIT(windSpeed(vehicle) == 9.5, TestTimeout::mediumMs());
         QVERIFY2(findVisibleItem(_rootItem, kWind, 0), "0.5 m/s under the threshold took the strip down");
 
-        // All four at once: battery, altitude, radius, wind, edge to edge under the bar, over the
+        // All four at once: battery, altitude, radius, wind, between the columns under the bar, beside the
         // top of the tool strips, which have not moved.
         injectAltitude(mockLink, vehicle, 155);
         QVERIFY(verifyVisibility(kAltitude, true, QStringLiteral("155 m")));
@@ -369,7 +396,8 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
             const QRectF rect = sceneRect(item);
             QVERIFY2(qAbs(rect.top() - expectedTop) < 1.0,
                      qPrintable(QStringLiteral("%1 starts at %2, not %3").arg(name).arg(rect.top()).arg(expectedTop)));
-            QCOMPARE(rect.width(), static_cast<qreal>(_window->width()));
+            offset = checkSpan(rect, name);
+            QVERIFY2(offset.isEmpty(), qPrintable(offset));
             expectedTop = rect.bottom();
         }
         offset = checkToolStrips(QStringLiteral("all four"));
@@ -391,7 +419,8 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
         const QRectF redRect = sceneRect(red);
         QVERIFY(qAbs(redRect.top() - barBottom) < 1.0);
         QVERIFY(qAbs(redRect.height() - stripHeight) < 0.5);
-        QCOMPARE(redRect.width(), static_cast<qreal>(_window->width()));
+        offset = checkSpan(redRect, QStringLiteral("comm lost"));
+        QVERIFY2(offset.isEmpty(), qPrintable(offset));
         QQuickItem *const batteryUnder = findVisibleItem(_rootItem, kBattery, 0);
         QVERIFY(batteryUnder);
         QVERIFY2(qAbs(sceneRect(batteryUnder).top() - redRect.bottom()) < 1.0, "The battery strip is not right under the red one");
@@ -696,14 +725,15 @@ void PoliceWarningsUITest::_testPanelOverStrips()
         QVERIFY(verifyVisibility(kBattery, true, QStringLiteral("panel closed")));
         QVERIFY2(leftStrip->z() < strips->z(), "The tool strip stayed above the warning strips with its panel closed");
 
-        // The strip's own tap, right over the tool strip, still takes it away.
+        // The strip's own tap, at its end beside the tool strip, still takes it away; the tool
+        // strip is not under it.
         QQuickItem *const battery = findVisibleItem(_rootItem, kBattery, 0);
         QVERIFY(battery);
         const QRectF leftRect = sceneRect(leftStrip);
         const QRectF batteryRect = sceneRect(battery);
-        QVERIFY(batteryRect.intersects(leftRect));
-        QVERIFY2(clickItemFraction(kBattery, leftRect.center().x() / batteryRect.width(), 0.5), "Could not tap the battery strip over the tool strip");
-        QVERIFY(verifyVisibility(kBattery, false, QStringLiteral("battery tapped over the tool strip")));
+        QVERIFY(!batteryRect.intersects(leftRect));
+        QVERIFY2(clickItemFraction(kBattery, 0.05, 0.5), "Could not tap the battery strip beside the tool strip");
+        QVERIFY(verifyVisibility(kBattery, false, QStringLiteral("battery tapped beside the tool strip")));
         rcLost.stop();
     });
 }

@@ -1401,6 +1401,7 @@ Item {
     // every time the operator reached for it.
     Rectangle {
         id:     cameraStripHandle
+        objectName: "policeCameraStripHandle"
         width:  Math.max(ScreenTools.defaultFontPixelWidth * 2.6, ScreenTools.minTouchPixels * 0.55)
         height: Math.max(ScreenTools.minTouchPixels, ScreenTools.defaultFontPixelHeight * 2.2)
         x:      root.cameraStripOpen ? cameraToolStrip.x - width - 4
@@ -1933,8 +1934,16 @@ Item {
     Column {
         id:            warningStrips
         objectName:    "policeWarningStrips"
-        anchors.left:  parent.left
-        anchors.right: parent.right
+        // Between the left tool strip and the camera grid, 8 px clear of each, so neither column
+        // is covered; bound to the items so the strips follow the grid folding away or a column
+        // hiding. Full width over the full-screen camera, as before.
+        readonly property real _left:  (fullscreenLayer.visible || !toolStrip.visible)
+                                       ? 0 : toolStrip.x + toolStrip.width + 8
+        readonly property real _right: fullscreenLayer.visible ? parent.width
+                                       : Math.min(cameraStripHandle.visible ? cameraStripHandle.x - 8 : parent.width,
+                                                  cameraToolStrip.visible ? cameraToolStrip.x - 8 : parent.width)
+        x:             _left
+        width:         _right - _left
         anchors.top:   topBar.bottom
         // Over the full-screen camera layer (20), and so over the tool strips, the camera grid and
         // the photo/video control, which stay put under it rather than being pushed down; a tap
