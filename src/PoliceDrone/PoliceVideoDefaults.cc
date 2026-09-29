@@ -1,6 +1,7 @@
 #include "PoliceVideoDefaults.h"
 
 #include <QtCore/QLatin1String>
+#include <QtCore/QUrl>
 #include <QtCore/QVariant>
 
 #include "Fact.h"
@@ -54,6 +55,28 @@ void useKcmvpBridge(VideoSettings* video)
     repoint(siyi->secondaryRtspUrl(), QStringLiteral("rtsp://192.168.144.26:8554/video2"), bridgedPodStream("video2"));
     repoint(siyi->fpvRtspUrl(), QStringLiteral("rtsp://192.168.144.25:8554/main.264"),
             QStringLiteral("rtsp://127.0.0.1:%1/main.264").arg(PoliceKcmvpBridge::FpvVideoPort));
+
+    // The AI module at its factory address or at the one behind the airframe module. Its SDK port
+    // goes on a loopback port of its own, since the pod's 37260 is taken there; a module an
+    // operator put anywhere else stays put.
+    const QString aiAddress = siyi->aiIpAddress()->rawValue().toString();
+    const uint aiPort = siyi->aiPort()->rawValue().toUInt();
+    const bool aiKnown = (aiAddress == QLatin1String("192.168.144.60")) || (aiAddress == QLatin1String("192.168.50.60"));
+    if (aiKnown && ((aiPort == 37260) || (aiPort == PoliceKcmvpBridge::AiControlPort))) {
+        siyi->aiIpAddress()->setRawValue(QStringLiteral("127.0.0.1"));
+        siyi->aiPort()->setRawValue(static_cast<uint>(PoliceKcmvpBridge::AiControlPort));
+        qCDebug(PoliceVideoDefaultsLog) << "AI module moved to the bridge from" << aiAddress;
+    }
+    // Its stream too, whatever port was typed: the module serves RTSP on 554 alone, and the bridge
+    // is what knows that.
+    QUrl aiStream(siyi->aiRtspUrl()->rawValue().toString());
+    if ((aiStream.scheme() == QLatin1String("rtsp")) &&
+            ((aiStream.host() == QLatin1String("192.168.144.60")) || (aiStream.host() == QLatin1String("192.168.50.60")))) {
+        aiStream.setHost(QStringLiteral("127.0.0.1"));
+        aiStream.setPort(PoliceKcmvpBridge::AiVideoPort);
+        siyi->aiRtspUrl()->setRawValue(aiStream.toString());
+        qCDebug(PoliceVideoDefaultsLog) << "AI stream moved to" << aiStream.toString();
+    }
 }
 #endif
 

@@ -64,6 +64,15 @@ constexpr Route kPodVideoRoute{"ZT30 RTSP", PoliceKcmvpBridge::PodVideoPort, "19
 constexpr Route kFpvVideoRoute{"FPV RTSP", PoliceKcmvpBridge::FpvVideoPort, "192.168.50.25", "192.168.144.25", 8554};
 /// Plain HTTP, which passes the RTSP header rewrite untouched: that only fires on "RTSP/" replies.
 constexpr Route kPodMediaRoute{"ZT30 media", PoliceKcmvpBridge::PodMediaPort, "192.168.50.26", "192.168.144.26", 82};
+/// The AI tracking module reads the pod's picture, so it sits beside the pod behind the airframe
+/// module: its setip.txt moves it to 50.60 and points it at the pod's 50.26. 144.60 is its
+/// factory address on the SIYI side.
+constexpr Route kAiControlRoute{"AI SDK", PoliceKcmvpBridge::AiControlPort, "192.168.50.60", "192.168.144.60", 37260};
+constexpr Route kAiCountRoute{"AI counts", PoliceKcmvpBridge::AiCountPort, "192.168.50.60", "192.168.144.60", 37256};
+constexpr Route kAiVideoRoute{"AI RTSP", PoliceKcmvpBridge::AiVideoPort, "192.168.50.60", "192.168.144.60", 554};
+
+/// RTSP's own port, which a server may leave out of the addresses it hands back.
+constexpr quint16 kRtspDefaultPort = 554;
 
 /// The handset's built-in port faces the SIYI radio, the ciphertext side. The USB adapter is
 /// the other ethernet interface.
@@ -244,6 +253,11 @@ private:
     void _useHost(const char* host)
     {
         _remotePrefix = QStringLiteral("rtsp://%1:%2").arg(QLatin1String(host)).arg(_route.remotePort).toLatin1();
+        // On 554 the camera may write its address without the port, and a control URL left
+        // pointing at it would have the client open a second connection the bridge never sees.
+        _remoteBarePrefix = (_route.remotePort == kRtspDefaultPort)
+                                ? QStringLiteral("rtsp://%1/").arg(QLatin1String(host)).toLatin1()
+                                : QByteArray();
     }
 
     /// QTcpSocket creates its descriptor inside connectToHost, too late to tie it to a network,
@@ -367,6 +381,9 @@ private:
             }
             QByteArray headers = data.left(headerEnd);
             (void) headers.replace(_remotePrefix, _localPrefix);
+            if (!_remoteBarePrefix.isEmpty()) {
+                (void) headers.replace(_remoteBarePrefix, _localPrefix + '/');
+            }
             data = headers + data.mid(headerEnd);
         }
         (void) _client->write(data);
@@ -393,6 +410,7 @@ private:
     QTimer _timeout;
     QByteArray _pending;
     QByteArray _remotePrefix;
+    QByteArray _remoteBarePrefix;
     QByteArray _localPrefix;
     int _connectFd = -1;
     bool _onNetwork = false;
@@ -467,6 +485,9 @@ void PoliceKcmvpBridge::start()
     add(new TcpRelay(kPodVideoRoute, this));
     add(new TcpRelay(kFpvVideoRoute, this));
     add(new TcpRelay(kPodMediaRoute, this));
+    add(new UdpRelay(kAiControlRoute, this));
+    add(new TcpRelay(kAiCountRoute, this));
+    add(new TcpRelay(kAiVideoRoute, this));
 
     _networkTimer = new QTimer(this);
     _networkTimer->setInterval(kNetworkPollMsecs);

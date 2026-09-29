@@ -22,6 +22,9 @@ Q_DECLARE_LOGGING_CATEGORY(PoliceKcmvpBridgeLog)
 ///   TCP 8554  -> ZT30 RTSP,        192.168.50.26:8554
 ///   TCP 8555  -> FPV camera RTSP,  192.168.50.25:8554
 ///   TCP 8082  -> ZT30 media API,   192.168.50.26:82 (recordings list and download)
+///   UDP 37262 -> AI module SDK,    192.168.50.60:37260 (loopback 37260 is the pod's)
+///   TCP 37256 -> AI module counts, 192.168.50.60:37256 (the private link detections arrive on)
+///   TCP 8556  -> AI module RTSP,   192.168.50.60:554
 ///
 /// The module answers only senders in 192.168.50.x, and the FPV camera cannot be given a gateway,
 /// so the payload lives in that network too. With no USB Ethernet adapter the payload routes fall
@@ -40,6 +43,9 @@ public:
     static constexpr quint16 PodVideoPort = 8554;
     static constexpr quint16 FpvVideoPort = 8555;
     static constexpr quint16 PodMediaPort = 8082;
+    static constexpr quint16 AiControlPort = 37262;
+    static constexpr quint16 AiCountPort = 37256;
+    static constexpr quint16 AiVideoPort = 8556;
 
     explicit PoliceKcmvpBridge(QObject* parent = nullptr);
     ~PoliceKcmvpBridge() override;
