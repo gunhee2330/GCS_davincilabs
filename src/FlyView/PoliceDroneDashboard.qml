@@ -1201,9 +1201,13 @@ Item {
         objectName:         "policeGuidedToolStrip"
         anchors.left:       parent.left
         anchors.leftMargin: 8
-        anchors.top:        warningStrips.bottom
+        anchors.top:        topBar.bottom
         anchors.topMargin:  8
-        z:                  4
+        // Under the warning strips, which draw over its top while they are up, and over them
+        // while its takeoff, land or 복귀고도 panel is open: the panel is the strip's own child,
+        // so only the strip's z can lift it. Its click-away layer (z - 1) lands level with the
+        // strips and, made later, over them, so a tap on a strip then closes the panel.
+        z:                  _dropPanel.visible ? warningStrips.z + 1 : 4
         // ToolStrip's own default, which still clears four Korean characters at the strip's
         // small font. The buttons size themselves to their labels inside it.
         width:              ScreenTools.defaultFontPixelWidth * 7
@@ -1365,7 +1369,7 @@ Item {
         id:                 cameraToolStrip
         objectName:         "policeCameraToolStrip"
         x:                  root._cameraStripRight - width
-        anchors.top:        warningStrips.bottom
+        anchors.top:        topBar.bottom
         anchors.topMargin:  8
         // Under the left strip's click-away layer (its z - 1), so a tap here while the
         // 복귀고도 panel is open closes that panel instead of firing a camera command.
@@ -1774,7 +1778,7 @@ Item {
         objectName:          "photoVideoLoader"
         anchors.right:       parent.right
         anchors.rightMargin: 8
-        anchors.top:         warningStrips.bottom
+        anchors.top:         topBar.bottom
         anchors.topMargin:   8
         z:                   3
         sourceComponent:     root._activeVehicle && root._activeVehicle.cameraManager
@@ -1792,9 +1796,9 @@ Item {
     //
     // RFP p6 아 and p8: low battery, the altitude and radius limits, and wind the aircraft cannot
     // hold against. One full-width amber strip each, directly under the bar and stacked in a fixed
-    // order. The tool strips and the confirm control hang under the stack, so they step down by its
-    // height rather than being covered. A tap hides a strip until its condition clears and comes
-    // back, or until the battery turns critical. What is up, what it says, the voice and the
+    // order. The tool strips and the camera grid stay put and the stack draws over their top; the
+    // confirm control hangs under the stack, so it steps down by its height. A tap hides a strip
+    // until its condition clears and comes back, or until the battery turns critical. What is up, what it says, the voice and the
     // dismissals of those four are PoliceWarnings'; this only draws them.
     //
     // Two more strips come from this file's own state: the lost link first, red, and the follow
@@ -1932,7 +1936,9 @@ Item {
         anchors.left:  parent.left
         anchors.right: parent.right
         anchors.top:   topBar.bottom
-        // Over the full-screen camera layer (20).
+        // Over the full-screen camera layer (20), and so over the tool strips, the camera grid and
+        // the photo/video control, which stay put under it rather than being pushed down; a tap
+        // on a strip takes it away and shows what it covered.
         z:             24
 
         WarningStrip {
@@ -1941,7 +1947,7 @@ Item {
             title:      root._linkLostKind === "rc" ? qsTr("RC 링크 끊김") : qsTr("통신 두절")
             line:       root._linkLostDismissed ? ""
                         : root._linkLostKind === "comm" ? qsTr("기체와의 통신이 끊겼습니다")
-                        : root._linkLostKind === "rc"   ? qsTr("조종기 신호가 수신되지 않습니다, 페일세이프 동작을 확인하십시오")
+                        : root._linkLostKind === "rc"   ? qsTr("조종기 신호가 수신되지 않습니다")
                         : ""
             onTapped:   root._linkLostDismissed = true
         }

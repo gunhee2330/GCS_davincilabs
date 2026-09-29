@@ -260,9 +260,12 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
 
         const double barBottom = sceneRect(topBar).bottom();
         const double stripHeight = topBar->height() * kStripToBar;
-        // Both tool strips sit 8 px under the stack, and with nothing up that is under the bar.
-        const auto checkToolStrips = [&](int count, const QString &context) {
-            const double expected = barBottom + (count * stripHeight) + 8;
+        // Both tool strips stay 8 px under the bar however many strips are up, and the stack is
+        // drawn over them rather than pushing them down.
+        QVERIFY(strips->parentItem() == leftStrip->parentItem() && strips->parentItem() == rightStrip->parentItem());
+        QVERIFY2(strips->z() > leftStrip->z() && strips->z() > rightStrip->z(), "The warning strips are not above the tool strips");
+        const auto checkToolStrips = [&](const QString &context) {
+            const double expected = barBottom + 8;
             for (QQuickItem *const tool : { leftStrip, rightStrip }) {
                 const double top = sceneRect(tool).top();
                 if (qAbs(top - expected) >= 1.0) {
@@ -276,7 +279,7 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
             QVERIFY(verifyVisibility(name, false, QStringLiteral("before anything is wrong")));
         }
         QCOMPARE(strips->height(), 0.0);
-        QString offset = checkToolStrips(0, QStringLiteral("nothing up"));
+        QString offset = checkToolStrips(QStringLiteral("nothing up"));
         QVERIFY2(offset.isEmpty(), qPrintable(offset));
 
         // Altitude and wind count only in the air.
@@ -301,7 +304,7 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
         QVERIFY(verifyProperty(kBattery, "title", QStringLiteral("배터리 부족"), QStringLiteral("low")));
         QCOMPARE(lastSpoken(), QStringLiteral("배터리가 부족합니다. 잔량 20퍼센트. 복귀를 준비하십시오."));
 
-        // Full width, straight under the bar, the mockup's height, and the tool strips one strip down.
+        // Full width, straight under the bar, the mockup's height, and the tool strips where they were.
         QQuickItem *const battery = findVisibleItem(_rootItem, kBattery, 0);
         QVERIFY(battery);
         QTest::qWait(300);
@@ -312,7 +315,7 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
         QCOMPARE(batteryRect.width(), static_cast<qreal>(_window->width()));
         QVERIFY2(qAbs(batteryRect.height() - stripHeight) < 0.5,
                  qPrintable(QStringLiteral("The strip is %1 tall, not %2").arg(batteryRect.height()).arg(stripHeight)));
-        offset = checkToolStrips(1, QStringLiteral("battery"));
+        offset = checkToolStrips(QStringLiteral("battery"));
         QVERIFY2(offset.isEmpty(), qPrintable(offset));
 
         injectBattery(mockLink, vehicle, 18, MAV_BATTERY_CHARGE_STATE_CRITICAL);
@@ -354,8 +357,8 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
         QVERIFY_TRUE_WAIT(windSpeed(vehicle) == 9.5, TestTimeout::mediumMs());
         QVERIFY2(findVisibleItem(_rootItem, kWind, 0), "0.5 m/s under the threshold took the strip down");
 
-        // All four at once: battery, altitude, radius, wind, edge to edge under the bar, and the
-        // tool strips four strips down.
+        // All four at once: battery, altitude, radius, wind, edge to edge under the bar, over the
+        // top of the tool strips, which have not moved.
         injectAltitude(mockLink, vehicle, 155);
         QVERIFY(verifyVisibility(kAltitude, true, QStringLiteral("155 m")));
         QTest::qWait(kSettleMs);
@@ -369,11 +372,12 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
             QCOMPARE(rect.width(), static_cast<qreal>(_window->width()));
             expectedTop = rect.bottom();
         }
-        offset = checkToolStrips(4, QStringLiteral("all four"));
+        offset = checkToolStrips(QStringLiteral("all four"));
         QVERIFY2(offset.isEmpty(), qPrintable(offset));
+        QVERIFY2(sceneRect(strips).bottom() > sceneRect(leftStrip).top() + 1.0, "Four strips do not reach over the tool strip");
 
         // With the link gone the red strip comes up first in the stack, the four step down one
-        // strip under it, and the tool strips follow.
+        // strip under it, and the tool strips still stay put.
         QVERIFY(verifyVisibility(kLinkLost, false, QStringLiteral("link up")));
         mockLink->setCommLost(true);
         QVERIFY_TRUE_WAIT(linkManager->communicationLost(), TestTimeout::longMs());
@@ -392,7 +396,7 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
         QVERIFY(batteryUnder);
         QVERIFY2(qAbs(sceneRect(batteryUnder).top() - redRect.bottom()) < 1.0, "The battery strip is not right under the red one");
         QVERIFY(qAbs(sceneRect(strips).bottom() - (expectedTop + stripHeight)) < 1.0);
-        offset = checkToolStrips(5, QStringLiteral("comm lost over all four"));
+        offset = checkToolStrips(QStringLiteral("comm lost over all four"));
         QVERIFY2(offset.isEmpty(), qPrintable(offset));
         mockLink->setCommLost(false);
         QVERIFY_TRUE_WAIT(!linkManager->communicationLost(), TestTimeout::longMs());
@@ -439,7 +443,6 @@ void PoliceWarningsUITest::_testTapDismisses()
         QQuickItem *const leftStrip = findVisibleItem(_rootItem, kLeftStrip, 5000);
         QVERIFY2(leftStrip, "The left tool strip is not up");
         const double barBottom = sceneRect(topBar).bottom();
-        const double stripHeight = topBar->height() * kStripToBar;
 
         QVERIFY2(takeOff(vehicle), "The mock never reported itself in the air");
         injectAltitude(mockLink, vehicle, 30);
@@ -451,7 +454,7 @@ void PoliceWarningsUITest::_testTapDismisses()
         spoke.clear();
 
         // A tap on the battery strip takes that one away, silently; altitude moves up into its
-        // place and the tool strip follows.
+        // place and the tool strip stays where it was.
         QVERIFY2(clickItemFraction(kBattery, 0.5, 0.5), "Could not tap the battery strip");
         QVERIFY(verifyVisibility(kBattery, false, QStringLiteral("battery tapped")));
         QVERIFY(verifyVisibility(kAltitude, true, QStringLiteral("battery tapped")));
@@ -459,7 +462,7 @@ void PoliceWarningsUITest::_testTapDismisses()
         QQuickItem *const altitude = findVisibleItem(_rootItem, kAltitude, 0);
         QVERIFY(altitude);
         QVERIFY(qAbs(sceneRect(altitude).top() - barBottom) < 1.0);
-        QVERIFY(qAbs(sceneRect(leftStrip).top() - (barBottom + stripHeight + 8)) < 1.0);
+        QVERIFY(qAbs(sceneRect(leftStrip).top() - (barBottom + 8)) < 1.0);
 
         // The pack draining further is no reason to bring it back.
         injectBattery(mockLink, vehicle, 23, MAV_BATTERY_CHARGE_STATE_LOW);
@@ -561,8 +564,7 @@ void PoliceWarningsUITest::_testLinkLostStrip()
         rcLost.start();
         QVERIFY(verifyProperty(kLinkLost, "title", QStringLiteral("RC 링크 끊김"), QStringLiteral("rc lost")));
         QVERIFY(verifyProperty(kLinkLost, "line",
-                               QStringLiteral("조종기 신호가 수신되지 않습니다, 페일세이프 동작을 확인하십시오"),
-                               QStringLiteral("rc lost")));
+                               QStringLiteral("조종기 신호가 수신되지 않습니다"), QStringLiteral("rc lost")));
         QVERIFY(verifyVisibility(kLinkLost, true, QStringLiteral("rc lost")));
         rcLost.stop();
         QVERIFY(verifyVisibility(kLinkLost, false, QStringLiteral("rc back")));
@@ -627,6 +629,144 @@ void PoliceWarningsUITest::_testFollowModeStrip()
         QTest::qWait(300);
         QVERIFY(dashboard->setProperty("_followEngaged", true));
         QVERIFY(verifyVisibility(kFollow, true, QStringLiteral("follow warning back")));
+    });
+}
+
+bool PoliceWarningsUITest::_tapBelowStrips(const QString &name)
+{
+    QQuickItem *const item = findVisibleItem(_rootItem, name, 5000);
+    QQuickItem *const strips = findItem(_rootItem, kStrips);
+    if (!item || !strips) {
+        return false;
+    }
+    const QRectF rect = sceneRect(item);
+    const double covered = sceneRect(strips).bottom();
+    if (covered >= rect.bottom() - 2.0) {
+        return false;
+    }
+    const double visibleTop = qMax(rect.top(), covered);
+    return clickItemFraction(name, 0.5, ((visibleTop + rect.bottom()) / 2.0 - rect.top()) / rect.height());
+}
+
+void PoliceWarningsUITest::_testPanelOverStrips()
+{
+    _ignorePreexistingWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> mockLink, Vehicle *vehicle) {
+        QVERIFY(mockLink);
+        QVERIFY(vehicle);
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const topBar = findVisibleItem(_rootItem, QStringLiteral("policeTopBar"), 5000);
+        QVERIFY2(topBar, "The police top bar is not up");
+        QQuickItem *const strips = findItem(_rootItem, kStrips);
+        QVERIFY2(strips, "The dashboard has no warning strip stack");
+        QQuickItem *const leftStrip = findVisibleItem(_rootItem, kLeftStrip, 5000);
+        QVERIFY2(leftStrip, "The left tool strip is not up");
+        const double leftTop = sceneRect(leftStrip).top();
+
+        // Low battery on the ground: one strip, over the top of the tool strip, which stays put.
+        injectBattery(mockLink, vehicle, 20, MAV_BATTERY_CHARGE_STATE_LOW);
+        QVERIFY(verifyVisibility(kBattery, true, QStringLiteral("low")));
+        QTest::qWait(300);
+        QVERIFY2(sceneRect(strips).bottom() > leftTop + 1.0, "The strip does not reach over the tool strip");
+        QCOMPARE(sceneRect(leftStrip).top(), leftTop);
+
+        // Takeoff tapped where the strip leaves it showing, then the red RC strip on top of that:
+        // the panel stays up and over both.
+        QVERIFY2(_tapBelowStrips(QStringLiteral("policeToolTakeoff")), "The takeoff entry is covered or could not be tapped");
+        QQuickItem *const panel = findVisibleItem(_rootItem, QStringLiteral("policeTakeoffPanel"), 5000);
+        QVERIFY2(panel, "Takeoff panel never opened under the strip");
+        QTimer rcLost;
+        rcLost.setInterval(20);
+        (void) connect(&rcLost, &QTimer::timeout, mockLink.data(), [&] { injectRcLost(mockLink, vehicle); });
+        rcLost.start();
+        QVERIFY(verifyVisibility(kLinkLost, true, QStringLiteral("rc lost")));
+        QTest::qWait(300);
+        QVERIFY2(findVisibleItem(_rootItem, QStringLiteral("policeTakeoffPanel"), 0), "The takeoff panel closed when the RC strip came up");
+        QCOMPARE(sceneRect(leftStrip).top(), leftTop);
+        QVERIFY2(sceneRect(panel).intersects(sceneRect(strips)), "The takeoff panel does not reach under the strips");
+        QVERIFY2(leftStrip->z() > strips->z(), "The takeoff panel's strip is not above the warning strips");
+
+        // A tap on a strip while the panel is up closes the panel and leaves the strip.
+        QVERIFY2(clickItemFraction(kBattery, 0.5, 0.5), "Could not tap the battery strip");
+        QTRY_VERIFY2(!findVisibleItem(_rootItem, QStringLiteral("policeTakeoffPanel"), 0), "The takeoff panel stayed after a tap on a strip");
+        QVERIFY(verifyVisibility(kBattery, true, QStringLiteral("panel closed")));
+        QVERIFY2(leftStrip->z() < strips->z(), "The tool strip stayed above the warning strips with its panel closed");
+
+        // The strip's own tap, right over the tool strip, still takes it away.
+        QQuickItem *const battery = findVisibleItem(_rootItem, kBattery, 0);
+        QVERIFY(battery);
+        const QRectF leftRect = sceneRect(leftStrip);
+        const QRectF batteryRect = sceneRect(battery);
+        QVERIFY(batteryRect.intersects(leftRect));
+        QVERIFY2(clickItemFraction(kBattery, leftRect.center().x() / batteryRect.width(), 0.5), "Could not tap the battery strip over the tool strip");
+        QVERIFY(verifyVisibility(kBattery, false, QStringLiteral("battery tapped over the tool strip")));
+        rcLost.stop();
+    });
+}
+
+void PoliceWarningsUITest::_captureOverlay()
+{
+    if (qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+        QSKIP("QGC_SCREENSHOT_DIR is not set");
+    }
+
+    _ignorePreexistingWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> mockLink, Vehicle *vehicle) {
+        QVERIFY(mockLink);
+        QVERIFY(vehicle);
+        VehicleLinkManager *const linkManager = vehicle->vehicleLinkManager();
+        QVERIFY(linkManager);
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        injectBattery(mockLink, vehicle, 20, MAV_BATTERY_CHARGE_STATE_LOW);
+        QVERIFY(verifyVisibility(kBattery, true, QStringLiteral("20 %")));
+        _grab(QStringLiteral("strips_1_one_strip"));
+        if (QTest::currentTestFailed()) return;
+
+        // Two strips cover the takeoff entry whole, so the panel is opened under one and the red
+        // RC strip comes up while it is open.
+        QVERIFY2(_tapBelowStrips(QStringLiteral("policeToolTakeoff")), "The takeoff entry is covered or could not be tapped");
+        QVERIFY2(findVisibleItem(_rootItem, QStringLiteral("policeTakeoffPanel"), 5000), "Takeoff panel never opened");
+        QTimer rcLost;
+        rcLost.setInterval(20);
+        (void) connect(&rcLost, &QTimer::timeout, mockLink.data(), [&] { injectRcLost(mockLink, vehicle); });
+        rcLost.start();
+        QVERIFY(verifyProperty(kLinkLost, "title", QStringLiteral("RC 링크 끊김"), QStringLiteral("rc lost")));
+        QVERIFY(verifyVisibility(kLinkLost, true, QStringLiteral("rc lost")));
+        _grab(QStringLiteral("strips_4_takeoff_panel"));
+        if (QTest::currentTestFailed()) return;
+
+        // A tap on the battery strip closes the panel and leaves the strips: the RC words.
+        QVERIFY2(clickItemFraction(kBattery, 0.5, 0.5), "Could not tap the battery strip");
+        QVERIFY(verifyVisibility(QStringLiteral("policeTakeoffPanel"), false, QStringLiteral("panel closed")));
+        _grab(QStringLiteral("strips_5_rc_lost"));
+        if (QTest::currentTestFailed()) return;
+        rcLost.stop();
+        QVERIFY(verifyVisibility(kLinkLost, false, QStringLiteral("rc back")));
+
+        // In the air: battery, altitude and wind, then the link.
+        QVERIFY2(takeOff(vehicle), "The mock never reported itself in the air");
+        injectAltitude(mockLink, vehicle, 162);
+        injectWind(mockLink, vehicle, 12);
+        QVERIFY(verifyVisibility(kAltitude, true, QStringLiteral("162 m")));
+        QVERIFY(verifyVisibility(kWind, true, QStringLiteral("12 m/s")));
+        mockLink->setCommLost(true);
+        QVERIFY_TRUE_WAIT(linkManager->communicationLost(), TestTimeout::longMs());
+        QVERIFY(verifyVisibility(kLinkLost, true, QStringLiteral("comm lost")));
+        _grab(QStringLiteral("strips_2_four_strips"));
+        if (QTest::currentTestFailed()) return;
+
+        QVERIFY2(clickItemFraction(kLinkLost, 0.5, 0.5), "Could not tap the red strip");
+        QVERIFY(verifyVisibility(kLinkLost, false, QStringLiteral("red tapped")));
+        _grab(QStringLiteral("strips_3_after_red_tap"));
+        mockLink->setCommLost(false);
     });
 }
 
