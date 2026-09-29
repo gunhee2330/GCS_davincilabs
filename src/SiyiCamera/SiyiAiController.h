@@ -120,9 +120,10 @@ public:
     /// they are scaled to the module's reference resolution before sending.
     Q_INVOKABLE void trackPoint(double x, double y);
 
-    /// Selects a target by dragging a box, normalised 0..1. The recognised object under the box's
-    /// centre is tried first, so a person or a vehicle keeps its class; the box itself is sent only
-    /// when the module refuses that or does not answer within a second.
+    /// Selects a target by dragging a box, normalised 0..1. A target the module still holds is
+    /// cancelled first. The recognised object under the box's centre is then tried as a point, so a
+    /// person or a vehicle keeps its class; the box itself is sent only when the module finds
+    /// nothing under the point or does not answer within a second.
     Q_INVOKABLE void trackBox(double left, double top, double right, double bottom);
 
     Q_INVOKABLE void cancelTracking();
@@ -165,8 +166,8 @@ signals:
     void streamTooLargeChanged();
     void countsChanged();
 
-    /// Raised when the module refuses a track request, with a user readable reason.
-    void trackRequestFailed(const QString &reason);
+    /// Raised when the module refuses a target pick, with its 0x06 answer code and a Korean reason.
+    void trackRequestFailed(int code, const QString &reason);
 
 private slots:
     void _readPendingDatagrams();
@@ -178,7 +179,13 @@ private:
     void _setConnected(bool connected);
     void _setHasTarget(bool hasTarget);
     void _setStreamTooLarge(bool tooLarge);
-    void _sendPendingBox();
+    void _startCancel();
+    void _cancelResolved(bool cancelSent);
+    void _sendPickPoint();
+    void _sendPickBox(bool afterTimeout);
+    void _handlePickAnswer(SiyiAi::TrackRequestResult result);
+    void _pickRefused(SiyiAi::TrackRequestResult result);
+    [[nodiscard]] bool _targetHeld() const;
 
     void _sendCount(SiyiAi::PrivateCommandId command, const QByteArray &payload = QByteArray());
     void _readCountLink();
@@ -254,13 +261,15 @@ private:
     quint16 _cancelSequence = 0;
     QElapsedTimer _cancelTimer;
 
-    /// A dragged box waiting on the module's answer to the point pick at its centre, in stream
-    /// coordinates, whether a target was on screen when it was drawn, and how long it has waited;
-    /// see trackBox().
-    bool _boxPending = false;
-    bool _boxPendingHadTarget = false;
+    /// Where a dragged pick is: cancelling a held target (the state query, then the cancel's own
+    /// answer), waiting on the point at the box's centre, or on the box. See trackBox().
+    enum class PickStep { None, Cancelling, CancelAnswer, Point, Box };
+    PickStep _pickStep = PickStep::None;
+    double _pickCentre[2] = {};
     quint16 _pendingBox[4] = {};
-    QElapsedTimer _boxPendingTimer;
+    bool _pickPointRetried = false;
+    bool _pickBoxAfterTimeout = false;
+    QElapsedTimer _pickTimer;
 
     int _streamWidth = SiyiAi::kReferenceWidth;
     int _streamHeight = SiyiAi::kReferenceHeight;

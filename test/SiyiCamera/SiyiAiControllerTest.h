@@ -29,4 +29,9 @@ private slots:
     void _dragSendsTheBoxWhenThePointGetsNoReply_test();
     void _dragKeepsTheClassTheStreamReports_test();
     void _cancelDropsAPendingDragBox_test();
+    void _dragCancelsAHeldTargetFirst_test();
+    void _dragBoxAnswersDecideTheResult_test();
+    void _dragRetriesOnceWhenTheModuleIsStillTracking_test();
+    void _dragRefusalsSendNoBox_test();
+    void _dragBoxRefusedAsHeldAfterATimeoutIsASuccess_test();
 };

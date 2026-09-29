@@ -107,7 +107,7 @@ Item {
     // stream; without this the operator would just see nothing happen.
     Connections {
         target: App.SiyiAiController
-        function onTrackRequestFailed(reason) {
+        function onTrackRequestFailed(code, reason) {
             trackToast.text = reason
             trackToast.show()
         }
