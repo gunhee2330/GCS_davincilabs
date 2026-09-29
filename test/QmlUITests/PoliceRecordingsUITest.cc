@@ -17,6 +17,7 @@
 #include "FakePodMediaServer.h"
 #include "Fact.h"
 #include "MockLink.h"
+#include "PinGate.h"
 #include "QGCCorePlugin.h"
 #include "SettingsManager.h"
 #include "SiyiCameraController.h"
@@ -348,7 +349,10 @@ void PoliceRecordingsUITest::_testRecordingsPage()
                  qPrintable(joinedTexts(detail)));
         _grabIfCapturing(QStringLiteral("pr_4b_unlogged"));
 
-        // As the operator, 내보내기 wants the PIN; a wrong one stays out.
+        // As the operator, 내보내기 wants the PIN; a wrong one stays out. The page asks DeveloperPin,
+        // whose shipped PIN is set per build, so the test gives it one it knows.
+        PinGate knownPin(QStringLiteral("PoliceDrone/DeveloperPin"), QStringLiteral("0"), nullptr);
+        QVERIFY(knownPin.changePin(QStringLiteral("0"), QStringLiteral("704183")));
         QVERIFY2(clickButton(QStringLiteral("recordingsRow_0")), "Could not select the received row");
         QVERIFY2(clickButton(QStringLiteral("recordingsExport")), "Could not tap 내보내기");
         QVERIFY2(waitForDialog(QStringLiteral("관리자 확인")), "내보내기 asked for no PIN");

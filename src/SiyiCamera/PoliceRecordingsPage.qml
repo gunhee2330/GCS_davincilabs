@@ -43,12 +43,8 @@ Rectangle {
     property string _message: ""
     property bool   _messageIsError: false
 
-    /// Same placeholder PIN and lockout as the 개발자 settings page (DeveloperModeSettings._developerPin):
-    /// the administrator here is the developer mode that PIN turns on.
-    // ponytail: duplicated literal; move both to the Android Keystore together, as that page's TODO says
-    readonly property string _adminPin:       "704183"
-    readonly property int    _maxPinFailures: 5
-    property int    _pinFailures: 0
+    /// The administrator here is the developer mode that App.DeveloperPin turns on; the PIN, its
+    /// hash and the lockout are kept there, shared with the 개발자 settings page.
     property var    _pendingAdminAction: null
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
@@ -195,12 +191,11 @@ Rectangle {
             property string _pinMessage: ""
 
             onAccepted: {
-                if (lockoutTimer.running) {
+                if (App.DeveloperPin.lockedOut) {
                     preventClose = true
                     return
                 }
-                if (pinField.text === page._adminPin) {
-                    page._pinFailures = 0
+                if (App.DeveloperPin.verify(pinField.text)) {
                     QGroundControl.corePlugin.showAdvancedUI = true
                     const action = page._pendingAdminAction
                     page._pendingAdminAction = null
@@ -211,14 +206,9 @@ Rectangle {
                 }
                 pinField.text = ""
                 preventClose = true
-                page._pinFailures++
-                if (page._pinFailures >= page._maxPinFailures) {
-                    page._pinFailures = 0
-                    lockoutTimer.restart()
-                    _pinMessage = qsTr("잘못 입력한 횟수가 많아 60초 동안 잠깁니다.")
-                } else {
-                    _pinMessage = qsTr("PIN이 맞지 않습니다.")
-                }
+                _pinMessage = App.DeveloperPin.lockedOut
+                        ? qsTr("잘못 입력한 횟수가 많아 %1초 동안 잠깁니다.").arg(App.DeveloperPin.lockoutSecondsLeft)
+                        : qsTr("PIN이 맞지 않습니다.")
             }
             onRejected: page._pendingAdminAction = null
 
@@ -234,9 +224,9 @@ Rectangle {
                     objectName:             "recordingsPinField"
                     Layout.fillWidth:       true
                     echoMode:               TextInput.Password
-                    maximumLength:          6
+                    maximumLength:          8
                     numericValuesOnly:      true
-                    enabled:                !lockoutTimer.running
+                    enabled:                !App.DeveloperPin.lockedOut
                     Component.onCompleted:  forceActiveFocus()
                 }
 
@@ -247,11 +237,6 @@ Rectangle {
                 }
             }
         }
-    }
-
-    Timer {
-        id:         lockoutTimer
-        interval:   60000
     }
 
     MediaPlayer {
