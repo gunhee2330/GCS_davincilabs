@@ -584,9 +584,10 @@ Rectangle {
                     }
                 }
 
-                // The controller's own battery. Drawn as the three-cell pictogram, deliberately
-                // not the aircraft's fill-level glyph beside it: two identical glyphs a few
-                // centimetres apart is how 58% and 38% get read the wrong way round. Absent
+                // The controller's own battery. Drawn as the three-cell pictogram, full, half or
+                // low with the reading, deliberately not the aircraft's fill-level glyph beside it:
+                // two identical glyphs a few centimetres apart is how 58% and 38% get read the
+                // wrong way round. Absent
                 // rather than zero where there is no reading, because a controller showing 0% is
                 // a controller about to go dark, and that is a different thing to say.
                 Row {
@@ -602,8 +603,11 @@ Rectangle {
                                                              : "white"
 
                     BarIcon {
-                        source: "qrc:/InstrumentValueIcons/battery-full.svg"
-                        tint:   controllerBatteryGroup.tint
+                        objectName: "policeControllerBatteryIcon"
+                        source:     bar.controllerBatteryPercent >= 60 ? "qrc:/InstrumentValueIcons/battery-full.svg"
+                                    : bar.controllerBatteryPercent >= 30 ? "qrc:/InstrumentValueIcons/battery-half.svg"
+                                                                         : "qrc:/InstrumentValueIcons/battery-low.svg"
+                        tint:       controllerBatteryGroup.tint
                     }
 
                     BarText {

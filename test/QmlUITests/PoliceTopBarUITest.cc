@@ -373,6 +373,31 @@ void PoliceTopBarUITest::_testBarItemsExist()
     });
 }
 
+void PoliceTopBarUITest::_testControllerBatteryIconFollowsPercent()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const topBar = findVisibleItem(_rootItem, kTopBar, 5000);
+        QVERIFY2(topBar, "The top bar is not on screen");
+        const struct { int percent; const char *file; } cases[] = {
+            { 85, "battery-full.svg" }, { 45, "battery-half.svg" }, { 20, "battery-low.svg" },
+        };
+        for (const auto &c : cases) {
+            QVERIFY(topBar->setProperty("controllerBatteryPercent", c.percent));
+            QQuickItem *const icon = findVisibleItem(topBar, QStringLiteral("policeControllerBatteryIcon"), 3000);
+            QVERIFY2(icon, qPrintable(QStringLiteral("No handset battery icon at %1 %").arg(c.percent)));
+            const QString source = icon->property("source").toUrl().toString();
+            QVERIFY2(source.endsWith(QLatin1String(c.file)),
+                     qPrintable(QStringLiteral("At %1 % the handset icon is %2, not %3").arg(c.percent).arg(source, QLatin1String(c.file))));
+        }
+    });
+}
+
 void PoliceTopBarUITest::_testDrawersOpenUnderTheirItem()
 {
     _ignorePreexistingQmlWarnings();
