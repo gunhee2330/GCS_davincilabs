@@ -10110,6 +10110,12 @@
       <translation>영상</translation>
     </message>
     <message>
+      <extracomment>.pages[Payload].name</extracomment>
+      <location filename="../src/AppSettings/pages/SettingsPages.json"/>
+      <source>Payload</source>
+      <translation>임무장치</translation>
+    </message>
+    <message>
       <extracomment>.pages[Help].name</extracomment>
       <location filename="/home/runner/work/qgroundcontrol/qgroundcontrol/src/AppSettings/pages/SettingsPages.json"/>
       <source>Help</source>
@@ -10911,24 +10917,6 @@
   <context>
     <name>Video.SettingsUI.json</name>
     <message>
-      <extracomment>.groups[SIYI Camera Control].heading</extracomment>
-      <location filename="../src/AppSettings/pages/Video.SettingsUI.json"/>
-      <source>SIYI Camera Control</source>
-      <translation>카메라 설정</translation>
-    </message>
-    <message>
-      <extracomment>.groups[Loudspeaker Payload].heading</extracomment>
-      <location filename="../src/AppSettings/pages/Video.SettingsUI.json"/>
-      <source>Loudspeaker Payload</source>
-      <translation>스피커 설정</translation>
-    </message>
-    <message>
-      <extracomment>.groups[Thermal Measurement].heading</extracomment>
-      <location filename="../src/AppSettings/pages/Video.SettingsUI.json"/>
-      <source>Thermal Measurement</source>
-      <translation>열상 측온</translation>
-    </message>
-    <message>
       <extracomment>.groups[Video Source].heading</extracomment>
       <location filename="/home/runner/work/qgroundcontrol/qgroundcontrol/src/AppSettings/pages/Video.SettingsUI.json"/>
       <source>Video Source</source>
@@ -11083,6 +11071,27 @@
       <location filename="/home/runner/work/qgroundcontrol/qgroundcontrol/src/AppSettings/pages/Video.SettingsUI.json"/>
       <source>video file</source>
       <translation type="unfinished">video file</translation>
+    </message>
+  </context>
+  <context>
+    <name>Payload.SettingsUI.json</name>
+    <message>
+      <extracomment>.groups[SIYI Camera Control].heading</extracomment>
+      <location filename="../src/AppSettings/pages/Payload.SettingsUI.json"/>
+      <source>SIYI Camera Control</source>
+      <translation>포드 제어</translation>
+    </message>
+    <message>
+      <extracomment>.groups[Loudspeaker Payload].heading</extracomment>
+      <location filename="../src/AppSettings/pages/Payload.SettingsUI.json"/>
+      <source>Loudspeaker Payload</source>
+      <translation>스피커</translation>
+    </message>
+    <message>
+      <extracomment>.groups[Thermal Measurement].heading</extracomment>
+      <location filename="../src/AppSettings/pages/Payload.SettingsUI.json"/>
+      <source>Thermal Measurement</source>
+      <translation>열상 측정</translation>
     </message>
   </context>
   <context>
