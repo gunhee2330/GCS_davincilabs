@@ -92,7 +92,7 @@ public:
     Q_INVOKABLE void dismiss(Warning warning);
 
     /// PX4 GF_MAX_VER_DIST when set; ArduPilot FENCE_ALT_MAX when the fence is on with its
-    /// altitude bit; otherwise the 150 m the Korean rules set as the ceiling.
+    /// altitude bit; otherwise 160 m, the ceiling the operator chose.
     [[nodiscard]] double altitudeLimit() const;
     /// PX4 GF_MAX_HOR_DIST when set; ArduPilot FENCE_RADIUS when the fence is on with its circle
     /// bit; otherwise NaN, and no radius warning at all.
@@ -100,7 +100,7 @@ public:
     /// PX4 COM_WIND_WARN when set, otherwise 10 m/s.
     [[nodiscard]] double windLimit() const;
 
-    static constexpr double kDefaultCeilingM          = 150.0;
+    static constexpr double kDefaultCeilingM          = 160.0;
     static constexpr double kDefaultWindWarnMps       = 10.0;
     static constexpr double kBatteryHysteresisPercent = 2.0;
     static constexpr double kDistanceHysteresisM      = 2.0;

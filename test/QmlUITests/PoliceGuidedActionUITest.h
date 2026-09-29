@@ -18,24 +18,35 @@ class PoliceGuidedActionUITest : public QmlUITestBase
     Q_OBJECT
 
 private slots:
-    /// Pressing 이륙 must raise the confirm control, and the control raised must be the
-    /// police one rather than the hidden toolbar's.
-    void _testTakeoffRaisesConfirmControl();
+    /// Pressing 이륙 opens the takeoff panel beside the strip, not the stock hold confirm: the
+    /// slider starts at the vehicle's minimum takeoff altitude over 0 to the stock maximum
+    /// altitude setting, its bubble follows it, 최대 typed in writes that setting and the range
+    /// follows, and the X closes it. Grabs takeoff_0_panel when QGC_SCREENSHOT_DIR is set.
+    void _testTakeoffOpensPanel();
 
-    /// The takeoff altitude slider must be ordered above the dashboard, which fills the
-    /// window: painted under it the operator can neither read nor set the altitude.
+    /// The stock altitude slider, still raised by pause, goto and orbit, must be ordered above the
+    /// dashboard, which fills the window: painted under it the operator can neither read nor set
+    /// the altitude.
     void _testTakeoffAltitudeSliderIsOnTop();
 
-    /// Holding the confirm button past its delay must put MAV_CMD_NAV_TAKEOFF on the link.
-    void _testHoldConfirmSendsTakeoff();
+    /// Letting the slide knob go halfway sends nothing and it slides back; sliding it to the end
+    /// puts MAV_CMD_NAV_TAKEOFF at the slider's altitude on the link and arms. Grabs
+    /// takeoff_1_mid_drag when QGC_SCREENSHOT_DIR is set.
+    void _testSlideSendsTakeoff();
+
+    /// In flight 복귀 still raises the stock hold confirm; 착륙 opens its own panel, which takes
+    /// that confirm down; letting its knob go halfway changes nothing, and sliding it to the end
+    /// lands. Grabs land_0_panel when QGC_SCREENSHOT_DIR is set.
+    void _testSlideSendsLand();
 
     /// With a route aboard, 미션시작 appears in the strip, raises the confirm control, and
     /// holding it starts the mission.
     void _testMissionStartFromToolStrip();
 
     /// 복귀고도 follows the guided controller's showRTL: greyed on the ground, live in flight,
-    /// and a tap in flight opens the return altitude panel. Grabs rtl_alt_0_strip_flying and
-    /// rtl_alt_1_panel when QGC_SCREENSHOT_DIR is set.
+    /// and a tap in flight opens the return altitude panel, whose slider starts at the vehicle's
+    /// return altitude over 1 to 1000 m; 50 m and 복귀 write RTL_RETURN_ALT and raise the stock
+    /// RTL confirm. Grabs rtl_alt_0_strip_flying and rtl_alt_1_panel when QGC_SCREENSHOT_DIR is set.
     void _testRtlAltitudeFromToolStrip();
 
     /// Capture slot. Skipped unless QGC_SCREENSHOT_DIR is set.
@@ -85,9 +96,18 @@ private slots:
     /// full screen.
     void _testTargetDragPicksBox();
 
-    /// The release button on the picture: a click must ask for exactly one cancel, must not send
-    /// a box and must not take the panel full screen; greyed it must do nothing at all; and a
-    /// drag that starts on it must not send a box either.
+    /// The tracked box and its label take their colour from the class the module reports, driven
+    /// by a fake module's target stream: person amber with black text, car violet with black
+    /// text, the arbitrary template orange with white text, each labelled with the module's own
+    /// word. Grabs box_0_person, box_1_car and box_2_object when QGC_SCREENSHOT_DIR is set.
+    void _testTrackedBoxColourByClass();
+
+    /// The rail's 추적해제 stays enabled through a 2 s pause in the fake module's target stream
+    /// while the module holds an accepted pick, and greys once the module reports it cancelled.
+    void _testTrackCancelStaysEnabledWhileHeld();
+
+    /// The release button on the picture stays off, on the small zoom window and on the big one,
+    /// and the rail keeps its 추적해제 in both.
     void _testTrackCancelButton();
 
     /// The detection card's five cells are one width, the widest of a dot with its label and a
@@ -109,14 +129,12 @@ private slots:
     /// over the camera grid's 촬영. Grabs stock_record_hidden when QGC_SCREENSHOT_DIR is set.
     void _testStockPhotoVideoOnlyWithPodOff();
 
-    /// Full screen, the flight strip stands in for the hidden top bar: on the zoom and on the
-    /// thermal window it is up, reads the date and time, 비행 중 with the elapsed time and the
-    /// top bar's distance in flight and a dash on the ground, the relative altitude and the
-    /// battery, keeps ticking, and stays clear of the window's name chip, its 추종/추적 chips and
-    /// its 추적해제 button. Gone again once no window is full screen. Grabs
-    /// fullscreen_strip_0_zoom_ground, fullscreen_strip_1_zoom_flying and
-    /// fullscreen_strip_2_thermal_flying when QGC_SCREENSHOT_DIR is set.
-    void _testFullscreenFlightStrip();
+    /// A tap on a small camera window swaps it with the map: the picture fills everything under
+    /// the top bar, under the chrome, which all stays put, and the map shows in the vacated
+    /// window as 지도. A tap on the big picture keeps it; a tap on 지도 or Escape swaps back, and
+    /// another window's tap swaps that one in directly. Grabs swap_zoom_big and
+    /// swap_thermal_big when QGC_SCREENSHOT_DIR is set.
+    void _testMapSwap();
 
     /// The pod's whole-frame hottest and coldest, fed from a fake gimbal on loopback, read
     /// 최고 … °C  최저 … °C on the thermal window's name chip after the LRF reading and follow the
@@ -134,6 +152,13 @@ private:
 
     /// Press the item at \a objectName, hold past the confirm delay, release.
     bool _holdButton(const QString &objectName);
+
+    /// Drag the knob of the slide bar \a barName along \a fraction of its travel and let go,
+    /// grabbing \a grabName with the finger still down.
+    void _slide(const QString &barName, qreal fraction, const QString &grabName = QString());
+
+    /// 이륙 on the strip, then the takeoff panel's slide bar all the way.
+    void _takeOffFromPanel();
 
     /// Grab the window to <QGC_SCREENSHOT_DIR>/<name>.png. \a beforeGrab runs after the settle
     /// wait and just before the grab, with no event loop turn in between.

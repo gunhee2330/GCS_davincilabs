@@ -12,17 +12,38 @@ class PoliceWarningsUITest : public QmlUITestBase
 private slots:
     /// Each strip goes up with its condition and says the live value, battery low turns into
     /// critical and says it again, altitude and wind hold inside their hysteresis band, several
-    /// stack full width under the bar in a fixed order, the tool strips step down by the stack,
-    /// and the red link banner comes up in its own place, over the stack.
+    /// stack full width under the bar in a fixed order over the tool strips, which stay put, and
+    /// the red link strip comes up first in the stack.
     void _testStripsFollowTelemetry();
 
     /// A tap hides one strip and no other, silently; low battery stays hidden while it drains and
     /// comes back and speaks once critical; altitude comes back once it clears and returns.
     void _testTapDismisses();
 
-    /// Captures into QGC_SCREENSHOT_DIR: one strip, two stacked, with the red banner, after a
-    /// dismiss. Skipped unless QGC_SCREENSHOT_DIR is set.
+    /// The red link strip: first in the stack, a tap hides it while the loss lasts, it comes back
+    /// once the link returns and is lost again, and the RC receiver alone has its own words.
+    void _testLinkLostStrip();
+
+    /// The follow warning: an amber strip last in the stack, with its words, hidden by a tap.
+    void _testFollowModeStrip();
+
+    /// A refused target pick: an amber strip first in the stack, 표적 지정 실패 with the module's
+    /// reason, gone by itself after 3 s, restarted by a new refusal, hidden by a tap. Grabs
+    /// pick_strip_normal and pick_strip_fullscreen when QGC_SCREENSHOT_DIR is set.
+    void _testTargetPickRefusalStrip();
+
+    /// The takeoff panel, opened under one strip, stays up and over it and a second one; a tap on
+    /// a strip closes it, and a tap on a strip right over the tool strip still takes it away.
+    void _testPanelOverStrips();
+
+    /// Captures into QGC_SCREENSHOT_DIR: the red strip alone, with two amber strips, after a tap,
+    /// the follow strip, RC lost. Skipped unless QGC_SCREENSHOT_DIR is set.
     void _captureStrips();
+
+    /// Captures into QGC_SCREENSHOT_DIR of the strips over the tool strips: one strip, four with
+    /// the red one first, after tapping the red one, the takeoff panel under two, RC lost.
+    /// Skipped unless QGC_SCREENSHOT_DIR is set.
+    void _captureOverlay();
 
 private:
     /// Pre-existing warnings the strict log check would otherwise fail on.
@@ -30,4 +51,8 @@ private:
 
     /// Grab the window to <QGC_SCREENSHOT_DIR>/<name>.png.
     void _grab(const QString &name);
+
+    /// Tap \a name in the middle of its part the warning strips leave showing; false when they
+    /// cover it or it is not up.
+    bool _tapBelowStrips(const QString &name);
 };

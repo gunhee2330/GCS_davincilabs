@@ -31,6 +31,7 @@
 #include "FlyViewSettings.h"
 #include "MAVLinkLib.h"
 #include "MockLink.h"
+#include "ParameterManager.h"
 #include "SettingsManager.h"
 #include "SiyiAiController.h"
 #include "SiyiAiProtocol.h"
@@ -39,7 +40,6 @@
 #include "SiyiLongProtocol.h"
 #include "SiyiProtocol.h"
 #include "SpeakerSettings.h"
-#include "UnitsSettings.h"
 #include "Vehicle.h"
 #include "VehicleLinkManager.h"
 
@@ -60,6 +60,19 @@ const QString kTakeoffButton      = QStringLiteral("policeToolTakeoff");
 const QString kStartMissionButton = QStringLiteral("policeToolStartMission");
 const QString kRtlAltButton       = QStringLiteral("policeToolRtlAlt");
 const QString kRtlAltPanel        = QStringLiteral("policeRtlAltPanel");
+
+/// The takeoff panel beside the strip and what it holds.
+const QString kTakeoffPanel    = QStringLiteral("policeTakeoffPanel");
+const QString kTakeoffSlide    = QStringLiteral("policeTakeoffSlide");
+const QString kAltitudeSlider  = QStringLiteral("policeAltitudeSlider");
+const QString kAltitudeBubble  = QStringLiteral("policeAltitudeBubbleText");
+const QString kAltitudeMaximum = QStringLiteral("policeAltitudeMaximum");
+const QString kSlideKnob       = QStringLiteral("policeSlideKnob");
+/// The land panel, and 복귀, which keeps the stock hold confirm.
+const QString kLandButton      = QStringLiteral("policeToolLand");
+const QString kLandPanel       = QStringLiteral("policeLandPanel");
+const QString kLandSlide       = QStringLiteral("policeLandSlide");
+const QString kRtlButton       = QStringLiteral("policeToolRtl");
 
 const QString kSlider    = QStringLiteral("guidedValueSlider");
 const QString kDashboard = QStringLiteral("policeDroneDashboard");
@@ -85,9 +98,6 @@ const QString kTopBar          = QStringLiteral("policeTopBar");
 /// QGC's MapScale as the dashboard hosts it, and the map it measures.
 const QString kMapScale        = QStringLiteral("policeMapScale");
 const QString kFlyViewMap      = QStringLiteral("flyViewMap");
-/// Full screen only: the small map in the corner and the way back out.
-const QString kMapPip          = QStringLiteral("policeFullscreenMapPip");
-const QString kHint            = QStringLiteral("policeFullscreenHint");
 /// ToolStripHoverButton takes its objectName from the action it renders.
 const QString kMosaicEntry     = QStringLiteral("policeMosaicToolAction");
 
@@ -110,7 +120,8 @@ const QString kChipText   = QStringLiteral("policeCameraStateChipText");
 const QString kZoomStream  = QStringLiteral("videoContent");
 const QString kDragBox     = QStringLiteral("policeTargetDragBox");
 
-/// The release button on the picture, the only 추적해제 reachable while a camera is full screen.
+/// The release button on the picture. The dashboard never shows it: the rail's 추적해제 stays
+/// reachable over the big picture.
 const QString kTrackCancel = QStringLiteral("policeTrackCancelButton");
 
 /// The drag is walked in this many steps, each one well past the handler's drag threshold in
@@ -162,9 +173,6 @@ constexpr qreal kPillOfStack = 0.85;
 /// PoliceDroneDashboard._stackWindowScale / _windowScale: the zoom and thermal windows against
 /// the forward one, which stays at the smaller scale.
 constexpr qreal kStackOfForward = 0.7 / 0.6;
-
-/// The fraction of the screen width the full screen map copy takes.
-constexpr qreal kPipOfWidth = 0.27;
 
 /// A centred item lands on a half pixel either way.
 constexpr qreal kCentreSlack = 2.0;
@@ -286,6 +294,14 @@ QQuickItem *findForwardRing(QQuickItem *item)
         }
     }
     return nullptr;
+}
+
+/// The stock vertical altitude slider, which FlyView hands the guided controller. Not a QObject
+/// child of anything findChild can reach, so it is taken off the dashboard's controller.
+QQuickItem *stockSlider(QQuickItem *dashboard)
+{
+    QObject *const controller = dashboard->property("guidedController").value<QObject *>();
+    return controller ? controller->property("guidedValueSlider").value<QQuickItem *>() : nullptr;
 }
 
 }  // namespace
@@ -416,6 +432,27 @@ void PoliceGuidedActionUITest::_dragPointer(const QList<QPointF> &path, const QS
     QTest::qWait(kSettleMs);
 }
 
+void PoliceGuidedActionUITest::_slide(const QString &barName, qreal fraction, const QString &grabName)
+{
+    QQuickItem *const bar = findVisibleItem(_rootItem, barName, 5000);
+    QVERIFY2(bar, qPrintable(QStringLiteral("%1 is not on screen").arg(barName)));
+    QVERIFY2(bar->isEnabled(), qPrintable(QStringLiteral("%1 is disabled").arg(barName)));
+    QQuickItem *const knob = findVisibleItem(bar, kSlideKnob, 1000);
+    QVERIFY2(knob, qPrintable(QStringLiteral("%1 has no knob").arg(barName)));
+
+    const QPointF from = knob->mapToScene(QPointF(knob->width() / 2, knob->height() / 2));
+    // The knob's centre travels the bar less one knob width; past the end is clamped by the drag.
+    const qreal travel = bar->width() - knob->width();
+    _dragPointer({from, from + QPointF(travel * fraction, 0)}, grabName);
+}
+
+void PoliceGuidedActionUITest::_takeOffFromPanel()
+{
+    QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
+    QVERIFY2(findVisibleItem(_rootItem, kTakeoffPanel, 5000), "Takeoff panel never opened");
+    _slide(kTakeoffSlide, 1.1);
+}
+
 void PoliceGuidedActionUITest::_testTargetDragPicksBox()
 {
     _ignorePreexistingQmlWarnings();
@@ -517,6 +554,195 @@ void PoliceGuidedActionUITest::_testTargetDragPicksBox()
     });
 }
 
+void PoliceGuidedActionUITest::_testTrackedBoxColourByClass()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const dashboard = findVisibleItem(_rootItem, kDashboard, 5000);
+        QVERIFY2(dashboard, "Police dashboard not found - the layout under test is not up");
+        QQuickItem *const panel = findVisibleItem(_rootItem, kZoomPanel, 5000);
+        QVERIFY2(panel, "Zoom camera panel not found");
+
+        // A fake module on loopback: the controller's first request says where to answer, and the
+        // target stream is resent faster than the controller's 1.5 s target timeout.
+        QUdpSocket module;
+        QVERIFY(module.bind(QHostAddress::LocalHost, 0));
+        SiyiAiController *const ai = SiyiAiController::instance();
+        QVERIFY(ai);
+        Fact *const aiAddress = SettingsManager::instance()->siyiCameraSettings()->aiIpAddress();
+        Fact *const aiPort = SettingsManager::instance()->siyiCameraSettings()->aiPort();
+        const QVariant savedAddress = aiAddress->rawValue();
+        const QVariant savedPort = aiPort->rawValue();
+        const auto restoreModule = qScopeGuard([ai, aiAddress, aiPort, savedAddress, savedPort] {
+            ai->stop();
+            aiAddress->setRawValue(savedAddress);
+            aiPort->setRawValue(savedPort);
+        });
+        aiAddress->setRawValue(QStringLiteral("127.0.0.1"));
+        aiPort->setRawValue(module.localPort());
+        ai->start();
+        // The settings writes above may restart the link on their own, so the last socket to
+        // speak is the live one.
+        QVERIFY(module.waitForReadyRead(5000));
+        QTest::qWait(300);
+        QNetworkDatagram probe;
+        while (module.hasPendingDatagrams()) {
+            probe = module.receiveDatagram();
+        }
+        QVERIFY(probe.isValid());
+        const QHostAddress controllerAddress = probe.senderAddress();
+        const quint16 controllerPort = static_cast<quint16>(probe.senderPort());
+
+        QByteArray streaming;
+        const auto frameOf = [](SiyiAi::TargetType type, SiyiAi::TrackingStatus status) {
+            QByteArray data;
+            for (const quint16 value : { quint16(520), quint16(360), quint16(120), quint16(300) }) {
+                data.append(static_cast<char>(value & 0xFF));
+                data.append(static_cast<char>(value >> 8));
+            }
+            data.append(static_cast<char>(type));
+            data.append(static_cast<char>(status));
+            return SiyiProtocol::encodeRaw(static_cast<quint8>(SiyiAi::CommandId::TargetStream), data);
+        };
+        QTimer pusher;
+        pusher.setInterval(200);
+        (void) connect(&pusher, &QTimer::timeout, &module, [&] {
+            (void) module.writeDatagram(streaming, controllerAddress, controllerPort);
+        });
+        pusher.start();
+
+        // Full screen, as the operator sees a pick.
+        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
+
+        struct Case {
+            SiyiAi::TargetType type;
+            SiyiAi::TrackingStatus status;
+            QString word;
+            QColor box;
+            QColor text;
+            QString grab;
+        };
+        const QList<Case> cases {
+            { SiyiAi::TargetType::Person,    SiyiAi::TrackingStatus::Tracking,          QStringLiteral("person"),
+              QColor(QStringLiteral("#e0a800")), QColor(Qt::black), QStringLiteral("box_0_person") },
+            { SiyiAi::TargetType::Car,       SiyiAi::TrackingStatus::Tracking,          QStringLiteral("car"),
+              QColor(QStringLiteral("#a78bfa")), QColor(Qt::black), QStringLiteral("box_1_car") },
+            { SiyiAi::TargetType::Arbitrary, SiyiAi::TrackingStatus::TrackingArbitrary, QStringLiteral("object"),
+              QColor(QStringLiteral("#ff9500")), QColor(Qt::white), QStringLiteral("box_2_object") },
+        };
+        for (const Case &c : cases) {
+            streaming = frameOf(c.type, c.status);
+            QTRY_COMPARE_WITH_TIMEOUT(ai->targetTypeName(), c.word, 5000);
+            QTRY_VERIFY_WITH_TIMEOUT(findVisibleTextItem(panel, c.word), 5000);
+            QQuickItem *const label = findVisibleTextItem(panel, c.word);
+            QVERIFY2(label, qPrintable(QStringLiteral("No %1 label on the zoom panel").arg(c.word)));
+            QQuickItem *const chip = label->parentItem();
+            QVERIFY(chip);
+            QQuickItem *const box = chip->parentItem();
+            QVERIFY(box);
+            QCOMPARE(label->property("color").value<QColor>(), c.text);
+            QVERIFY(label->property("font").value<QFont>().bold());
+            QCOMPARE(chip->property("color").value<QColor>(), c.box);
+            QCOMPARE(evaluateOn(box, QStringLiteral("border.color")).value<QColor>(), c.box);
+            if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+                _grab(c.grab);
+                if (QTest::currentTestFailed()) return;
+            }
+        }
+
+        pusher.stop();
+        QVERIFY(dashboard->setProperty("expandedPanel", QString()));
+        QTest::qWait(kSettleMs);
+    });
+}
+
+void PoliceGuidedActionUITest::_testTrackCancelStaysEnabledWhileHeld()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const strip = findVisibleItem(_rootItem, kCameraStrip, 5000);
+        QVERIFY2(strip, "Camera rail not found");
+        QQuickItem *const cancel = findVisibleTextItem(strip, QStringLiteral("추적해제"));
+        QVERIFY2(cancel, "The rail lost its 추적해제 button");
+        QVERIFY2(!cancel->isEnabled(), "추적해제 is live with nothing tracked");
+
+        QUdpSocket module;
+        QVERIFY(module.bind(QHostAddress::LocalHost, 0));
+        SiyiAiController *const ai = SiyiAiController::instance();
+        QVERIFY(ai);
+        Fact *const aiAddress = SettingsManager::instance()->siyiCameraSettings()->aiIpAddress();
+        Fact *const aiPort = SettingsManager::instance()->siyiCameraSettings()->aiPort();
+        const QVariant savedAddress = aiAddress->rawValue();
+        const QVariant savedPort = aiPort->rawValue();
+        const auto restoreModule = qScopeGuard([ai, aiAddress, aiPort, savedAddress, savedPort] {
+            ai->stop();
+            aiAddress->setRawValue(savedAddress);
+            aiPort->setRawValue(savedPort);
+        });
+        aiAddress->setRawValue(QStringLiteral("127.0.0.1"));
+        aiPort->setRawValue(module.localPort());
+        ai->start();
+        QVERIFY(module.waitForReadyRead(5000));
+        QTest::qWait(300);
+        QNetworkDatagram probe;
+        while (module.hasPendingDatagrams()) {
+            probe = module.receiveDatagram();
+        }
+        QVERIFY(probe.isValid());
+        const QHostAddress controllerAddress = probe.senderAddress();
+        const quint16 controllerPort = static_cast<quint16>(probe.senderPort());
+        const auto reply = [&](SiyiAi::CommandId command, const QByteArray &data) {
+            const QByteArray frame = SiyiProtocol::encodeRaw(static_cast<quint8>(command), data);
+            QCOMPARE(module.writeDatagram(frame, controllerAddress, controllerPort), frame.size());
+        };
+        QByteArray target;
+        for (const quint16 value : { quint16(640), quint16(360), quint16(120), quint16(300) }) {
+            target.append(static_cast<char>(value & 0xFF));
+            target.append(static_cast<char>(value >> 8));
+        }
+        target.append(static_cast<char>(SiyiAi::TargetType::Person));
+
+        // Nothing held to begin with, whatever an earlier test left the singleton's last target at.
+        reply(SiyiAi::CommandId::TargetStream, target + QByteArray(1, static_cast<char>(SiyiAi::TrackingStatus::CancelledByUser)));
+        QTRY_COMPARE_WITH_TIMEOUT(ai->targetTypeName(), QStringLiteral("person"), 3000);
+        QVERIFY(!ai->selectionHeld());
+
+        // A pick the module accepts, then its target on the stream.
+        ai->trackBox(0.4, 0.4, 0.6, 0.8);
+        reply(SiyiAi::CommandId::SetTrackTarget, QByteArray(1, '\1'));
+        QTRY_VERIFY_WITH_TIMEOUT(ai->selectionHeld(), 3000);
+        QTimer pusher;
+        pusher.setInterval(200);
+        (void) connect(&pusher, &QTimer::timeout, &module, [&] {
+            reply(SiyiAi::CommandId::TargetStream, target + QByteArray(1, static_cast<char>(SiyiAi::TrackingStatus::Tracking)));
+        });
+        pusher.start();
+        QTRY_VERIFY_WITH_TIMEOUT(ai->hasTarget(), 3000);
+        QTRY_VERIFY_WITH_TIMEOUT(cancel->isEnabled(), 3000);
+
+        // The stream pauses for 2 s, past the 1.5 s the box stays up for; the module still holds it.
+        pusher.stop();
+        QTest::qWait(2000);
+        QVERIFY2(!ai->hasTarget(), "The target outlived the stream pause, so the pause proved nothing");
+        QVERIFY2(cancel->isEnabled(), "추적해제 greyed out while the module still held the target");
+
+        // The module reports the target cancelled: nothing left to release.
+        reply(SiyiAi::CommandId::TargetStream, target + QByteArray(1, static_cast<char>(SiyiAi::TrackingStatus::CancelledByUser)));
+        QTRY_VERIFY_WITH_TIMEOUT(!ai->selectionHeld(), 3000);
+        QTRY_VERIFY_WITH_TIMEOUT(!cancel->isEnabled(), 3000);
+    });
+}
+
 void PoliceGuidedActionUITest::_testTrackCancelButton()
 {
     _ignorePreexistingQmlWarnings();
@@ -548,111 +774,81 @@ void PoliceGuidedActionUITest::_testTrackCancelButton()
             _grab(QStringLiteral("cancel_0_corner_no_button"));
         }
 
-        // Full screen is the case the button exists for: the camera rail that carries the same
-        // command is at z 2, under the fullscreen layer at 20. Set rather than tapped - this is
-        // about what is reachable, not about the gesture.
+        // Big, the picture sits under the camera rail, so the rail's 추적해제 is still the one to
+        // reach for and the picture carries none.
         QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
         QTest::qWait(kSettleMs);
-        QQuickItem *const button = findVisibleItem(panel, kTrackCancel, 3000);
-        QVERIFY2(button, "The release button is not on the full screen panel");
-        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
-            _grab(QStringLiteral("cancel_1_fullscreen_button"));
-            if (QTest::currentTestFailed()) return;
-        }
-        QVERIFY2(findVisibleTextItem(strip, QStringLiteral("추적해제")), "The rail lost its 추적해제 button");
-
-        // It has to be hittable with a glove, and it has to be on the picture it belongs to. The
-        // floor is read out of the same singleton the panel sizes itself from rather than pinned
-        // to a number here, which would only pin this host's font metrics.
-        QQmlExpression touchFloor(qmlContext(panel), panel, QStringLiteral("ScreenTools.minTouchPixels"));
-        const QVariant floorValue = touchFloor.evaluate();
-        QVERIFY2(!touchFloor.hasError(), qPrintable(touchFloor.error().toString()));
-        QVERIFY2(button->height() >= floorValue.toReal(),
-                 qPrintable(QStringLiteral("The release button is %1 px high, under the %2 px touch floor")
-                                .arg(button->height())
-                                .arg(floorValue.toReal())));
-        const QRectF panelRect  = sceneRect(panel);
-        const QRectF buttonRect = sceneRect(button);
-        QVERIFY2(panelRect.contains(buttonRect),
-                 qPrintable(QStringLiteral("The release button %1 hangs outside its panel %2")
-                                .arg(QDebug::toString(buttonRect), QDebug::toString(panelRect))));
-
-        const QMetaMethod cancelled = signalByName(panel, "trackCancelRequested");
-        QVERIFY2(cancelled.isValid(), "Panel has no trackCancelRequested signal");
-        QSignalSpy cancelSpy(panel, cancelled);
-        QVERIFY(cancelSpy.isValid());
-
-        const QMetaMethod picked = signalByName(panel, "targetBoxPicked");
-        QVERIFY2(picked.isValid(), "Panel has no targetBoxPicked signal");
-        QSignalSpy boxSpy(panel, picked);
-        QVERIFY(boxSpy.isValid());
-
-        const QPoint on(qFloor(buttonRect.center().x()), qFloor(buttonRect.center().y()));
-        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, on);
-        QTest::qWait(kSettleMs);
-        QCOMPARE(cancelSpy.count(), 1);
-        QVERIFY2(boxSpy.isEmpty(), "Clicking the release button also handed the module a box");
-        // The tap that toggles full screen runs on the same panel, off a passive grab that the
-        // button's own grab does not take away.
-        QCOMPARE(dashboard->property("expandedPanel").toString(), QStringLiteral("secondary"));
-
-        // Greyed, which is what no target looks like: the click has to do nothing at all.
-        QVERIFY(panel->setProperty("trackCancelEnabled", false));
-        QTest::qWait(kSettleMs);
-        cancelSpy.clear();
-        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, on);
-        QTest::qWait(kSettleMs);
-        QVERIFY2(cancelSpy.isEmpty(), "A click on the greyed release button still asked for a cancel");
-        QVERIFY2(boxSpy.isEmpty(), "A click on the greyed release button handed the module a box");
-        QCOMPARE(dashboard->property("expandedPanel").toString(), QStringLiteral("secondary"));
-
-        // A drag off the button is the button being pressed, not a box being drawn. The drag
-        // handler is allowed to take the grab off an item, so this is not free.
-        QVERIFY(panel->setProperty("trackCancelEnabled", true));
-        QTest::qWait(kSettleMs);
-        cancelSpy.clear();
-        const QPointF to = panelRect.topLeft() + QPointF(panelRect.width() * 0.8, panelRect.height() * 0.3);
-        _dragPointer({ buttonRect.center(), to });
-        if (QTest::currentTestFailed()) return;
-        QVERIFY2(boxSpy.isEmpty(), "A drag that started on the release button handed the module a box");
-        QCOMPARE(dashboard->property("expandedPanel").toString(), QStringLiteral("secondary"));
-
-        // Back to the corner, and the button goes with it.
+        QVERIFY2(!findVisibleItem(panel, kTrackCancel, 0), "The release button is on the big zoom picture");
+        QVERIFY2(findVisibleTextItem(strip, QStringLiteral("추적해제")), "The rail lost its 추적해제 button over the big picture");
         QVERIFY(dashboard->setProperty("expandedPanel", QString()));
         QTest::qWait(kSettleMs);
-        QVERIFY2(!findVisibleItem(panel, kTrackCancel, 0), "The release button stayed after leaving full screen");
     });
 }
 
-void PoliceGuidedActionUITest::_testTakeoffRaisesConfirmControl()
+void PoliceGuidedActionUITest::_testTakeoffOpensPanel()
 {
     _ignorePreexistingQmlWarnings();
 
-    runWithMockLink([] { return MockLink::startPX4MockLink(); },
-                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
-        // Checked first: a control that is always up would pass the positive case below for
-        // the wrong reason.
-        QVERIFY2(!findVisibleItem(_rootItem, kConfirmButton, 1000),
-                 "Confirm control was already up before any action was requested");
+    Fact *const maxFact = SettingsManager::instance()->flyViewSettings()->guidedMaximumAltitude();
+    const QVariant savedMax = maxFact->rawValue();
+    const auto restoreMax = qScopeGuard([maxFact, savedMax] { maxFact->setRawValue(savedMax); });
 
-        // A disabled takeoff entry would leave the control down too, and would look exactly
-        // like the regression this test is for.
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this, maxFact](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QVERIFY2(!findVisibleItem(_rootItem, kTakeoffPanel, 0), "Takeoff panel was open before the tap");
         QVERIFY(verifyEnabled(kTakeoffButton, true, QStringLiteral("before pressing takeoff")));
         QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
 
-        QQuickItem *const confirmButton = findVisibleItem(_rootItem, kConfirmButton, 5000);
-        QVERIFY2(confirmButton, "Confirm control never appeared after pressing takeoff");
+        QQuickItem *const panel = findVisibleItem(_rootItem, kTakeoffPanel, 5000);
+        QVERIFY2(panel, "Takeoff panel never opened after pressing takeoff");
+        // Neither the stock hold button nor its vertical slider comes up for takeoff any more.
+        QVERIFY2(!findVisibleItem(_rootItem, kConfirmButton, 1500), "The stock hold confirm came up for takeoff");
+        QVERIFY2(!findVisibleItem(_rootItem, kSlider, 0), "The stock vertical slider came up for takeoff");
+        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+            _grab(QStringLiteral("takeoff_0_panel"));
+            if (QTest::currentTestFailed()) return;
+        }
 
-        // findVisibleItem walks isVisible(), which is false while any ancestor is hidden, so
-        // reaching here already rules out the toolbar-parented control. The size check catches
-        // the other way it can be on screen and unusable.
-        QVERIFY2((confirmButton->width() > 0) && (confirmButton->height() > 0),
-                 "Confirm button is visible but has no area to press");
+        QQuickItem *const slider = findVisibleItem(panel, kAltitudeSlider, 1000);
+        QVERIFY2(slider, "Takeoff panel has no altitude slider");
+        QQuickItem *const bubble = findVisibleItem(panel, kAltitudeBubble, 1000);
+        QVERIFY2(bubble, "Takeoff panel has no value bubble");
+        QQuickItem *const maxField = findVisibleItem(panel, kAltitudeMaximum, 1000);
+        QVERIFY2(maxField, "Takeoff panel has no 최대 field");
 
-        // Two instances of the stock component exist and both claim guidedController.confirmDialog
-        // on completion. This says the one on screen is ours.
-        QVERIFY2(hasAncestorNamed(confirmButton, kConfirmHost),
-                 "Confirm control on screen is not the police instance");
+        // It starts where the stock takeoff slider started: the vehicle's minimum takeoff altitude.
+        const double minTakeoff = FactMetaData::metersToAppSettingsVerticalDistanceUnits(
+                                      vehicle->minimumTakeoffAltitudeMeters()).toDouble();
+        QVERIFY2(qAbs(slider->property("value").toDouble() - minTakeoff) < 0.01,
+                 qPrintable(QStringLiteral("Slider starts at %1, the minimum takeoff altitude is %2")
+                                .arg(slider->property("value").toDouble()).arg(minTakeoff)));
+        QCOMPARE(slider->property("from").toDouble(), 0.0);
+        QVERIFY(qAbs(slider->property("to").toDouble() - maxFact->cookedValue().toDouble()) < 0.01);
+        const QString unit = FactMetaData::appSettingsVerticalDistanceUnitsString();
+
+        // The bubble follows the slider.
+        QVERIFY(slider->setProperty("value", 30));
+        QTRY_COMPARE(bubble->property("text").toString(), QStringLiteral("30 %1").arg(unit));
+
+        // 최대 typed in writes the stock setting, and the slider's range follows it.
+        QQuickItem *const fieldItem = maxField;
+        const QPointF fieldCentre = fieldItem->mapToScene(QPointF(fieldItem->width() / 2, fieldItem->height() / 2));
+        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, fieldCentre.toPoint());
+        QTRY_VERIFY(fieldItem->hasActiveFocus());
+        QTest::keySequence(_window, QKeySequence::SelectAll);
+        QTest::keyClick(_window, Qt::Key_8);
+        QTest::keyClick(_window, Qt::Key_0);
+        QTest::keyClick(_window, Qt::Key_Return);
+        QTRY_COMPARE(qRound(maxFact->cookedValue().toDouble()), 80);
+        QTRY_COMPARE(slider->property("to").toDouble(), 80.0);
+        QCOMPARE(fieldItem->property("text").toString(), QStringLiteral("80"));
+
+        // The X closes it with nothing sent.
+        QVERIFY2(clickButton(QStringLiteral("policeDropPanelClose")), "Could not click the panel's X");
+        QTRY_VERIFY2(!findVisibleItem(_rootItem, kTakeoffPanel, 0), "Takeoff panel stayed after its X");
     });
 }
 
@@ -662,17 +858,14 @@ void PoliceGuidedActionUITest::_testTakeoffAltitudeSliderIsOnTop()
 
     runWithMockLink([] { return MockLink::startPX4MockLink(); },
                     [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
-        QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
-        QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000),
-                 "Confirm control never appeared after pressing takeoff");
-
-        // PX4 multirotors take off to a chosen altitude, so confirmAction raises the slider
-        // alongside the control.
-        QQuickItem *const slider = findVisibleItem(_rootItem, kSlider, 3000);
-        QVERIFY2(slider, "Takeoff altitude slider never became visible");
-
+        // Takeoff no longer raises the stock slider, but pause, goto and orbit still do; it is
+        // put up by hand here, the way confirmAction would.
         QQuickItem *const dashboard = findVisibleItem(_rootItem, kDashboard, 3000);
         QVERIFY2(dashboard, "Police dashboard not found - the layout under test is not up");
+        QQuickItem *const slider = stockSlider(dashboard);
+        QVERIFY2(slider, "Stock altitude slider not found");
+        QVERIFY(slider->setProperty("visible", true));
+        QVERIFY2(findVisibleItem(_rootItem, kSlider, 3000), "Altitude slider never became visible");
 
         // z only orders items against their own siblings, so the comparison below says nothing
         // unless these two share a parent. They do today; if that ever changes this fails
@@ -685,15 +878,19 @@ void PoliceGuidedActionUITest::_testTakeoffAltitudeSliderIsOnTop()
         // which Qt Quick breaks by declaration order, and the dashboard is declared second.
         QVERIFY2(slider->z() > dashboard->z(),
                  "Altitude slider sits at or below the dashboard and would be covered");
+        QVERIFY(slider->setProperty("visible", false));
     });
 }
 
-void PoliceGuidedActionUITest::_testHoldConfirmSendsTakeoff()
+void PoliceGuidedActionUITest::_testSlideSendsTakeoff()
 {
     _ignorePreexistingQmlWarnings();
 
     runWithMockLink([] { return MockLink::startPX4MockLink(); },
                     [this](QPointer<MockLink> mockLink, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
         // PX4 sends the takeoff altitude as AMSL, so it refuses outright until the vehicle
         // altitude is known.
         QVERIFY_TRUE_WAIT(!qIsNaN(vehicle->altitudeAMSL()->rawValue().toDouble()), TestTimeout::longMs());
@@ -706,21 +903,27 @@ void PoliceGuidedActionUITest::_testHoldConfirmSendsTakeoff()
                          QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
 
         QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
-        QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000),
-                 "Confirm control never appeared after pressing takeoff");
+        QQuickItem *const panel = findVisibleItem(_rootItem, kTakeoffPanel, 5000);
+        QVERIFY2(panel, "Takeoff panel never opened after pressing takeoff");
+        QQuickItem *const slider = findVisibleItem(panel, kAltitudeSlider, 1000);
+        QVERIFY2(slider, "Takeoff panel has no altitude slider");
+        QVERIFY(slider->setProperty("value", 7));
+        const double sliderMeters = FactMetaData::appSettingsVerticalDistanceUnitsToMeters(7).toDouble();
 
         mockLink->clearReceivedMavCommandCounts();
 
-        // GuidedActionConfirm hands executeAction the slider reading and the controller converts
-        // it to metres. Read it here, before the hold takes the slider away, so param7 can be
-        // checked against the altitude that was on screen.
-        QQuickItem *const slider = findVisibleItem(_rootItem, kSlider, 3000);
-        QVERIFY2(slider, "Takeoff altitude slider never became visible");
-        QVariant sliderOutput;
-        QVERIFY2(QMetaObject::invokeMethod(slider, "getOutputValue", Q_RETURN_ARG(QVariant, sliderOutput)),
-                 "Could not read the slider output value");
-        const double sliderMeters = FactMetaData::appSettingsVerticalDistanceUnitsToMeters(sliderOutput).toDouble();
-        QVERIFY2(sliderMeters > 0, "Slider offered a takeoff altitude of zero");
+        // Let go halfway: the knob goes back and nothing is sent. The mid-drag frame is the capture.
+        _slide(kTakeoffSlide, 0.5, QStringLiteral("takeoff_1_mid_drag"));
+        if (QTest::currentTestFailed()) return;
+        QQuickItem *const bar = findVisibleItem(panel, kTakeoffSlide, 1000);
+        QVERIFY2(bar, "The slide bar went away after an early release");
+        QQuickItem *const knob = findVisibleItem(bar, kSlideKnob, 1000);
+        QVERIFY2(knob, "The slide bar has no knob");
+        QTRY_VERIFY2(knob->x() < knob->width() / 2, "The knob did not slide back after an early release");
+        QTest::qWait(kSettleMs);
+        QCOMPARE(mockLink->receivedMavCommandCount(MAV_CMD_NAV_TAKEOFF), 0);
+        QVERIFY2(!vehicle->armed(), "An early release armed the vehicle");
+        QVERIFY2(findVisibleItem(_rootItem, kTakeoffPanel, 0), "An early release closed the panel");
 
         // PX4FirmwarePlugin::guidedModeTakeoff builds param7 as this AMSL plus the slider metres.
         const double vehicleAmslAtCommand = vehicle->altitudeAMSL()->rawValue().toDouble();
@@ -732,11 +935,13 @@ void PoliceGuidedActionUITest::_testHoldConfirmSendsTakeoff()
         // traffic overwrites it.
         const double mockAltitudeBeforeTakeoff = mockLink->vehicleAltitudeAMSL();
 
-        // A real press-and-hold rather than emitting activated(): the whole defect was that
-        // this gesture could not reach the button.
-        QVERIFY(_holdButton(kConfirmButton));
+        // All the way: the takeoff goes out, the vehicle arms, and the panel closes.
+        _slide(kTakeoffSlide, 1.1);
+        if (QTest::currentTestFailed()) return;
 
         QVERIFY_TRUE_WAIT(mockLink->receivedMavCommandCount(MAV_CMD_NAV_TAKEOFF) == 1, TestTimeout::longMs());
+        QVERIFY_TRUE_WAIT(vehicle->armed(), TestTimeout::longMs());
+        QVERIFY2(!findVisibleItem(_rootItem, kTakeoffPanel, 0), "Takeoff panel stayed after the takeoff");
 
         // The rise is param7, and param7 carries the vehicle AMSL, so on its own this says only
         // that param7 is above zero.
@@ -749,6 +954,58 @@ void PoliceGuidedActionUITest::_testHoldConfirmSendsTakeoff()
         QVERIFY2(qAbs(sentMeters - sliderMeters) < 0.1,
                  qPrintable(QStringLiteral("Takeoff altitude sent was %1 m, slider showed %2 m")
                                 .arg(sentMeters).arg(sliderMeters)));
+    });
+}
+
+void PoliceGuidedActionUITest::_testSlideSendsLand()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        // In the air first. PX4 sends the takeoff altitude as AMSL and refuses until it is known;
+        // the flying transition creates QGCPressure, which warns on hosts without a backend.
+        QVERIFY_TRUE_WAIT(!qIsNaN(vehicle->altitudeAMSL()->rawValue().toDouble()), TestTimeout::longMs());
+        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
+                         QRegularExpression(QStringLiteral("Failed to connect to pressure backend")));
+        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
+                         QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
+        _takeOffFromPanel();
+        if (QTest::currentTestFailed()) return;
+        QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
+        QTest::qWait(kSettleMs);
+
+        // 복귀 keeps the stock hold confirm, in the police host.
+        QVERIFY2(clickButton(kRtlButton), "Could not click the 복귀 tool strip entry");
+        QQuickItem *const confirmButton = findVisibleItem(_rootItem, kConfirmButton, 5000);
+        QVERIFY2(confirmButton, "복귀 raised no stock hold confirm");
+        QVERIFY2(hasAncestorNamed(confirmButton, kConfirmHost), "Confirm control on screen is not the police instance");
+
+        // 착륙 opens its own panel and takes the pending stock confirm down.
+        QVERIFY2(clickButton(kLandButton), "Could not click the 착륙 tool strip entry");
+        QVERIFY2(findVisibleItem(_rootItem, kLandPanel, 5000), "Land panel never opened");
+        QTRY_VERIFY2(!findVisibleItem(_rootItem, kConfirmButton, 0), "The stock confirm stayed up under the land panel");
+        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+            _grab(QStringLiteral("land_0_panel"));
+            if (QTest::currentTestFailed()) return;
+        }
+
+        // Let go halfway and nothing changes.
+        const QString landMode = vehicle->landFlightMode();
+        QVERIFY2(vehicle->flightMode() != landMode, "The vehicle was already landing");
+        _slide(kLandSlide, 0.5);
+        if (QTest::currentTestFailed()) return;
+        QVERIFY2(vehicle->flightMode() != landMode, "An early release started a landing");
+        QVERIFY2(findVisibleItem(_rootItem, kLandPanel, 0), "An early release closed the land panel");
+
+        // All the way: PX4 lands by switching to its land mode.
+        _slide(kLandSlide, 1.1);
+        if (QTest::currentTestFailed()) return;
+        QVERIFY_TRUE_WAIT(vehicle->flightMode() == landMode, TestTimeout::longMs());
+        QVERIFY2(!findVisibleItem(_rootItem, kLandPanel, 0), "Land panel stayed after the landing was sent");
     });
 }
 
@@ -822,9 +1079,8 @@ void PoliceGuidedActionUITest::_testRtlAltitudeFromToolStrip()
                          QRegularExpression(QStringLiteral("Failed to connect to pressure backend")));
         ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
                          QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
-        QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
-        QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000), "Confirm control never appeared");
-        QVERIFY(_holdButton(kConfirmButton));
+        _takeOffFromPanel();
+        if (QTest::currentTestFailed()) return;
         QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
         QTest::qWait(kSettleMs);
 
@@ -838,10 +1094,33 @@ void PoliceGuidedActionUITest::_testRtlAltitudeFromToolStrip()
 
         QVERIFY2(!findVisibleItem(_rootItem, kRtlAltPanel, 0), "Return altitude panel was open before the tap");
         QVERIFY2(clickButton(kRtlAltButton), "Could not click the 복귀고도 tool strip entry");
-        QVERIFY2(findVisibleItem(_rootItem, kRtlAltPanel, 3000), "Return altitude panel never opened");
+        QQuickItem *const panel = findVisibleItem(_rootItem, kRtlAltPanel, 3000);
+        QVERIFY2(panel, "Return altitude panel never opened");
+
+        // PX4's return altitude, which the old presets wrote.
+        Fact *const rtlAlt = vehicle->parameterManager()->getParameter(ParameterManager::defaultComponentId,
+                                                                       QStringLiteral("RTL_RETURN_ALT"));
+        QVERIFY2(rtlAlt, "The mock carries no RTL_RETURN_ALT");
+
+        // The slider starts at the height the vehicle would return at now, over 1 to 1000 m.
+        QQuickItem *const slider = findVisibleItem(panel, kAltitudeSlider, 1000);
+        QVERIFY2(slider, "Return altitude panel has no slider");
+        QVERIFY2(findVisibleItem(panel, kAltitudeMaximum, 0), "Return altitude panel has no 최대 field");
+        QCOMPARE(qRound(slider->property("value").toDouble()), qRound(rtlAlt->rawValue().toDouble()));
+        QCOMPARE(slider->property("from").toDouble(), 1.0);
+        QCOMPARE(slider->property("to").toDouble(), 1000.0);
         if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
             _grab(QStringLiteral("rtl_alt_1_panel"));
+            if (QTest::currentTestFailed()) return;
         }
+
+        // 50 m, the middle preset, and 복귀: the parameter takes it and the stock RTL confirm comes up.
+        QVERIFY(slider->setProperty("value", 50));
+        QVERIFY2(clickButton(QStringLiteral("policeRtlAltReturn")), "Could not click the panel's 복귀");
+        QVERIFY_TRUE_WAIT(qRound(rtlAlt->rawValue().toDouble()) == 50, TestTimeout::longMs());
+        QQuickItem *const confirmButton = findVisibleItem(_rootItem, kConfirmButton, 5000);
+        QVERIFY2(confirmButton, "복귀 raised no stock hold confirm");
+        QVERIFY2(hasAncestorNamed(confirmButton, kConfirmHost), "Confirm control on screen is not the police instance");
     });
 }
 
@@ -901,8 +1180,7 @@ void PoliceGuidedActionUITest::_captureGuidedScreens()
         if (QTest::currentTestFailed()) return;
 
         QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
-        QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000), "Confirm control never appeared");
-        QVERIFY2(findVisibleItem(_rootItem, kSlider, 3000), "Altitude slider never appeared");
+        QVERIFY2(findVisibleItem(_rootItem, kTakeoffPanel, 5000), "Takeoff panel never appeared");
         _grab(QStringLiteral("guided_1_takeoff_confirm"));
         if (QTest::currentTestFailed()) return;
 
@@ -1148,47 +1426,13 @@ void PoliceGuidedActionUITest::_testCameraBandLayout()
                  qPrintable(QStringLiteral("Left guided tool strip bottom %1 runs into the forward window top %2")
                                 .arg(left.bottom()).arg(forward.top())));
 
-        // Full screen: the map copy is the only map on screen, so it is taken off the screen's
-        // width rather than off a camera window, and the detection card goes to the middle of the
-        // bottom edge instead of into the strip of picture beside it. The hint is found straight
-        // away - it fades in on entry and is gone again three seconds later, but the item stays,
-        // so its rectangle is still readable afterwards.
-        const QRectF dockedCard = card;
-        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
-        QQuickItem *const pip  = findVisibleItem(_rootItem, kMapPip, 1000);
-        QVERIFY2(pip, "Full screen map copy is not on screen");
-        QQuickItem *const hint = findVisibleItem(_rootItem, kHint, 1000);
-        QVERIFY2(hint, "Full screen hint label is not on screen");
-        QTest::qWait(kSettleMs);
-
-        const QRectF pipRect  = sceneRect(pip);
-        const QRectF hintRect = sceneRect(hint);
-        const QRectF fullCard = sceneRect(items[kAiPanel]);
-        QVERIFY2(qAbs(pipRect.width() - screen.width() * kPipOfWidth) <= kEdgeSlack,
-                 qPrintable(QStringLiteral("Full screen map copy is %1 wide against a wanted %2")
-                                .arg(pipRect.width()).arg(screen.width() * kPipOfWidth)));
-        QVERIFY2(qAbs(fullCard.center().x() - screen.center().x()) <= kCentreSlack,
-                 qPrintable(QStringLiteral("Full screen detection card %1 is not centred on the screen %2")
-                                .arg(QDebug::toString(fullCard), QDebug::toString(screen))));
-        QVERIFY2(!fullCard.intersects(pipRect),
-                 qPrintable(QStringLiteral("Full screen detection card %1 runs into the map copy %2")
-                                .arg(QDebug::toString(fullCard), QDebug::toString(pipRect))));
-        QVERIFY2(!fullCard.intersects(hintRect),
-                 qPrintable(QStringLiteral("Full screen detection card %1 runs into the hint label %2")
-                                .arg(QDebug::toString(fullCard), QDebug::toString(hintRect))));
-
-        // Back out: the card returns to the telemetry bar it was stacked on.
-        QVERIFY(dashboard->setProperty("expandedPanel", QString()));
-        QTest::qWait(kSettleMs);
-        QVERIFY2(sceneRect(items[kAiPanel]) == dockedCard,
-                 qPrintable(QStringLiteral("Detection card came back from full screen at %1, not at %2")
-                                .arg(QDebug::toString(sceneRect(items[kAiPanel])),
-                                     QDebug::toString(dockedCard))));
-
         // The stock altitude slider takes the whole right screen edge while a confirmation is up,
         // which is the edge this strip stands on: it steps inboard of the slider for as long as
         // the slider is there and comes back to its own inset afterwards.
-        QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
+        // Takeoff no longer raises it, so it is put up by hand, the way confirmAction would.
+        QQuickItem *const hiddenSlider = stockSlider(dashboard);
+        QVERIFY2(hiddenSlider, "Stock altitude slider not found");
+        QVERIFY(hiddenSlider->setProperty("visible", true));
         QQuickItem *const slider = findVisibleItem(_rootItem, kSlider, 5000);
         QVERIFY2(slider, "Altitude slider never appeared");
         QTest::qWait(kSettleMs);
@@ -1336,9 +1580,8 @@ void PoliceGuidedActionUITest::_testMapScale()
                      QRegularExpression(QStringLiteral("Failed to connect to pressure backend")));
     ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
                      QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
-    QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
-    QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000), "Confirm control never appeared");
-    QVERIFY(_holdButton(kConfirmButton));
+    _takeOffFromPanel();
+    if (QTest::currentTestFailed()) return;
     QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
     QTest::qWait(kSettleMs);
     checkScale(QStringLiteral("map_scale_2_flying"));
@@ -1704,8 +1947,7 @@ void PoliceGuidedActionUITest::_captureCameraBand()
         vehicle->setArmed(false, false);
         QTRY_VERIFY(!vehicle->armed());
         QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
-        QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000), "Confirm control never appeared");
-        QVERIFY2(findVisibleItem(_rootItem, kSlider, 3000), "Altitude slider never appeared");
+        QVERIFY2(findVisibleItem(_rootItem, kTakeoffPanel, 5000), "Takeoff panel never appeared");
         _grab(QStringLiteral("v2_3_takeoff"));
         if (QTest::currentTestFailed()) return;
 
@@ -1733,7 +1975,8 @@ void PoliceGuidedActionUITest::_captureCameraBand()
 
         // In flight the left strip carries the most entries the mock can put in it: 착륙, 복귀
         // and 일시정지 all appear and 이륙 goes away. That is the height T3's cap has to hold.
-        QVERIFY(_holdButton(kConfirmButton));
+        _slide(kTakeoffSlide, 1.1);
+        if (QTest::currentTestFailed()) return;
         QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
         _grab(QStringLiteral("v2_5_flying_strip"));
     });
@@ -2069,158 +2312,152 @@ void PoliceGuidedActionUITest::_testStockPhotoVideoOnlyWithPodOff()
     });
 }
 
-void PoliceGuidedActionUITest::_testFullscreenFlightStrip()
+void PoliceGuidedActionUITest::_testMapSwap()
 {
     _ignorePreexistingQmlWarnings();
 
-    // In feet, so the altitude has to follow the app's unit rather than the metres it arrives in.
-    // A fact takes the unit it is made with, so this is set before the vehicle connects.
-    Fact *const verticalUnits = SettingsManager::instance()->unitsSettings()->verticalDistanceUnits();
-    QVERIFY(verticalUnits);
-    const QVariant savedUnits = verticalUnits->rawValue();
-    const auto restoreUnits = qScopeGuard([verticalUnits, savedUnits] { verticalUnits->setRawValue(savedUnits); });
-    ignoreLogMessage("API.QGCApplication.AppMessage", QtDebugMsg,
-                     QRegularExpression(QStringLiteral("Restart application for changes to take effect")));
-    verticalUnits->setRawValue(UnitsSettings::VerticalDistanceUnitsFeet);
-
     runWithMockLink([] { return MockLink::startPX4MockLink(); },
-                    [this](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
         _window->resize(kLayoutWidth, kLayoutHeight);
         QTest::qWait(kSettleMs);
 
-        const QString kStrip = QStringLiteral("policeFullscreenFlightStrip");
-        const bool capture = !qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty();
-
         QQuickItem *const dashboard = findVisibleItem(_rootItem, kDashboard, 5000);
         QVERIFY2(dashboard, "Police dashboard not found - the layout under test is not up");
-        QQuickItem *const zoomPanel = findVisibleItem(_rootItem, kZoomPanel, 5000);
-        QVERIFY2(zoomPanel, "Zoom camera panel not found");
-        // The release button follows the AI module's own state, which no mock link can drive, so
-        // it is put up the way the release button test puts it up.
-        QVERIFY(zoomPanel->setProperty("targetPickEnabled", true));
+        QQuickItem *const zoomWindow = findVisibleItem(_rootItem, kZoomWindow, 3000);
+        QVERIFY2(zoomWindow, "Zoom window not found");
+        QQuickItem *const forwardWindow = findVisibleItem(_rootItem, kForwardWindow, 3000);
+        QVERIFY2(forwardWindow, "Forward window not found");
+        QQuickItem *const thermalWindow = findVisibleItem(_rootItem, kThermalWindow, 3000);
+        QVERIFY2(thermalWindow, "Thermal window not found");
+        QQuickItem *const panel = findVisibleItem(_rootItem, kZoomPanel, 3000);
+        QVERIFY2(panel, "Zoom camera panel not found");
+        QQuickItem *const topBar = findVisibleItem(_rootItem, kTopBar, 3000);
+        QVERIFY2(topBar, "Top bar not found");
+        QQuickItem *const rail = findVisibleItem(_rootItem, kCameraStrip, 3000);
+        QVERIFY2(rail, "Camera rail not found");
+        QQuickItem *const guided = findVisibleItem(_rootItem, kGuidedStrip, 3000);
+        QVERIFY2(guided, "Guided tool strip not found");
+        QQuickItem *const card = findVisibleItem(_rootItem, kAiPanel, 3000);
+        QVERIFY2(card, "Detection card not found");
+        const QRectF cardBefore = sceneRect(card);
+        const bool capture = !qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty();
 
-        QVERIFY2(!findVisibleItem(_rootItem, kStrip, 0), "Flight strip is up with no camera full screen");
-
-        const auto text = [](QQuickItem *strip, const char *name) {
-            QQuickItem *const item = strip->findChild<QQuickItem *>(QLatin1String(name));
-            return item ? item->property("text").toString() : QStringLiteral("<no %1>").arg(QLatin1String(name));
+        const auto expanded = [dashboard] { return dashboard->property("expandedPanel").toString(); };
+        const auto chipReads = [](QQuickItem *window, const QString &text) {
+            QQuickItem *const chip = findVisibleItem(window, kTitleChip, 0);
+            return chip && findVisibleTextItem(chip, text);
+        };
+        const auto clickAt = [this](const QPointF &point) {
+            QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, point.toPoint());
+            QTest::qWait(kSettleMs);
+        };
+        // QQuickItem::childAt goes by declaration order and ignores z; this goes by paint order.
+        const auto topChildAt = [dashboard](const QPointF &point) {
+            QQuickItem *top = nullptr;
+            for (QQuickItem *const child : dashboard->childItems()) {
+                if (child->isVisible() && child->contains(dashboard->mapToItem(child, point)) &&
+                        (!top || child->z() >= top->z())) {
+                    top = child;
+                }
+            }
+            return top;
+        };
+        const auto near = [](const QRectF &a, const QRectF &b) {
+            return qAbs(a.left() - b.left()) <= kEdgeSlack && qAbs(a.top() - b.top()) <= kEdgeSlack &&
+                   qAbs(a.width() - b.width()) <= kEdgeSlack && qAbs(a.height() - b.height()) <= kEdgeSlack;
         };
 
-        // Every figure on the strip against where the top bar and the aircraft have it.
-        const auto checkStrip = [&](QQuickItem *strip, bool flying) {
-            const QString clock = text(strip, "policeFullscreenStripDateTime");
-            QVERIFY2(QRegularExpression(QStringLiteral("^\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d$")).match(clock).hasMatch(),
-                     qPrintable(QStringLiteral("Strip clock reads '%1'").arg(clock)));
+        // 1. Windowed: the zoom window names itself, and there is no map copy anywhere.
+        QVERIFY2(chipReads(zoomWindow, QStringLiteral("줌")), "The zoom window chip does not read 줌");
+        QVERIFY2(!findVisibleItem(_rootItem, QStringLiteral("policeMapPip"), 0), "The map copy is up with no camera big");
 
-            const QString flight = text(strip, "policeFullscreenStripFlight");
-            QQuickItem *const distance = strip->findChild<QQuickItem *>(QStringLiteral("policeFullscreenStripDistance"));
-            QVERIFY2(distance, "Strip has no distance figure");
-            if (flying) {
-                QVERIFY2(QRegularExpression(QStringLiteral("^비행 중 \\d\\d:\\d\\d$")).match(flight).hasMatch(),
-                         qPrintable(QStringLiteral("Strip flight time reads '%1'").arg(flight)));
-                QQuickItem *const barDistance = findVisibleItem(_rootItem, QStringLiteral("policeStatusDistance"), 0);
-                QVERIFY2(barDistance, "Top bar distance is not up in flight");
-                QVERIFY(distance->isVisible());
-                QCOMPARE(distance->property("text").toString(), barDistance->property("text").toString());
-            } else {
-                QCOMPARE(flight, QStringLiteral("—"));
-                QVERIFY2(!distance->isVisible(), "Strip shows a distance on the ground");
-            }
+        // 2. A tap on the zoom window makes it the big picture.
+        clickAt(sceneRect(zoomWindow).center());
+        QCOMPARE(expanded(), QStringLiteral("secondary"));
 
-            QCOMPARE(text(strip, "policeFullscreenStripAltitude"),
-                     vehicle->altitudeRelative()->cookedValueString() + QStringLiteral(" ")
-                         + FactMetaData::appSettingsVerticalDistanceUnitsString());
+        // 3. Everything under the top bar, full width.
+        const qreal barBottom = sceneRect(topBar).bottom();
+        const QRectF wanted(0, barBottom, _window->width(), _window->height() - barBottom);
+        QVERIFY2(near(sceneRect(panel), wanted),
+                 qPrintable(QStringLiteral("Big zoom picture is at %1, wanted %2")
+                                .arg(QDebug::toString(sceneRect(panel)), QDebug::toString(wanted))));
 
-            const double percent = dashboard->property("_batteryPercent").toDouble();
-            QVERIFY2(!qIsNaN(percent), "The mock pack reports no percentage");
-            QCOMPARE(text(strip, "policeFullscreenStripBattery"), QStringLiteral("%1 %").arg(qRound(percent)));
-        };
+        // 4. The zoom window stays, now holding the map as 지도.
+        QVERIFY2(zoomWindow->isVisible(), "The zoom window went with its picture");
+        QQuickItem *const pip = findVisibleItem(_rootItem, QStringLiteral("policeMapPip"), 1000);
+        QVERIFY2(pip, "The map copy is not on screen");
+        QVERIFY2(hasAncestorNamed(pip, kZoomWindow), "The map copy is not in the vacated zoom window");
+        QVERIFY2(chipReads(zoomWindow, QStringLiteral("지도")), "The vacated window chip does not read 지도");
+        QVERIFY2(!findVisibleTextItem(zoomWindow, QStringLiteral("줌")), "줌 is still written in the vacated window");
 
-        // Clear of the window's own chrome: its name chip, found by the name it prints inside the
-        // full screen layer, and on the zoom window the state chips and the release button.
-        const auto checkClear = [&](QQuickItem *strip, const QString &title, bool zoom) {
-            const QRectF stripRect = sceneRect(strip);
-            QVERIFY2(QRectF(0, 0, _window->width(), _window->height()).contains(stripRect),
-                     qPrintable(QStringLiteral("Strip %1 hangs off the screen").arg(QDebug::toString(stripRect))));
-            QQuickItem *const titleText = findVisibleTextItem(strip->parentItem(), title);
-            QVERIFY2(titleText, qPrintable(QStringLiteral("Full screen name chip '%1' is not on screen").arg(title)));
-            QList<QPair<QString, QQuickItem *>> chrome { { QStringLiteral("name chip"), titleText->parentItem() } };
-            if (zoom) {
-                chrome.append({ QStringLiteral("state chips"), findVisibleItem(zoomPanel, kStateChips, 0) });
-                chrome.append({ QStringLiteral("release button"), findVisibleItem(zoomPanel, kTrackCancel, 0) });
-            }
-            for (const auto &item : chrome) {
-                QVERIFY2(item.second, qPrintable(QStringLiteral("Full screen %1 is not on screen").arg(item.first)));
-                QVERIFY2(!stripRect.intersects(sceneRect(item.second)),
-                         qPrintable(QStringLiteral("Strip %1 covers the %2 %3")
-                                        .arg(QDebug::toString(stripRect), item.first,
-                                             QDebug::toString(sceneRect(item.second)))));
-            }
-        };
+        // 5. The chrome stays where it was, over the picture.
+        QVERIFY2(topBar->isVisible(), "Top bar went under the big picture");
+        QVERIFY2(guided->isVisible(), "Guided tool strip went under the big picture");
+        QVERIFY2(rail->isVisible(), "Camera rail went under the big picture");
+        QVERIFY2(findVisibleTextItem(rail, QStringLiteral("추적해제")), "The rail lost its 추적해제 button");
+        QVERIFY2(forwardWindow->isVisible(), "Forward window went with the swap");
+        QVERIFY2(thermalWindow->isVisible(), "Thermal window went with the swap");
+        QVERIFY2(sceneRect(card) == cardBefore,
+                 qPrintable(QStringLiteral("Detection card moved to %1 from %2")
+                                .arg(QDebug::toString(sceneRect(card)), QDebug::toString(cardBefore))));
 
-        // On the ground, zoom full screen.
-        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
-        QQuickItem *const strip = findVisibleItem(_rootItem, kStrip, 3000);
-        QVERIFY2(strip, "Flight strip is not up with the zoom window full screen");
-        QTest::qWait(kSettleMs);
-        checkStrip(strip, false);
-        if (QTest::currentTestFailed()) return;
-        checkClear(strip, zoomPanel->property("panelTitle").toString(), true);
-        if (QTest::currentTestFailed()) return;
+        // 6. The rail is drawn over the picture, not under it.
+        const QPointF railCentre = dashboard->mapFromScene(sceneRect(rail).center());
+        QQuickItem *const onRail = topChildAt(railCentre);
+        QVERIFY2(onRail, "Nothing at the camera rail's centre");
+        QVERIFY2(onRail->objectName() != QStringLiteral("policeBigPicture"), "The big picture is over the camera rail");
+
+        // 7. The big picture's name chip is clear of the guided strip.
+        QQuickItem *const bigName = findVisibleTextItem(panel, QStringLiteral("줌"));
+        QVERIFY2(bigName, "The big zoom picture has no 줌 name chip");
+        QVERIFY2(sceneRect(bigName).left() > sceneRect(guided).right(),
+                 qPrintable(QStringLiteral("줌 chip %1 is under the guided strip %2")
+                                .arg(QDebug::toString(sceneRect(bigName)), QDebug::toString(sceneRect(guided)))));
+
         if (capture) {
-            _grab(QStringLiteral("fullscreen_strip_0_zoom_ground"));
-            if (QTest::currentTestFailed()) return;
-        }
-        QVERIFY(dashboard->setProperty("expandedPanel", QString()));
-        QTest::qWait(kSettleMs);
-        QVERIFY2(!strip->isVisible(), "Flight strip stayed up after leaving full screen");
-
-        // Take off, the way the return altitude test does.
-        QVERIFY_TRUE_WAIT(!qIsNaN(vehicle->altitudeAMSL()->rawValue().toDouble()), TestTimeout::longMs());
-        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
-                         QRegularExpression(QStringLiteral("Failed to connect to pressure backend")));
-        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
-                         QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
-        QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
-        QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000), "Confirm control never appeared");
-        QVERIFY(_holdButton(kConfirmButton));
-        QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
-        QTest::qWait(kSettleMs * 2);
-
-        // In flight, zoom full screen, and the figures keep moving while it is up.
-        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
-        QVERIFY2(findVisibleItem(_rootItem, kStrip, 3000), "Flight strip is not up with the zoom window full screen in flight");
-        QTest::qWait(kSettleMs);
-        checkStrip(strip, true);
-        if (QTest::currentTestFailed()) return;
-        checkClear(strip, zoomPanel->property("panelTitle").toString(), true);
-        if (QTest::currentTestFailed()) return;
-        const QString clockBefore  = text(strip, "policeFullscreenStripDateTime");
-        const QString flightBefore = text(strip, "policeFullscreenStripFlight");
-        QTest::qWait(2200);
-        QVERIFY2(text(strip, "policeFullscreenStripDateTime") != clockBefore, "Strip clock stood still");
-        QVERIFY2(text(strip, "policeFullscreenStripFlight") != flightBefore, "Strip flight time stood still");
-        if (capture) {
-            _grab(QStringLiteral("fullscreen_strip_1_zoom_flying"));
+            SiyiCameraController *const camera = SiyiCameraController::instance();
+            QVERIFY(camera);
+            const bool savedLaser = camera->laserEnabled();
+            camera->setLaserEnabled(true);
+            _grab(QStringLiteral("swap_zoom_big"));
+            camera->setLaserEnabled(savedLaser);
             if (QTest::currentTestFailed()) return;
         }
 
-        // Thermal full screen, straight from the zoom one.
-        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("shared")));
-        QTest::qWait(kSettleMs);
-        QVERIFY2(strip->isVisible(), "Flight strip is not up with the thermal window full screen");
-        checkStrip(strip, true);
-        if (QTest::currentTestFailed()) return;
-        checkClear(strip, QStringLiteral("열상"), false);
-        if (QTest::currentTestFailed()) return;
+        // 8. A tap on the big picture keeps it big: it is the target-pick surface.
+        const QRectF bigRect = sceneRect(panel);
+        const QPointF onPicture(bigRect.center().x(), bigRect.top() + bigRect.height() * 0.4);
+        const QPointF onPictureLocal = dashboard->mapFromScene(onPicture);
+        QQuickItem *const underTap = topChildAt(onPictureLocal);
+        QVERIFY2(underTap && underTap->objectName() == QStringLiteral("policeBigPicture"),
+                 "The tap point on the big picture is covered by chrome");
+        clickAt(onPicture);
+        QCOMPARE(expanded(), QStringLiteral("secondary"));
+
+        // 9. A tap on 지도 swaps back.
+        clickAt(sceneRect(zoomWindow).center());
+        QCOMPARE(expanded(), QString());
+        QVERIFY2(chipReads(zoomWindow, QStringLiteral("줌")), "The zoom window chip does not read 줌 again");
+        QVERIFY2(near(sceneRect(panel), sceneRect(zoomWindow)),
+                 qPrintable(QStringLiteral("Zoom panel came back at %1, not in its window %2")
+                                .arg(QDebug::toString(sceneRect(panel)), QDebug::toString(sceneRect(zoomWindow)))));
+
+        // 10. Thermal big, then the forward window straight from there.
+        clickAt(sceneRect(thermalWindow).center());
+        QCOMPARE(expanded(), QStringLiteral("shared"));
         if (capture) {
-            _grab(QStringLiteral("fullscreen_strip_2_thermal_flying"));
+            _grab(QStringLiteral("swap_thermal_big"));
             if (QTest::currentTestFailed()) return;
         }
+        clickAt(sceneRect(forwardWindow).center());
+        QCOMPARE(expanded(), QStringLiteral("primary"));
+        QVERIFY2(chipReads(thermalWindow, QStringLiteral("열상")), "The thermal window chip does not read 열상 again");
+        QVERIFY2(chipReads(forwardWindow, QStringLiteral("지도")), "The vacated forward window chip does not read 지도");
 
-        QVERIFY(dashboard->setProperty("expandedPanel", QString()));
+        // 11. Escape swaps back.
+        QTest::keyClick(_window, Qt::Key_Escape);
         QTest::qWait(kSettleMs);
-        QVERIFY2(!strip->isVisible(), "Flight strip stayed up after leaving full screen");
+        QCOMPARE(expanded(), QString());
     });
 }
 

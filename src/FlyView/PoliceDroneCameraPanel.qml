@@ -16,6 +16,11 @@ Item {
     /// Windowed panels sit under a title bar that already names them, so the chips only come
     /// out full screen, where there is no bar and the operator needs to know what they are on.
     property bool   showChrome: true
+    /// Big picture only: how far the dashboard's chrome reaches in from each side, so the chips
+    /// land where they can be read.
+    property real   chromeLeftInset: 0
+    property real   chromeRightInset: 0
+    property real   chromeTopInset: 0
     property string streamObjectName
 
     /// Draws the on-device detector's face mosaics.
@@ -53,6 +58,13 @@ Item {
     /// Readout drawn along the bottom edge while a target is tracked: class, position, size,
     /// laser range. Empty hides it.
     property string aiTargetInfo:       ""
+
+    /// The laser's aim point and its reading under it. Set on the zoom panel full screen with
+    /// the laser switched on; drawn only with the chrome, so never on the small window.
+    property bool   lrfOverlayVisible:  false
+    property string lrfText:            ""
+    /// Whether lrfText is a reading rather than the no-reading word, which is drawn dimmer.
+    property bool   lrfHasReading:      false
 
     /// Whether the module is following a target, drawn as a chip in the corner opposite the
     /// window's name. Null on the panels that have nothing to say about tracking, which is
@@ -142,10 +154,71 @@ Item {
         readonly property real _strokeCap: ScreenTools.defaultFontPixelHeight * 0.6
     }
 
+    // Laser aim point: four thin arms with a gap at the centre, and the reading on a dark pill
+    // under it. Sizes are the mockup's at the tablet's 45 px font height, as shares of it.
+    Item {
+        id:           lrfOverlay
+        objectName:   "policeLrfOverlay"
+        anchors.fill: parent
+        visible:      root.showChrome && root.lrfOverlayVisible
+
+        readonly property real _gap:   ScreenTools.defaultFontPixelHeight * 0.22
+        readonly property real _arm:   ScreenTools.defaultFontPixelHeight * 0.67
+        readonly property real _thick: Math.max(2, ScreenTools.defaultFontPixelHeight * 0.07)
+
+        Repeater {
+            model: 4
+
+            Item {
+                anchors.centerIn: parent
+                width:            (lrfOverlay._gap + lrfOverlay._arm) * 2
+                height:           width
+                rotation:         index * 90
+
+                // A dark edge under the white so the arm holds on sky and snow alike.
+                Rectangle {
+                    x:      parent.width / 2 + lrfOverlay._gap - 1.5
+                    y:      (parent.height - height) / 2
+                    width:  lrfOverlay._arm + 3
+                    height: lrfOverlay._thick + 3
+                    color:  "#96000000"
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width:            parent.width - 3
+                        height:           parent.height - 3
+                        color:            "white"
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            anchors.horizontalCenter: parent.horizontalCenter
+            y:      parent.height / 2 + lrfOverlay._gap + lrfOverlay._arm + ScreenTools.defaultFontPixelHeight * 0.62
+            width:  lrfLabel.implicitWidth + lrfLabel.font.pixelSize * 1.23
+            height: lrfLabel.font.pixelSize * 1.62
+            radius: height / 2
+            color:  "#96000000"
+
+            Text {
+                id:               lrfLabel
+                objectName:       "policeLrfOverlayText"
+                anchors.centerIn: parent
+                color:            root.lrfHasReading ? "white" : "#9aa3ab"
+                font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.7
+                text:             root.lrfText
+            }
+        }
+    }
+
     Rectangle {
+        objectName:     "policeCameraNameChip"
         anchors.left:   parent.left
         anchors.top:    parent.top
         anchors.margins: 8
+        anchors.leftMargin: 8 + root.chromeLeftInset
+        anchors.topMargin: 8 + root.chromeTopInset
         width:          panelHeading.implicitWidth + 18
         height:         panelHeading.implicitHeight + 10
         radius:         3
@@ -224,6 +297,8 @@ Item {
         anchors.right:   parent.right
         anchors.top:     parent.top
         anchors.margins: 8
+        anchors.rightMargin: 8 + root.chromeRightInset
+        anchors.topMargin: 8 + root.chromeTopInset
         spacing:         6
         visible:         (root.followActive !== null) || (root.trackingActive !== null)
 
@@ -246,6 +321,8 @@ Item {
         // Under the state chips when both are up, so neither has to be read through the other.
         anchors.top:     stateChips.visible ? stateChips.bottom : parent.top
         anchors.margins: 8
+        anchors.rightMargin: 8 + root.chromeRightInset
+        anchors.topMargin: 8 + (stateChips.visible ? 0 : root.chromeTopInset)
         width:           detailText.implicitWidth + 16
         height:          detailText.implicitHeight + 8
         radius:          3
@@ -283,10 +360,9 @@ Item {
         }
     }
 
-    // Letting the target go, on the picture the operator is watching it on. The camera rail
-    // carries the same command, but the rail sits at z 2 and a full screen camera at 20, so full
-    // screen - which is where boxes get drawn - the rail's button is behind the picture. In the
-    // corner the rail button is reachable and this one would only cover the small picture.
+    // Letting the target go, on the picture the operator is watching it on. Unused by the
+    // dashboard now: the big picture sits under the camera rail, so the rail's 추적해제 stays
+    // reachable and this one would only cover the picture.
     // Greyed rather than hidden, for the rail button's reason: the module drops hasTarget on a
     // 1.5 s gap in the target stream, and a button that comes and goes is one the operator
     // reaches for and misses.

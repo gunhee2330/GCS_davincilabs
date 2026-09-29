@@ -296,15 +296,22 @@ void PoliceTopBarUITest::_guidedTakeoff(Vehicle *vehicle)
     ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
                      QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
 
+    // The takeoff panel beside the strip, and its slide bar pushed all the way.
     QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
-    QQuickItem *const confirm = findVisibleItem(_rootItem, kConfirmButton, 5000);
-    QVERIFY2(confirm, "Confirm control never appeared after pressing takeoff");
+    QQuickItem *const bar = findVisibleItem(_rootItem, QStringLiteral("policeTakeoffSlide"), 5000);
+    QVERIFY2(bar, "Takeoff panel never opened after pressing takeoff");
+    QQuickItem *const knob = findVisibleItem(bar, QStringLiteral("policeSlideKnob"), 1000);
+    QVERIFY2(knob, "The takeoff slide bar has no knob");
 
-    const QPointF scenePos = confirm->mapToScene(QPointF(confirm->width() / 2, confirm->height() / 2));
-    const QPoint holdPoint = scenePos.toPoint();
-    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, holdPoint);
-    QTest::qWait(kHoldMs);
-    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, holdPoint);
+    const QPoint from = knob->mapToScene(QPointF(knob->width() / 2, knob->height() / 2)).toPoint();
+    const QPoint to   = from + QPoint(qRound(bar->width()), 0);
+    QTest::mousePress(_window, Qt::LeftButton, Qt::NoModifier, from);
+    constexpr int kSteps = 8;
+    for (int step = 1; step <= kSteps; ++step) {
+        QTest::mouseMove(_window, from + (to - from) * step / kSteps);
+        QTest::qWait(16);
+    }
+    QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, to);
 
     QVERIFY_TRUE_WAIT(vehicle->armed(), TestTimeout::longMs());
 }

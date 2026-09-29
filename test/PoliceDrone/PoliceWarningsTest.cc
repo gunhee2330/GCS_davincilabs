@@ -116,22 +116,22 @@ void PoliceWarningsTest::_altitudeAndRadius_test()
     QCOMPARE(spoke.count(), 0);
 
     warnings.setFlying(true);
-    QCOMPARE(warnings.altitudeText(), QStringLiteral("제한 고도 150 m를 넘었습니다"));
+    QCOMPARE(warnings.altitudeText(), QStringLiteral("제한 고도 160 m를 넘었습니다"));
     QCOMPARE(spoke.count(), 1);
-    QCOMPARE(spoke.takeFirst().at(0).toString(), QStringLiteral("Altitude limit exceeded. Above 150 meters."));
+    QCOMPARE(spoke.takeFirst().at(0).toString(), QStringLiteral("Altitude limit exceeded. Above 160 meters."));
 
     // Inside the 2 m band it holds, and a reading that stays up says nothing more.
-    warnings.setAltitude(149);
-    warnings.setAltitude(151);
-    warnings.setAltitude(148.5);
+    warnings.setAltitude(159);
+    warnings.setAltitude(161);
+    warnings.setAltitude(158.5);
     QVERIFY(!warnings.altitudeText().isEmpty());
     warnings.setAltitude(qQNaN());
     QVERIFY2(!warnings.altitudeText().isEmpty(), "A dropout took the banner down");
     QCOMPARE(spoke.count(), 0);
 
-    warnings.setAltitude(148);
+    warnings.setAltitude(158);
     QVERIFY(warnings.altitudeText().isEmpty());
-    warnings.setAltitude(150.5);
+    warnings.setAltitude(160.5);
     QCOMPARE(spoke.count(), 1);
     spoke.clear();
 
@@ -263,11 +263,11 @@ void PoliceWarningsTest::_dismiss_test()
     QSignalSpy texts(&warnings, &PoliceWarnings::textsChanged);
     QVERIFY(texts.isValid());
 
-    // No vehicle: the 150 m ceiling and the 10 m/s wind.
+    // No vehicle: the 160 m ceiling and the 10 m/s wind.
     warnings.setFlying(true);
     warnings.setBatteryPercent(25);
     warnings.setBatteryLevel(1);
-    warnings.setAltitude(160);
+    warnings.setAltitude(170);
     QCOMPARE(warnings.batteryText(), QStringLiteral("잔량 25%, 복귀를 준비하십시오"));
     QVERIFY(!warnings.batteryCritical());
     QVERIFY(!warnings.altitudeText().isEmpty());
@@ -323,8 +323,8 @@ void PoliceWarningsTest::_dismiss_test()
     warnings.setAltitude(175);
     QVERIFY(warnings.altitudeText().isEmpty());
     warnings.setAltitude(140);
-    warnings.setAltitude(151);
-    QCOMPARE(warnings.altitudeText(), QStringLiteral("제한 고도 150 m를 넘었습니다"));
+    warnings.setAltitude(161);
+    QCOMPARE(warnings.altitudeText(), QStringLiteral("제한 고도 160 m를 넘었습니다"));
     QCOMPARE(spoke.count(), 1);
     spoke.clear();
 

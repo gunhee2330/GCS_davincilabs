@@ -1,6 +1,7 @@
 #include "SiyiAiControllerTest.h"
 
 #include <QtCore/QRegularExpression>
+#include <QtCore/QTimer>
 #include <QtNetwork/QTcpServer>
 #include <QtNetwork/QTcpSocket>
 #include <QtNetwork/QUdpSocket>
@@ -166,6 +167,63 @@ int lastTrackingQuery(const QList<SiyiProtocol::Frame> &frames)
         }
     }
     return sequence;
+}
+
+/// The selections in @a frames that carry a second corner, which is what tells a dragged box from
+/// a point pick: both are track_action 1, and a point sends (0,0) as the second corner.
+QList<SiyiProtocol::Frame> boxSelections(const QList<SiyiProtocol::Frame> &frames)
+{
+    QList<SiyiProtocol::Frame> boxes;
+    for (const SiyiProtocol::Frame &frame : frames) {
+        if ((static_cast<quint8>(frame.commandId) == static_cast<quint8>(SiyiAi::CommandId::SetTrackTarget)) &&
+            (frame.data.size() >= 9) && (frame.data.at(0) == '\1') && (frame.data.mid(5, 4) != QByteArray(4, '\0'))) {
+            boxes.append(frame);
+        }
+    }
+    return boxes;
+}
+
+/// The selections in @a frames that are point picks: track_action 1 with (0,0) as second corner.
+QList<SiyiProtocol::Frame> pointSelections(const QList<SiyiProtocol::Frame> &frames)
+{
+    QList<SiyiProtocol::Frame> points;
+    for (const SiyiProtocol::Frame &frame : frames) {
+        if ((static_cast<quint8>(frame.commandId) == static_cast<quint8>(SiyiAi::CommandId::SetTrackTarget)) &&
+            (frame.data.size() >= 9) && (frame.data.at(0) == '\1') && (frame.data.mid(5, 4) == QByteArray(4, '\0'))) {
+            points.append(frame);
+        }
+    }
+    return points;
+}
+
+/// A point and a box in one drain would be the module refusing the box with 6 for the point's flag.
+bool pointAndBox(const QList<SiyiProtocol::Frame> &frames)
+{
+    return !pointSelections(frames).isEmpty() && !boxSelections(frames).isEmpty();
+}
+
+/// The module's 0x06 acknowledgement.
+SiyiProtocol::Frame trackAckFrame(SiyiAi::TrackRequestResult result)
+{
+    SiyiProtocol::Frame frame;
+    frame.commandId = static_cast<SiyiProtocol::CommandId>(SiyiAi::CommandId::SetTrackTarget);
+    frame.isAck = true;
+    frame.data = QByteArray(1, static_cast<char>(result));
+    return frame;
+}
+
+/// The module's 0x06 acknowledgement with any raw code, including ones the enum does not name.
+SiyiProtocol::Frame trackAckCode(int code)
+{
+    return trackAckFrame(static_cast<SiyiAi::TrackRequestResult>(code));
+}
+
+/// Everything sent over a stretch longer than the point pick's reply timeout, so a box that was
+/// going to follow has had its chance.
+QList<SiyiProtocol::Frame> framesOverTheTimeout(QUdpSocket &module)
+{
+    QTest::qWait(1500);
+    return drainFrames(module);
 }
 
 /// The module's answer to a bare state query while counting is off: the mode byte and the model,
@@ -377,6 +435,8 @@ void SiyiAiControllerTest::_lateTrackingStateDoesNotCancelANewTarget_test()
     (void) drainFrames(module);
 
     controller.trackBox(0.4, 0.4, 0.6, 0.6);
+    // The module takes the point pick, so no box follows it on the status poll's edge.
+    controller._handleFrame(trackAckFrame(SiyiAi::TrackRequestResult::Accepted));
 
     const QByteArray late = SiyiProtocol::encodeRaw(
         static_cast<quint8>(SiyiAi::CommandId::RequestTrackingState), QByteArray(1, '\1'));
@@ -900,6 +960,436 @@ void SiyiAiControllerTest::_streamTooLargeSurvivesTheStateReply_test()
     controller._setConnected(true);
     controller._setConnected(false);
     QVERIFY(!controller.streamTooLarge());
+}
+
+/// A person under a dragged box. The module's tap selection hands back the person with its class;
+/// the box itself would be tracked as an unclassed template and read 오브젝트. So the centre goes
+/// first as a point, and once the module accepts it the box must not follow and override it.
+void SiyiAiControllerTest::_dragKeepsAnAcceptedPointPick_test()
+{
+    QUdpSocket module;
+    QHostAddress controllerAddress;
+    quint16 controllerPort = 0;
+
+    SiyiAiController controller(nullptr);
+    openFakeModule(module, controller, controllerAddress, controllerPort);
+    (void) drainFrames(module);
+
+    controller.trackBox(0.4, 0.4, 0.6, 0.8);
+    QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+    QList<SiyiProtocol::Frame> sent = drainFrames(module);
+    QCOMPARE(selectionCount(sent), 1);
+    QCOMPARE(boxSelections(sent).size(), 0);
+
+    // The point is the box's centre, in the stream's own resolution.
+    const SiyiProtocol::Frame *point = nullptr;
+    for (const SiyiProtocol::Frame &frame : sent) {
+        if (static_cast<quint8>(frame.commandId) == static_cast<quint8>(SiyiAi::CommandId::SetTrackTarget)) {
+            point = &frame;
+        }
+    }
+    QVERIFY(point);
+    QCOMPARE(point->data, SiyiAi::encodeTrackPoint(qRound(0.5 * 1279), qRound(0.6 * 719)).mid(8, 9));
+
+    controller._handleFrame(trackAckFrame(SiyiAi::TrackRequestResult::Accepted));
+    sent = framesOverTheTimeout(module);
+    QCOMPARE(selectionCount(sent), 0);
+}
+
+/// Nothing recognised under the centre: the module refuses the point and the drawn box goes out
+/// straight away, the same frame the drag sent before.
+void SiyiAiControllerTest::_dragSendsTheBoxWhenThePointIsRefused_test()
+{
+    QUdpSocket module;
+    QHostAddress controllerAddress;
+    quint16 controllerPort = 0;
+
+    SiyiAiController controller(nullptr);
+    openFakeModule(module, controller, controllerAddress, controllerPort);
+    (void) drainFrames(module);
+
+    controller.trackBox(0.4, 0.4, 0.6, 0.8);
+    QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+    (void) drainFrames(module);
+
+    controller._handleFrame(trackAckFrame(SiyiAi::TrackRequestResult::OutOfRange));
+    QList<SiyiProtocol::Frame> sent;
+    QTRY_VERIFY_WITH_TIMEOUT(boxSelections(sent += drainFrames(module)).size() == 1, TestTimeout::shortMs());
+    QCOMPARE(boxSelections(sent).constFirst().data,
+             SiyiAi::encodeTrackBox(qRound(0.4 * 1279), qRound(0.4 * 719), qRound(0.6 * 1279), qRound(0.8 * 719)).mid(8, 9));
+
+    // Once only.
+    QCOMPARE(boxSelections(framesOverTheTimeout(module)).size(), 0);
+}
+
+/// UDP drops the point or its answer: the box still goes out, after the reply timeout, so a drag
+/// never does less than it did before.
+void SiyiAiControllerTest::_dragSendsTheBoxWhenThePointGetsNoReply_test()
+{
+    QUdpSocket module;
+    QHostAddress controllerAddress;
+    quint16 controllerPort = 0;
+
+    SiyiAiController controller(nullptr);
+    openFakeModule(module, controller, controllerAddress, controllerPort);
+    (void) drainFrames(module);
+
+    controller.trackBox(0.4, 0.4, 0.6, 0.8);
+    QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+    QList<SiyiProtocol::Frame> sent = drainFrames(module);
+    QCOMPARE(boxSelections(sent).size(), 0);
+
+    QTRY_VERIFY_WITH_TIMEOUT(boxSelections(sent += drainFrames(module)).size() == 1, TestTimeout::mediumMs());
+}
+
+/// The other way the module says the point was taken: its target stream starts reporting a
+/// recognised class. No box follows, and the class shown is the module's.
+void SiyiAiControllerTest::_dragKeepsTheClassTheStreamReports_test()
+{
+    QUdpSocket module;
+    QHostAddress controllerAddress;
+    quint16 controllerPort = 0;
+
+    SiyiAiController controller(nullptr);
+    openFakeModule(module, controller, controllerAddress, controllerPort);
+    (void) drainFrames(module);
+
+    controller.trackBox(0.4, 0.4, 0.6, 0.8);
+    QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+    QCOMPARE(boxSelections(drainFrames(module)).size(), 0);
+
+    QByteArray data;
+    data.append(uint16le(640));
+    data.append(uint16le(430));
+    data.append(uint16le(200));
+    data.append(uint16le(120));
+    data.append(static_cast<char>(SiyiAi::TargetType::Car));
+    data.append(static_cast<char>(SiyiAi::TrackingStatus::Tracking));
+    const QByteArray car = SiyiProtocol::encodeRaw(static_cast<quint8>(SiyiAi::CommandId::TargetStream), data);
+    QCOMPARE(module.writeDatagram(car, controllerAddress, controllerPort), car.size());
+    QTRY_VERIFY_WITH_TIMEOUT(controller.hasTarget(), TestTimeout::shortMs());
+    QCOMPARE(controller.targetTypeName(), SiyiAi::targetTypeName(SiyiAi::TargetType::Car));
+
+    QCOMPARE(selectionCount(framesOverTheTimeout(module)), 0);
+    QCOMPARE(controller.targetTypeName(), SiyiAi::targetTypeName(SiyiAi::TargetType::Car));
+}
+
+/// 추적해제 pressed while the point pick is still unanswered. The box behind it must not go out
+/// afterwards and start a track the operator has just stopped.
+void SiyiAiControllerTest::_cancelDropsAPendingDragBox_test()
+{
+    QUdpSocket module;
+    QHostAddress controllerAddress;
+    quint16 controllerPort = 0;
+
+    SiyiAiController controller(nullptr);
+    openFakeModule(module, controller, controllerAddress, controllerPort);
+    (void) drainFrames(module);
+
+    controller.trackBox(0.4, 0.4, 0.6, 0.8);
+    controller.cancelTracking();
+    QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+
+    QList<SiyiProtocol::Frame> sent = drainFrames(module);
+    sent += framesOverTheTimeout(module);
+    QCOMPARE(boxSelections(sent).size(), 0);
+}
+
+/// A drag while the module holds a target: it would answer the point with 6, so the held target is
+/// cancelled first through the usual state query, and the point goes out only once the cancel's own
+/// answer is in - never beside the cancel, where that answer would read as the point's.
+void SiyiAiControllerTest::_dragCancelsAHeldTargetFirst_test()
+{
+    QUdpSocket module;
+    QHostAddress controllerAddress;
+    quint16 controllerPort = 0;
+
+    SiyiAiController controller(nullptr);
+    openFakeModule(module, controller, controllerAddress, controllerPort);
+    (void) drainFrames(module);
+
+    const QByteArray tracking = targetStreamFrame(SiyiAi::TrackingStatus::Tracking);
+    QCOMPARE(module.writeDatagram(tracking, controllerAddress, controllerPort), tracking.size());
+    QTRY_VERIFY_WITH_TIMEOUT(controller.hasTarget(), TestTimeout::shortMs());
+
+    controller.trackBox(0.4, 0.4, 0.6, 0.8);
+    QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+    QList<SiyiProtocol::Frame> sent = drainFrames(module);
+    const int query = lastTrackingQuery(sent);
+    QVERIFY(query >= 0);
+    QCOMPARE(selectionCount(sent), 0);
+    QCOMPARE(cancelCount(sent), 0);
+
+    // Held: the cancel goes out, the point still waits.
+    controller._handleFrame(trackingStateFrame(1, static_cast<quint16>(query)));
+    QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+    sent = drainFrames(module);
+    QCOMPARE(cancelCount(sent), 1);
+    QCOMPARE(selectionCount(sent), 0);
+
+    // The cancel's answer: now the point, alone.
+    controller._handleFrame(trackAckFrame(SiyiAi::TrackRequestResult::Accepted));
+    QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+    sent = drainFrames(module);
+    QCOMPARE(pointSelections(sent).size(), 1);
+    QCOMPARE(boxSelections(sent).size(), 0);
+    QCOMPARE(cancelCount(sent), 0);
+
+    controller._handleFrame(trackAckFrame(SiyiAi::TrackRequestResult::Accepted));
+    QCOMPARE(selectionCount(framesOverTheTimeout(module)), 0);
+}
+
+/// Nothing under the point: the box goes out once. Its 1 is tracking; its 4 (too little texture)
+/// is a refusal the operator is told about, with no further try.
+void SiyiAiControllerTest::_dragBoxAnswersDecideTheResult_test()
+{
+    QUdpSocket module;
+    QHostAddress controllerAddress;
+    quint16 controllerPort = 0;
+
+    SiyiAiController controller(nullptr);
+    openFakeModule(module, controller, controllerAddress, controllerPort);
+    (void) drainFrames(module);
+    QSignalSpy refused(&controller, &SiyiAiController::trackRequestFailed);
+
+    // The refusal first: an accepted box leaves a selection held, which the next drag cancels first.
+    for (const int boxAnswer : {4, 1}) {
+        controller.trackBox(0.4, 0.4, 0.6, 0.8);
+        QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+        QList<SiyiProtocol::Frame> sent = drainFrames(module);
+        QCOMPARE(pointSelections(sent).size(), 1);
+        QVERIFY(!pointAndBox(sent));
+
+        controller._handleFrame(trackAckFrame(SiyiAi::TrackRequestResult::OutOfRange));
+        QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+        sent = drainFrames(module);
+        QCOMPARE(boxSelections(sent).size(), 1);
+        QCOMPARE(pointSelections(sent).size(), 0);
+
+        controller._handleFrame(trackAckCode(boxAnswer));
+        // The 4 is reported; the 1 after it adds nothing.
+        QCOMPARE(refused.count(), 1);
+        QCOMPARE(refused.at(0).at(0).toInt(), 4);
+        QCOMPARE(refused.at(0).at(1).toString(), QStringLiteral("선택 영역의 무늬가 너무 적습니다"));
+        QCOMPARE(selectionCount(framesOverTheTimeout(module)), 0);
+    }
+}
+
+/// A 6 on the point: something is still held that the dashboard did not know about (the hand
+/// controller picked it). Cancel and resend the point once; a second 6 is a refusal.
+void SiyiAiControllerTest::_dragRetriesOnceWhenTheModuleIsStillTracking_test()
+{
+    QUdpSocket module;
+    QHostAddress controllerAddress;
+    quint16 controllerPort = 0;
+
+    SiyiAiController controller(nullptr);
+    openFakeModule(module, controller, controllerAddress, controllerPort);
+    (void) drainFrames(module);
+    QSignalSpy refused(&controller, &SiyiAiController::trackRequestFailed);
+
+    controller.trackBox(0.4, 0.4, 0.6, 0.8);
+    QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+    QCOMPARE(pointSelections(drainFrames(module)).size(), 1);
+
+    controller._handleFrame(trackAckFrame(SiyiAi::TrackRequestResult::TrackingInProgress));
+    QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+    QList<SiyiProtocol::Frame> sent = drainFrames(module);
+    const int query = lastTrackingQuery(sent);
+    QVERIFY(query >= 0);
+    QCOMPARE(selectionCount(sent), 0);
+    QCOMPARE(refused.count(), 0);
+
+    controller._handleFrame(trackingStateFrame(1, static_cast<quint16>(query)));
+    QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+    QCOMPARE(cancelCount(drainFrames(module)), 1);
+    controller._handleFrame(trackAckFrame(SiyiAi::TrackRequestResult::Accepted));
+    QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+    sent = drainFrames(module);
+    QCOMPARE(pointSelections(sent).size(), 1);
+    QCOMPARE(boxSelections(sent).size(), 0);
+
+    controller._handleFrame(trackAckFrame(SiyiAi::TrackRequestResult::TrackingInProgress));
+    QCOMPARE(refused.count(), 1);
+    QCOMPARE(refused.at(0).at(0).toInt(), 6);
+    QCOMPARE(refused.at(0).at(1).toString(), QStringLiteral("추적 중입니다. 먼저 추적을 해제하십시오"));
+    sent = framesOverTheTimeout(module);
+    QCOMPARE(selectionCount(sent), 0);
+    QCOMPARE(lastTrackingQuery(sent), -1);
+}
+
+/// Answers that say the module cannot track at all: a box would be refused for the same reason,
+/// so none is sent and the operator is told why. 4 on a point is among them.
+void SiyiAiControllerTest::_dragRefusalsSendNoBox_test()
+{
+    QUdpSocket module;
+    QHostAddress controllerAddress;
+    quint16 controllerPort = 0;
+
+    SiyiAiController controller(nullptr);
+    openFakeModule(module, controller, controllerAddress, controllerPort);
+    (void) drainFrames(module);
+    QSignalSpy refused(&controller, &SiyiAiController::trackRequestFailed);
+
+    const QList<QPair<int, QString>> answers {
+        { 2, QStringLiteral("AI 추적 모드가 아닙니다") },
+        { 3, QStringLiteral("이 영상은 AI 추적을 지원하지 않습니다") },
+        { 4, QStringLiteral("선택 영역의 무늬가 너무 적습니다") },
+        { 5, QStringLiteral("영상 안정화가 켜져 있어 추적할 수 없습니다") },
+        { 7, QStringLiteral("모델이 초기화되지 않았습니다") },
+        { 8, QStringLiteral("선택 영역이 너무 작습니다") },
+    };
+    QList<SiyiProtocol::Frame> sent;
+    for (const auto &answer : answers) {
+        refused.clear();
+        controller.trackBox(0.4, 0.4, 0.6, 0.8);
+        QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+        sent += drainFrames(module);
+        controller._handleFrame(trackAckCode(answer.first));
+        QCOMPARE(refused.count(), 1);
+        QCOMPARE(refused.at(0).at(0).toInt(), answer.first);
+        QCOMPARE(refused.at(0).at(1).toString(), answer.second);
+    }
+    sent += framesOverTheTimeout(module);
+    QCOMPARE(pointSelections(sent).size(), answers.size());
+    QCOMPARE(boxSelections(sent).size(), 0);
+}
+
+/// The point went unanswered, so the box followed. A 6 on that box means the point's flag was
+/// already up - the point took and only its answer was lost - so it is a success, not a refusal.
+void SiyiAiControllerTest::_dragBoxRefusedAsHeldAfterATimeoutIsASuccess_test()
+{
+    QUdpSocket module;
+    QHostAddress controllerAddress;
+    quint16 controllerPort = 0;
+
+    SiyiAiController controller(nullptr);
+    openFakeModule(module, controller, controllerAddress, controllerPort);
+    (void) drainFrames(module);
+    QSignalSpy refused(&controller, &SiyiAiController::trackRequestFailed);
+
+    controller.trackBox(0.4, 0.4, 0.6, 0.8);
+    QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+    QList<SiyiProtocol::Frame> sent = drainFrames(module);
+    QCOMPARE(pointSelections(sent).size(), 1);
+    QVERIFY(!pointAndBox(sent));
+
+    sent.clear();
+    QTRY_VERIFY_WITH_TIMEOUT(boxSelections(sent += drainFrames(module)).size() == 1, TestTimeout::mediumMs());
+    QCOMPARE(pointSelections(sent).size(), 0);
+
+    controller._handleFrame(trackAckFrame(SiyiAi::TrackRequestResult::TrackingInProgress));
+    QCOMPARE(refused.count(), 0);
+    sent = framesOverTheTimeout(module);
+    QCOMPARE(selectionCount(sent), 0);
+    QCOMPARE(cancelCount(sent), 0);
+    QCOMPARE(lastTrackingQuery(sent), -1);
+}
+
+void SiyiAiControllerTest::_pickThenCancel(SiyiAiController &controller, QUdpSocket &module, QTimer &pump)
+{
+    controller.trackBox(0.4, 0.4, 0.6, 0.8);
+    QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+    (void) drainFrames(module);
+    controller._handleFrame(trackAckFrame(SiyiAi::TrackRequestResult::Accepted));
+    QVERIFY(controller.selectionHeld());
+    pump.start();
+    QTRY_VERIFY_WITH_TIMEOUT(controller.hasTarget(), TestTimeout::shortMs());
+
+    controller.cancelTracking();
+    QList<SiyiProtocol::Frame> sent;
+    QTRY_VERIFY_WITH_TIMEOUT(lastTrackingQuery(sent += drainFrames(module)) >= 0, TestTimeout::shortMs());
+    controller._handleFrame(trackingStateFrame(1, static_cast<quint16>(lastTrackingQuery(sent))));
+    QTRY_VERIFY_WITH_TIMEOUT(cancelCount(sent += drainFrames(module)) == 1, TestTimeout::shortMs());
+}
+
+/// A cancel that has gone out is done once the module reports the target cancelled: nothing is
+/// resent, nothing is reported, and the selection is no longer held.
+void SiyiAiControllerTest::_cancelIsConfirmedByTheStream_test()
+{
+    QUdpSocket module;
+    QHostAddress controllerAddress;
+    quint16 controllerPort = 0;
+
+    SiyiAiController controller(nullptr);
+    openFakeModule(module, controller, controllerAddress, controllerPort);
+    (void) drainFrames(module);
+    QSignalSpy refused(&controller, &SiyiAiController::trackRequestFailed);
+
+    QByteArray pushing = targetStreamFrame(SiyiAi::TrackingStatus::Tracking);
+    QTimer pump;
+    pump.setInterval(100);
+    (void) connect(&pump, &QTimer::timeout, &module, [&] { (void) module.writeDatagram(pushing, controllerAddress, controllerPort); });
+
+    _pickThenCancel(controller, module, pump);
+    if (QTest::currentTestFailed()) return;
+
+    pushing = targetStreamFrame(SiyiAi::TrackingStatus::CancelledByUser);
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.selectionHeld(), TestTimeout::shortMs());
+    QCOMPARE(cancelCount(framesOverTheTimeout(module)), 0);
+    QCOMPARE(refused.count(), 0);
+}
+
+/// The stream still says tracking 500 ms after the cancel: the cancel goes out once more, and a
+/// cancelled status after that ends it quietly.
+void SiyiAiControllerTest::_unconfirmedCancelIsResentOnce_test()
+{
+    QUdpSocket module;
+    QHostAddress controllerAddress;
+    quint16 controllerPort = 0;
+
+    SiyiAiController controller(nullptr);
+    openFakeModule(module, controller, controllerAddress, controllerPort);
+    (void) drainFrames(module);
+    QSignalSpy refused(&controller, &SiyiAiController::trackRequestFailed);
+
+    QByteArray pushing = targetStreamFrame(SiyiAi::TrackingStatus::Tracking);
+    QTimer pump;
+    pump.setInterval(100);
+    (void) connect(&pump, &QTimer::timeout, &module, [&] { (void) module.writeDatagram(pushing, controllerAddress, controllerPort); });
+
+    _pickThenCancel(controller, module, pump);
+    if (QTest::currentTestFailed()) return;
+
+    QList<SiyiProtocol::Frame> sent;
+    QTRY_VERIFY_WITH_TIMEOUT(cancelCount(sent += drainFrames(module)) == 1, TestTimeout::mediumMs());
+    QVERIFY(controller.selectionHeld());
+
+    pushing = targetStreamFrame(SiyiAi::TrackingStatus::CancelledByUser);
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.selectionHeld(), TestTimeout::shortMs());
+    QCOMPARE(cancelCount(framesOverTheTimeout(module)), 0);
+    QCOMPARE(refused.count(), 0);
+}
+
+/// Still tracking after the resend: the operator is told the cancel failed, the selection is still
+/// held so 추적해제 stays usable, and nothing more goes out on its own.
+void SiyiAiControllerTest::_cancelThatNeverTakesIsReported_test()
+{
+    QUdpSocket module;
+    QHostAddress controllerAddress;
+    quint16 controllerPort = 0;
+
+    SiyiAiController controller(nullptr);
+    openFakeModule(module, controller, controllerAddress, controllerPort);
+    (void) drainFrames(module);
+    QSignalSpy refused(&controller, &SiyiAiController::trackRequestFailed);
+
+    const QByteArray pushing = targetStreamFrame(SiyiAi::TrackingStatus::Tracking);
+    QTimer pump;
+    pump.setInterval(100);
+    (void) connect(&pump, &QTimer::timeout, &module, [&] { (void) module.writeDatagram(pushing, controllerAddress, controllerPort); });
+
+    _pickThenCancel(controller, module, pump);
+    if (QTest::currentTestFailed()) return;
+
+    QList<SiyiProtocol::Frame> sent;
+    QTRY_VERIFY_WITH_TIMEOUT(refused.count() == 1, TestTimeout::mediumMs());
+    QCOMPARE(refused.at(0).at(0).toInt(), -1);
+    QCOMPARE(refused.at(0).at(1).toString(), QStringLiteral("추적 해제 실패"));
+    sent += framesOverTheTimeout(module);
+    QCOMPARE(cancelCount(sent), 1);
+    QCOMPARE(refused.count(), 1);
+    QVERIFY(controller.selectionHeld());
 }
 
 UT_REGISTER_TEST(SiyiAiControllerTest, TestLabel::Unit)

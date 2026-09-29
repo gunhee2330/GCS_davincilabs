@@ -64,12 +64,18 @@ enum class TrackingStatus : quint8 {
     TrackingArbitrary = 4,
 };
 
-/// Acknowledgement of CommandId::SetTrackTarget.
+/// Acknowledgement of CommandId::SetTrackTarget, numbered as the vendor app's own enum. A point or
+/// box is answered one inference frame late; a cancel at once. This firmware never sends 3, 5 or 8.
 enum class TrackRequestResult : quint8 {
-    Error              = 0,
+    OutOfRange         = 0,   ///< Nothing within about 50 px of a point; the module idles.
     Accepted           = 1,
     NotInTrackingMode  = 2,
     StreamUnsupported  = 3,
+    TextureTooLow      = 4,   ///< On a box. On a point it only means a payload of 4 bytes or less.
+    StabilisationOn    = 5,
+    TrackingInProgress = 6,   ///< A selection is already held; cancel first.
+    ModelNotReady      = 7,
+    RegionTooSmall     = 8,
 };
 
 /// Reply to CommandId::RequestTargetStreamState.

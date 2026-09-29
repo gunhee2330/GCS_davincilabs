@@ -317,6 +317,18 @@ void SiyiProtocolTest::_aiParseTargetStream_test()
              static_cast<quint8>(SiyiAi::CommandId::TargetStream));
 }
 
+/// The overlay keys its colour on these words, the module's own: bus and truck read as car, and
+/// the arbitrary template and any class value the enum does not name read as object.
+void SiyiProtocolTest::_aiTargetTypeName_test()
+{
+    QCOMPARE(SiyiAi::targetTypeName(SiyiAi::TargetType::Person), QStringLiteral("person"));
+    QCOMPARE(SiyiAi::targetTypeName(SiyiAi::TargetType::Car), QStringLiteral("car"));
+    QCOMPARE(SiyiAi::targetTypeName(SiyiAi::TargetType::Bus), QStringLiteral("car"));
+    QCOMPARE(SiyiAi::targetTypeName(SiyiAi::TargetType::Truck), QStringLiteral("car"));
+    QCOMPARE(SiyiAi::targetTypeName(SiyiAi::TargetType::Arbitrary), QStringLiteral("object"));
+    QCOMPARE(SiyiAi::targetTypeName(static_cast<SiyiAi::TargetType>(7)), QStringLiteral("object"));
+}
+
 void SiyiProtocolTest::_aiParseRejectsShortPayloads_test()
 {
     QVERIFY(!SiyiAi::parseTargetStream(QByteArray(9, '\0')).has_value());
