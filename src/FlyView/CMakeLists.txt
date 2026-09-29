@@ -68,6 +68,7 @@ qt_add_qml_module(FlyViewModule
         ObstacleDistanceOverlayVideo.qml
         OnScreenCameraTrackingController.qml
         OnScreenGimbalController.qml
+        PoliceAltitudeSlider.qml
         PoliceBatteryPage.qml
         PoliceCameraToolGrid.qml
         PoliceDroneAiPanel.qml
@@ -80,6 +81,7 @@ qt_add_qml_module(FlyViewModule
         PoliceDroneTargetOverlay.qml
         PoliceFlightRecordsPage.qml
         PoliceGuidedConfirmHost.qml
+        PoliceSlideToConfirm.qml
         PoliceStatusPage.qml
         PoliceTopBar.qml
         PreFlightBatteryCheck.qml

@@ -18,16 +18,21 @@ class PoliceGuidedActionUITest : public QmlUITestBase
     Q_OBJECT
 
 private slots:
-    /// Pressing 이륙 must raise the confirm control, and the control raised must be the
-    /// police one rather than the hidden toolbar's.
-    void _testTakeoffRaisesConfirmControl();
+    /// Pressing 이륙 opens the takeoff panel beside the strip, not the stock hold confirm: the
+    /// slider starts at the vehicle's minimum takeoff altitude over 0 to the stock maximum
+    /// altitude setting, its bubble follows it, 최대 typed in writes that setting and the range
+    /// follows, and the X closes it. Grabs takeoff_0_panel when QGC_SCREENSHOT_DIR is set.
+    void _testTakeoffOpensPanel();
 
-    /// The takeoff altitude slider must be ordered above the dashboard, which fills the
-    /// window: painted under it the operator can neither read nor set the altitude.
+    /// The stock altitude slider, still raised by pause, goto and orbit, must be ordered above the
+    /// dashboard, which fills the window: painted under it the operator can neither read nor set
+    /// the altitude.
     void _testTakeoffAltitudeSliderIsOnTop();
 
-    /// Holding the confirm button past its delay must put MAV_CMD_NAV_TAKEOFF on the link.
-    void _testHoldConfirmSendsTakeoff();
+    /// Letting the slide knob go halfway sends nothing and it slides back; sliding it to the end
+    /// puts MAV_CMD_NAV_TAKEOFF at the slider's altitude on the link and arms. Grabs
+    /// takeoff_1_mid_drag when QGC_SCREENSHOT_DIR is set.
+    void _testSlideSendsTakeoff();
 
     /// With a route aboard, 미션시작 appears in the strip, raises the confirm control, and
     /// holding it starts the mission.
@@ -134,6 +139,13 @@ private:
 
     /// Press the item at \a objectName, hold past the confirm delay, release.
     bool _holdButton(const QString &objectName);
+
+    /// Drag the knob of the slide bar \a barName along \a fraction of its travel and let go,
+    /// grabbing \a grabName with the finger still down.
+    void _slide(const QString &barName, qreal fraction, const QString &grabName = QString());
+
+    /// 이륙 on the strip, then the takeoff panel's slide bar all the way.
+    void _takeOffFromPanel();
 
     /// Grab the window to <QGC_SCREENSHOT_DIR>/<name>.png. \a beforeGrab runs after the settle
     /// wait and just before the grab, with no event loop turn in between.

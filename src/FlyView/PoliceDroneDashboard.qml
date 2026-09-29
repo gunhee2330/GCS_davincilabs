@@ -1154,7 +1154,17 @@ Item {
             },
             // ToolStripHoverButton takes its objectName from the action's, so these two names
             // reach the strip buttons themselves.
-            GuidedActionTakeoff            { text: qsTr("이륙"); objectName: "policeToolTakeoff" },
+            // Takeoff opens its own panel beside the strip, an altitude slider and a slide bar,
+            // rather than the stock hold button with the vertical slider. Shown and enabled on
+            // the same terms as GuidedActionTakeoff.
+            ToolStripAction {
+                objectName:         "policeToolTakeoff"
+                text:               qsTr("이륙")
+                iconSource:         "/res/takeoff.svg"
+                visible:            root.guidedController ? (root.guidedController.showTakeoff || !root.guidedController.showLand) : true
+                enabled:            root.guidedController ? root.guidedController.showTakeoff : false
+                dropPanelComponent: takeoffComponent
+            },
             // Mission start on the strip itself, alongside takeoff. Stock also keeps this action
             // inside the 동작 drop panel; showStartMission puts it here once a route is aboard and
             // takes it away again in flight.
@@ -2182,6 +2192,87 @@ Item {
         autoHide:   true
         visible:    !ScreenTools.isTinyScreen && QGroundControl.corePlugin.options.flyView.showMapScale && QGCViewer3DManager.displayMode !== QGCViewer3DManager.View3D && !!root.mapItem && root.mapItem.pipState.state === root.mapItem.pipState.fullState &&
                     (!root.mapItem.geoMap || (root.mapItem.geoMap.camera.mode === GeoMapCamera.Mode2D && root.mapItem.geoMap.camera.isTopDown))
+    }
+
+    // ------------------------------------------------------------- takeoff and land
+    //
+    // Opened from the strip's 이륙 and 착륙 buttons and drawn beside the strip by its own drop
+    // panel, like 복귀고도. Sliding the bar to the end sends the command the stock hold button
+    // would have sent, through the same executeAction.
+
+    /// The drop panels' heading row: a title and an X that closes the panel.
+    component DropPanelTitle : RowLayout {
+        property alias text: titleLabel.text
+
+        Layout.fillWidth: true
+
+        QGCLabel {
+            id:               titleLabel
+            Layout.fillWidth: true
+            font.pointSize:   ScreenTools.mediumFontPointSize
+        }
+
+        QGCColoredImage {
+            objectName:             "policeDropPanelClose"
+            Layout.preferredWidth:  ScreenTools.defaultFontPixelHeight * 0.7
+            Layout.preferredHeight: Layout.preferredWidth
+            source:                 "/res/XDelete.svg"
+            fillMode:               Image.PreserveAspectFit
+            color:                  qgcPal.text
+
+            QGCMouseArea {
+                fillItem:  parent
+                onClicked: dropPanel.hide()
+            }
+        }
+    }
+
+    Component {
+        id: takeoffComponent
+
+        ColumnLayout {
+            objectName: "policeTakeoffPanel"
+            spacing:    ScreenTools.defaultFontPixelHeight * 0.5
+
+            readonly property var  _maxFact: QGroundControl.settingsManager.flyViewSettings.guidedMaximumAltitude
+            // Gone with the vehicle, or once takeoff is no longer offered, and the panel goes too,
+            // as the stock confirm does through its hideTrigger.
+            readonly property bool _offered: root.guidedController ? root.guidedController.showTakeoff : false
+
+            on_OfferedChanged: if (!_offered) Qt.callLater(dropPanel.hide)
+
+            // A stock confirmation left up from another entry would sit over this one.
+            Component.onCompleted: {
+                root.guidedController.closeAll()
+                // Where the stock takeoff slider starts: the vehicle's minimum takeoff altitude.
+                if (root._activeVehicle) {
+                    takeoffAltitude.value = QGroundControl.unitsConversion.metersToAppSettingsVerticalDistanceUnits(
+                                root._activeVehicle.minimumTakeoffAltitudeMeters())
+                }
+            }
+
+            DropPanelTitle { text: qsTr("이륙 고도") }
+
+            PoliceAltitudeSlider {
+                id:               takeoffAltitude
+                objectName:       "policeTakeoffAltitude"
+                Layout.fillWidth: true
+                maximum:          _maxFact.value
+                onMaximumEdited:  (newMaximum) => _maxFact.value = newMaximum
+            }
+
+            PoliceSlideToConfirm {
+                objectName:       "policeTakeoffSlide"
+                Layout.fillWidth: true
+                text:             qsTr("밀어서 이륙")
+                // Taking off to nothing is not a takeoff.
+                enabled:          _offered && takeoffAltitude.value > 0
+                onAccepted: {
+                    root.guidedController.executeAction(root.guidedController.actionTakeoff, undefined, takeoffAltitude.value, false)
+                    dropPanel.hide()
+                }
+            }
+        }
     }
 
     // ------------------------------------------------------------- return altitude

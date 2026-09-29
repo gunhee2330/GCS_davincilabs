@@ -61,6 +61,14 @@ const QString kStartMissionButton = QStringLiteral("policeToolStartMission");
 const QString kRtlAltButton       = QStringLiteral("policeToolRtlAlt");
 const QString kRtlAltPanel        = QStringLiteral("policeRtlAltPanel");
 
+/// The takeoff panel beside the strip and what it holds.
+const QString kTakeoffPanel    = QStringLiteral("policeTakeoffPanel");
+const QString kTakeoffSlide    = QStringLiteral("policeTakeoffSlide");
+const QString kAltitudeSlider  = QStringLiteral("policeAltitudeSlider");
+const QString kAltitudeBubble  = QStringLiteral("policeAltitudeBubbleText");
+const QString kAltitudeMaximum = QStringLiteral("policeAltitudeMaximum");
+const QString kSlideKnob       = QStringLiteral("policeSlideKnob");
+
 const QString kSlider    = QStringLiteral("guidedValueSlider");
 const QString kDashboard = QStringLiteral("policeDroneDashboard");
 
@@ -288,6 +296,14 @@ QQuickItem *findForwardRing(QQuickItem *item)
     return nullptr;
 }
 
+/// The stock vertical altitude slider, which FlyView hands the guided controller. Not a QObject
+/// child of anything findChild can reach, so it is taken off the dashboard's controller.
+QQuickItem *stockSlider(QQuickItem *dashboard)
+{
+    QObject *const controller = dashboard->property("guidedController").value<QObject *>();
+    return controller ? controller->property("guidedValueSlider").value<QQuickItem *>() : nullptr;
+}
+
 }  // namespace
 
 void PoliceGuidedActionUITest::_ignorePreexistingQmlWarnings()
@@ -414,6 +430,27 @@ void PoliceGuidedActionUITest::_dragPointer(const QList<QPointF> &path, const QS
 
     QTest::mouseRelease(_window, Qt::LeftButton, Qt::NoModifier, at);
     QTest::qWait(kSettleMs);
+}
+
+void PoliceGuidedActionUITest::_slide(const QString &barName, qreal fraction, const QString &grabName)
+{
+    QQuickItem *const bar = findVisibleItem(_rootItem, barName, 5000);
+    QVERIFY2(bar, qPrintable(QStringLiteral("%1 is not on screen").arg(barName)));
+    QVERIFY2(bar->isEnabled(), qPrintable(QStringLiteral("%1 is disabled").arg(barName)));
+    QQuickItem *const knob = findVisibleItem(bar, kSlideKnob, 1000);
+    QVERIFY2(knob, qPrintable(QStringLiteral("%1 has no knob").arg(barName)));
+
+    const QPointF from = knob->mapToScene(QPointF(knob->width() / 2, knob->height() / 2));
+    // The knob's centre travels the bar less one knob width; past the end is clamped by the drag.
+    const qreal travel = bar->width() - knob->width();
+    _dragPointer({from, from + QPointF(travel * fraction, 0)}, grabName);
+}
+
+void PoliceGuidedActionUITest::_takeOffFromPanel()
+{
+    QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
+    QVERIFY2(findVisibleItem(_rootItem, kTakeoffPanel, 5000), "Takeoff panel never opened");
+    _slide(kTakeoffSlide, 1.1);
 }
 
 void PoliceGuidedActionUITest::_testTargetDragPicksBox()
@@ -624,35 +661,70 @@ void PoliceGuidedActionUITest::_testTrackCancelButton()
     });
 }
 
-void PoliceGuidedActionUITest::_testTakeoffRaisesConfirmControl()
+void PoliceGuidedActionUITest::_testTakeoffOpensPanel()
 {
     _ignorePreexistingQmlWarnings();
 
-    runWithMockLink([] { return MockLink::startPX4MockLink(); },
-                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
-        // Checked first: a control that is always up would pass the positive case below for
-        // the wrong reason.
-        QVERIFY2(!findVisibleItem(_rootItem, kConfirmButton, 1000),
-                 "Confirm control was already up before any action was requested");
+    Fact *const maxFact = SettingsManager::instance()->flyViewSettings()->guidedMaximumAltitude();
+    const QVariant savedMax = maxFact->rawValue();
+    const auto restoreMax = qScopeGuard([maxFact, savedMax] { maxFact->setRawValue(savedMax); });
 
-        // A disabled takeoff entry would leave the control down too, and would look exactly
-        // like the regression this test is for.
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this, maxFact](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QVERIFY2(!findVisibleItem(_rootItem, kTakeoffPanel, 0), "Takeoff panel was open before the tap");
         QVERIFY(verifyEnabled(kTakeoffButton, true, QStringLiteral("before pressing takeoff")));
         QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
 
-        QQuickItem *const confirmButton = findVisibleItem(_rootItem, kConfirmButton, 5000);
-        QVERIFY2(confirmButton, "Confirm control never appeared after pressing takeoff");
+        QQuickItem *const panel = findVisibleItem(_rootItem, kTakeoffPanel, 5000);
+        QVERIFY2(panel, "Takeoff panel never opened after pressing takeoff");
+        // Neither the stock hold button nor its vertical slider comes up for takeoff any more.
+        QVERIFY2(!findVisibleItem(_rootItem, kConfirmButton, 1500), "The stock hold confirm came up for takeoff");
+        QVERIFY2(!findVisibleItem(_rootItem, kSlider, 0), "The stock vertical slider came up for takeoff");
+        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+            _grab(QStringLiteral("takeoff_0_panel"));
+            if (QTest::currentTestFailed()) return;
+        }
 
-        // findVisibleItem walks isVisible(), which is false while any ancestor is hidden, so
-        // reaching here already rules out the toolbar-parented control. The size check catches
-        // the other way it can be on screen and unusable.
-        QVERIFY2((confirmButton->width() > 0) && (confirmButton->height() > 0),
-                 "Confirm button is visible but has no area to press");
+        QQuickItem *const slider = findVisibleItem(panel, kAltitudeSlider, 1000);
+        QVERIFY2(slider, "Takeoff panel has no altitude slider");
+        QQuickItem *const bubble = findVisibleItem(panel, kAltitudeBubble, 1000);
+        QVERIFY2(bubble, "Takeoff panel has no value bubble");
+        QQuickItem *const maxField = findVisibleItem(panel, kAltitudeMaximum, 1000);
+        QVERIFY2(maxField, "Takeoff panel has no 최대 field");
 
-        // Two instances of the stock component exist and both claim guidedController.confirmDialog
-        // on completion. This says the one on screen is ours.
-        QVERIFY2(hasAncestorNamed(confirmButton, kConfirmHost),
-                 "Confirm control on screen is not the police instance");
+        // It starts where the stock takeoff slider started: the vehicle's minimum takeoff altitude.
+        const double minTakeoff = FactMetaData::metersToAppSettingsVerticalDistanceUnits(
+                                      vehicle->minimumTakeoffAltitudeMeters()).toDouble();
+        QVERIFY2(qAbs(slider->property("value").toDouble() - minTakeoff) < 0.01,
+                 qPrintable(QStringLiteral("Slider starts at %1, the minimum takeoff altitude is %2")
+                                .arg(slider->property("value").toDouble()).arg(minTakeoff)));
+        QCOMPARE(slider->property("from").toDouble(), 0.0);
+        QVERIFY(qAbs(slider->property("to").toDouble() - maxFact->cookedValue().toDouble()) < 0.01);
+        const QString unit = FactMetaData::appSettingsVerticalDistanceUnitsString();
+
+        // The bubble follows the slider.
+        QVERIFY(slider->setProperty("value", 30));
+        QTRY_COMPARE(bubble->property("text").toString(), QStringLiteral("30 %1").arg(unit));
+
+        // 최대 typed in writes the stock setting, and the slider's range follows it.
+        QQuickItem *const fieldItem = maxField;
+        const QPointF fieldCentre = fieldItem->mapToScene(QPointF(fieldItem->width() / 2, fieldItem->height() / 2));
+        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, fieldCentre.toPoint());
+        QTRY_VERIFY(fieldItem->hasActiveFocus());
+        QTest::keySequence(_window, QKeySequence::SelectAll);
+        QTest::keyClick(_window, Qt::Key_8);
+        QTest::keyClick(_window, Qt::Key_0);
+        QTest::keyClick(_window, Qt::Key_Return);
+        QTRY_COMPARE(qRound(maxFact->cookedValue().toDouble()), 80);
+        QTRY_COMPARE(slider->property("to").toDouble(), 80.0);
+        QCOMPARE(fieldItem->property("text").toString(), QStringLiteral("80"));
+
+        // The X closes it with nothing sent.
+        QVERIFY2(clickButton(QStringLiteral("policeDropPanelClose")), "Could not click the panel's X");
+        QTRY_VERIFY2(!findVisibleItem(_rootItem, kTakeoffPanel, 0), "Takeoff panel stayed after its X");
     });
 }
 
@@ -662,17 +734,14 @@ void PoliceGuidedActionUITest::_testTakeoffAltitudeSliderIsOnTop()
 
     runWithMockLink([] { return MockLink::startPX4MockLink(); },
                     [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
-        QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
-        QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000),
-                 "Confirm control never appeared after pressing takeoff");
-
-        // PX4 multirotors take off to a chosen altitude, so confirmAction raises the slider
-        // alongside the control.
-        QQuickItem *const slider = findVisibleItem(_rootItem, kSlider, 3000);
-        QVERIFY2(slider, "Takeoff altitude slider never became visible");
-
+        // Takeoff no longer raises the stock slider, but pause, goto and orbit still do; it is
+        // put up by hand here, the way confirmAction would.
         QQuickItem *const dashboard = findVisibleItem(_rootItem, kDashboard, 3000);
         QVERIFY2(dashboard, "Police dashboard not found - the layout under test is not up");
+        QQuickItem *const slider = stockSlider(dashboard);
+        QVERIFY2(slider, "Stock altitude slider not found");
+        QVERIFY(slider->setProperty("visible", true));
+        QVERIFY2(findVisibleItem(_rootItem, kSlider, 3000), "Altitude slider never became visible");
 
         // z only orders items against their own siblings, so the comparison below says nothing
         // unless these two share a parent. They do today; if that ever changes this fails
@@ -685,15 +754,19 @@ void PoliceGuidedActionUITest::_testTakeoffAltitudeSliderIsOnTop()
         // which Qt Quick breaks by declaration order, and the dashboard is declared second.
         QVERIFY2(slider->z() > dashboard->z(),
                  "Altitude slider sits at or below the dashboard and would be covered");
+        QVERIFY(slider->setProperty("visible", false));
     });
 }
 
-void PoliceGuidedActionUITest::_testHoldConfirmSendsTakeoff()
+void PoliceGuidedActionUITest::_testSlideSendsTakeoff()
 {
     _ignorePreexistingQmlWarnings();
 
     runWithMockLink([] { return MockLink::startPX4MockLink(); },
                     [this](QPointer<MockLink> mockLink, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
         // PX4 sends the takeoff altitude as AMSL, so it refuses outright until the vehicle
         // altitude is known.
         QVERIFY_TRUE_WAIT(!qIsNaN(vehicle->altitudeAMSL()->rawValue().toDouble()), TestTimeout::longMs());
@@ -706,21 +779,27 @@ void PoliceGuidedActionUITest::_testHoldConfirmSendsTakeoff()
                          QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
 
         QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
-        QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000),
-                 "Confirm control never appeared after pressing takeoff");
+        QQuickItem *const panel = findVisibleItem(_rootItem, kTakeoffPanel, 5000);
+        QVERIFY2(panel, "Takeoff panel never opened after pressing takeoff");
+        QQuickItem *const slider = findVisibleItem(panel, kAltitudeSlider, 1000);
+        QVERIFY2(slider, "Takeoff panel has no altitude slider");
+        QVERIFY(slider->setProperty("value", 7));
+        const double sliderMeters = FactMetaData::appSettingsVerticalDistanceUnitsToMeters(7).toDouble();
 
         mockLink->clearReceivedMavCommandCounts();
 
-        // GuidedActionConfirm hands executeAction the slider reading and the controller converts
-        // it to metres. Read it here, before the hold takes the slider away, so param7 can be
-        // checked against the altitude that was on screen.
-        QQuickItem *const slider = findVisibleItem(_rootItem, kSlider, 3000);
-        QVERIFY2(slider, "Takeoff altitude slider never became visible");
-        QVariant sliderOutput;
-        QVERIFY2(QMetaObject::invokeMethod(slider, "getOutputValue", Q_RETURN_ARG(QVariant, sliderOutput)),
-                 "Could not read the slider output value");
-        const double sliderMeters = FactMetaData::appSettingsVerticalDistanceUnitsToMeters(sliderOutput).toDouble();
-        QVERIFY2(sliderMeters > 0, "Slider offered a takeoff altitude of zero");
+        // Let go halfway: the knob goes back and nothing is sent. The mid-drag frame is the capture.
+        _slide(kTakeoffSlide, 0.5, QStringLiteral("takeoff_1_mid_drag"));
+        if (QTest::currentTestFailed()) return;
+        QQuickItem *const bar = findVisibleItem(panel, kTakeoffSlide, 1000);
+        QVERIFY2(bar, "The slide bar went away after an early release");
+        QQuickItem *const knob = findVisibleItem(bar, kSlideKnob, 1000);
+        QVERIFY2(knob, "The slide bar has no knob");
+        QTRY_VERIFY2(knob->x() < knob->width() / 2, "The knob did not slide back after an early release");
+        QTest::qWait(kSettleMs);
+        QCOMPARE(mockLink->receivedMavCommandCount(MAV_CMD_NAV_TAKEOFF), 0);
+        QVERIFY2(!vehicle->armed(), "An early release armed the vehicle");
+        QVERIFY2(findVisibleItem(_rootItem, kTakeoffPanel, 0), "An early release closed the panel");
 
         // PX4FirmwarePlugin::guidedModeTakeoff builds param7 as this AMSL plus the slider metres.
         const double vehicleAmslAtCommand = vehicle->altitudeAMSL()->rawValue().toDouble();
@@ -732,11 +811,13 @@ void PoliceGuidedActionUITest::_testHoldConfirmSendsTakeoff()
         // traffic overwrites it.
         const double mockAltitudeBeforeTakeoff = mockLink->vehicleAltitudeAMSL();
 
-        // A real press-and-hold rather than emitting activated(): the whole defect was that
-        // this gesture could not reach the button.
-        QVERIFY(_holdButton(kConfirmButton));
+        // All the way: the takeoff goes out, the vehicle arms, and the panel closes.
+        _slide(kTakeoffSlide, 1.1);
+        if (QTest::currentTestFailed()) return;
 
         QVERIFY_TRUE_WAIT(mockLink->receivedMavCommandCount(MAV_CMD_NAV_TAKEOFF) == 1, TestTimeout::longMs());
+        QVERIFY_TRUE_WAIT(vehicle->armed(), TestTimeout::longMs());
+        QVERIFY2(!findVisibleItem(_rootItem, kTakeoffPanel, 0), "Takeoff panel stayed after the takeoff");
 
         // The rise is param7, and param7 carries the vehicle AMSL, so on its own this says only
         // that param7 is above zero.
@@ -822,9 +903,8 @@ void PoliceGuidedActionUITest::_testRtlAltitudeFromToolStrip()
                          QRegularExpression(QStringLiteral("Failed to connect to pressure backend")));
         ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
                          QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
-        QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
-        QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000), "Confirm control never appeared");
-        QVERIFY(_holdButton(kConfirmButton));
+        _takeOffFromPanel();
+        if (QTest::currentTestFailed()) return;
         QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
         QTest::qWait(kSettleMs);
 
@@ -901,8 +981,7 @@ void PoliceGuidedActionUITest::_captureGuidedScreens()
         if (QTest::currentTestFailed()) return;
 
         QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
-        QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000), "Confirm control never appeared");
-        QVERIFY2(findVisibleItem(_rootItem, kSlider, 3000), "Altitude slider never appeared");
+        QVERIFY2(findVisibleItem(_rootItem, kTakeoffPanel, 5000), "Takeoff panel never appeared");
         _grab(QStringLiteral("guided_1_takeoff_confirm"));
         if (QTest::currentTestFailed()) return;
 
@@ -1188,7 +1267,10 @@ void PoliceGuidedActionUITest::_testCameraBandLayout()
         // The stock altitude slider takes the whole right screen edge while a confirmation is up,
         // which is the edge this strip stands on: it steps inboard of the slider for as long as
         // the slider is there and comes back to its own inset afterwards.
-        QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
+        // Takeoff no longer raises it, so it is put up by hand, the way confirmAction would.
+        QQuickItem *const hiddenSlider = stockSlider(dashboard);
+        QVERIFY2(hiddenSlider, "Stock altitude slider not found");
+        QVERIFY(hiddenSlider->setProperty("visible", true));
         QQuickItem *const slider = findVisibleItem(_rootItem, kSlider, 5000);
         QVERIFY2(slider, "Altitude slider never appeared");
         QTest::qWait(kSettleMs);
@@ -1336,9 +1418,8 @@ void PoliceGuidedActionUITest::_testMapScale()
                      QRegularExpression(QStringLiteral("Failed to connect to pressure backend")));
     ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
                      QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
-    QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
-    QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000), "Confirm control never appeared");
-    QVERIFY(_holdButton(kConfirmButton));
+    _takeOffFromPanel();
+    if (QTest::currentTestFailed()) return;
     QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
     QTest::qWait(kSettleMs);
     checkScale(QStringLiteral("map_scale_2_flying"));
@@ -1704,8 +1785,7 @@ void PoliceGuidedActionUITest::_captureCameraBand()
         vehicle->setArmed(false, false);
         QTRY_VERIFY(!vehicle->armed());
         QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
-        QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000), "Confirm control never appeared");
-        QVERIFY2(findVisibleItem(_rootItem, kSlider, 3000), "Altitude slider never appeared");
+        QVERIFY2(findVisibleItem(_rootItem, kTakeoffPanel, 5000), "Takeoff panel never appeared");
         _grab(QStringLiteral("v2_3_takeoff"));
         if (QTest::currentTestFailed()) return;
 
@@ -1733,7 +1813,8 @@ void PoliceGuidedActionUITest::_captureCameraBand()
 
         // In flight the left strip carries the most entries the mock can put in it: 착륙, 복귀
         // and 일시정지 all appear and 이륙 goes away. That is the height T3's cap has to hold.
-        QVERIFY(_holdButton(kConfirmButton));
+        _slide(kTakeoffSlide, 1.1);
+        if (QTest::currentTestFailed()) return;
         QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
         _grab(QStringLiteral("v2_5_flying_strip"));
     });
@@ -2181,9 +2262,8 @@ void PoliceGuidedActionUITest::_testFullscreenFlightStrip()
                          QRegularExpression(QStringLiteral("Failed to connect to pressure backend")));
         ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
                          QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
-        QVERIFY2(clickButton(kTakeoffButton), "Could not click the takeoff tool strip entry");
-        QVERIFY2(findVisibleItem(_rootItem, kConfirmButton, 5000), "Confirm control never appeared");
-        QVERIFY(_holdButton(kConfirmButton));
+        _takeOffFromPanel();
+        if (QTest::currentTestFailed()) return;
         QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
         QTest::qWait(kSettleMs * 2);
 
