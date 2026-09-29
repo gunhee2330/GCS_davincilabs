@@ -33,34 +33,18 @@ Item {
     readonly property real _aiRefHeight: 720
 
     // One line the operator can read off: what the module is tracking, where its box centre
-    // sits in the module's 1280×720 frame, how big it is, and the laser range if the pod has
-    // one. Empty when nothing is tracked, so the panels can key visibility on it.
+    // sits in the module's 1280×720 frame and how big it is. Empty when nothing is tracked,
+    // so the panels can key visibility on it.
     readonly property string _trackedInfo: aiTargetVisible
-        ? qsTr("%1, 위치 (%2, %3), 크기 %4×%5 px%6")
+        ? qsTr("%1, 위치 (%2, %3), 크기 %4×%5 px")
               .arg(aiTargetLabel)
               .arg(Math.round(App.SiyiAiController.targetCentreX * _aiRefWidth))
               .arg(Math.round(App.SiyiAiController.targetCentreY * _aiRefHeight))
               .arg(Math.round(aiTargetWidth))
               .arg(Math.round(aiTargetHeight))
-              .arg(App.SiyiCameraController.rangefinderAvailable
-                   ? qsTr(", LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
-                   : "")
         : ""
 
-    // Where the pod says its laser is pointing, to seven decimals so it can be read off the
-    // screen and compared against a surveyed point. Shown whenever the pod reports it, tracking
-    // or not, because checking it is done by aiming at a known mark rather than at a person.
-    // It is the LASER's point, not the tracker's — the two agree only while the tracked object
-    // sits under the laser axis, and how far apart they run is exactly what has to be measured.
-    readonly property string _laserInfo: App.SiyiCameraController.rangefinderTargetAvailable
-        ? qsTr("레이저 지점 %1, %2")
-              .arg(Number(App.SiyiCameraController.rangefinderTarget.latitude).toFixed(7))
-              .arg(Number(App.SiyiCameraController.rangefinderTarget.longitude).toFixed(7))
-        : ""
-
-    readonly property string aiTargetInfo:
-        (_trackedInfo.length > 0 && _laserInfo.length > 0) ? (_trackedInfo + ", " + _laserInfo)
-                                                           : (_trackedInfo + _laserInfo)
+    readonly property string aiTargetInfo: _trackedInfo
 
     /// Target picking only makes sense once the module is up and recognising.
     readonly property bool _aiPickEnabled: App.SiyiAiController.connected && App.SiyiAiController.recognitionEnabled
@@ -380,15 +364,6 @@ Item {
     /// Gap kept clear along the bottom edge now that the control panel floats rather than
     /// occupying two full-width bars.
     readonly property real _bottomInset:  8
-
-    /// The rangefinder reading, for wherever it has to be readable. A reading shows from any pod;
-    /// a ZT30 with no return shows dashes from the moment it answers rather than from the first
-    /// reading: the spec asks for it "상시", and a figure that appears and vanishes with the
-    /// laser's luck is one an operator stops looking for. Dashes say "no return"; an empty
-    /// corner says nothing at all.
-    readonly property string _lrfText: App.SiyiCameraController.rangefinderAvailable
-                                           ? qsTr("LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
-                                           : (App.SiyiCameraController.isZT30 ? qsTr("LRF --") : "")
 
     /// What to mark on the thermal picture full screen: the point the operator is holding, and
     /// only that. The scene's hottest and coldest readings stay in the text beside the name
@@ -1175,11 +1150,6 @@ Item {
         // Operator words, not industry ones: zoom / wide / thermal, never EO or IR.
         title:      root._aiStreamActive ? qsTr("AI 인식")
                                          : (root.eoShowsWideAngle ? qsTr("광각") : qsTr("줌"))
-        // The range lives here as well as on the thermal window. The laser measures down the
-        // gimbal axis, which is what this camera is looking at, and this is the window an
-        // operator spends the flight watching - a reading only on the picture they are not
-        // looking at is not "상시" in any sense that helps.
-        detail:     root._lrfText
     }
 
     CameraWindow {
@@ -1188,11 +1158,8 @@ Item {
         panelKey:   "shared"
         bodyWidth:  root._stackWindowWidth
         title:      qsTr("열상")
-        // At night thermal and the laser rangefinder work as a pair, so the distance lives
-        // on this window's bar, with dashes while a ZT30 answers without a return.
-        detail:     root._lrfText
         // RFP p11: the pod's whole-frame hottest and coldest, always up next to the name rather
-        // than inside the camera panel. No reading, no text, the same as the laser.
+        // than inside the camera panel. No reading, no text.
         extraDetail: App.SiyiCameraController.thermalRangeAvailable
                         ? qsTr("최고 %1 °C  최저 %2 °C")
                               .arg(Number(App.SiyiCameraController.thermalMaxTempC).toFixed(1))
@@ -2618,7 +2585,6 @@ Item {
                                                 guidedConfirmHost.contentBottom > 0
                                                     ? guidedConfirmHost.y + guidedConfirmHost.contentBottom - bigPictureLayer.y : 0)
                                          : 0
-        panelDetail:          root._lrfText
         streamObjectName:     "thermalVideo"
         // No target picking here any more: this window is always thermal now, and a tap on
         // the thermal frame would hand the module coordinates from a different sensor's view.

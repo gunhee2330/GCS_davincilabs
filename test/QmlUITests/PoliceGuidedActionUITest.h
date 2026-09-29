@@ -137,8 +137,9 @@ private slots:
     void _testMapSwap();
 
     /// The pod's whole-frame hottest and coldest, fed from a fake gimbal on loopback, read
-    /// 최고 … °C  최저 … °C on the thermal window's name chip after the LRF reading and follow the
-    /// pod live; the same text rides the name chip with the thermal window full screen, and both go
+    /// 최고 … °C  최저 … °C on the thermal window's name chip and follow the pod live, with no laser
+    /// range on either window bar; the same text alone rides the name chip with the thermal window
+    /// full screen, and both go
     /// once the pod stops answering. Grabs thermal_temp_0_window, thermal_temp_1_with_lrf,
     /// thermal_temp_2_fullscreen and lrf_switch_panel when QGC_SCREENSHOT_DIR is set.
     void _testThermalTemperatureReadout();

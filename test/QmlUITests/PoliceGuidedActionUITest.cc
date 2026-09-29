@@ -2478,7 +2478,7 @@ void PoliceGuidedActionUITest::_testThermalTemperatureReadout()
         QQuickItem *const chip = window->findChild<QQuickItem *>(kTitleChip);
         QVERIFY2(chip, "Thermal window has no name chip");
         QQuickItem *const temps = chip->findChild<QQuickItem *>(QStringLiteral("cameraWindowExtraDetail"));
-        QVERIFY2(temps, "Thermal name chip has no reading after the LRF");
+        QVERIFY2(temps, "Thermal name chip has no temperature reading");
         QVERIFY2(!temps->isVisible(), "Temperatures are up with no pod answering");
 
         // A fake pod on loopback, the controller pointed at it the way the controller test does.
@@ -2557,23 +2557,31 @@ void PoliceGuidedActionUITest::_testThermalTemperatureReadout()
             if (QTest::currentTestFailed()) return;
         }
 
-        // The laser reads out as well: LRF first, then the temperatures, one chip gap apart - beside
-        // it where the window is wide enough, under it where it is not, and inside the window
-        // either way.
+        // The laser reads out on neither window bar: only the big zoom picture's pill carries it.
+        const std::function<QQuickItem *(QQuickItem *)> findLrfText = [&findLrfText](QQuickItem *item) -> QQuickItem * {
+            if (item->isVisible() && item->property("text").toString().startsWith(QStringLiteral("LRF"))) {
+                return item;
+            }
+            for (QQuickItem *const child : item->childItems()) {
+                if (QQuickItem *const found = findLrfText(child)) {
+                    return found;
+                }
+            }
+            return nullptr;
+        };
+        QQuickItem *const zoomWindow = findVisibleItem(_rootItem, kZoomWindow, 5000);
+        QVERIFY2(zoomWindow, "Zoom window not found");
+        QQuickItem *const zoomChip = zoomWindow->findChild<QQuickItem *>(kTitleChip);
+        QVERIFY2(zoomChip, "Zoom window has no name chip");
         QByteArray range;
         le16(range, 1234);
         laserReply = SiyiProtocol::encodeRaw(static_cast<quint8>(SiyiProtocol::CommandId::ReadRangefinder), range);
-        QTRY_VERIFY_WITH_TIMEOUT(findVisibleTextItem(chip, QStringLiteral("LRF 123.4 m")), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(camera->rangefinderAvailable(), 5000);
         QTest::qWait(kSettleMs);
-        QQuickItem *const laser = findVisibleTextItem(chip, QStringLiteral("LRF 123.4 m"));
-        const QRectF laserRect = sceneRect(laser);
-        const QRectF tempsRect = sceneRect(temps);
-        const qreal spacing = temps->parentItem()->property("spacing").toReal();
-        const bool beside = qAbs(tempsRect.top() - laserRect.top()) < 1.0;
-        const qreal gap = beside ? (tempsRect.left() - laserRect.right()) : (tempsRect.top() - laserRect.bottom());
-        QVERIFY2((beside || qAbs(tempsRect.left() - laserRect.left()) < 1.0) && qAbs(gap - spacing) < 1.0,
-                 qPrintable(QStringLiteral("LRF %1 and temperatures %2 are not one chip gap (%3) apart")
-                                .arg(QDebug::toString(laserRect), QDebug::toString(tempsRect)).arg(spacing)));
+        QVERIFY2(!findLrfText(chip), "The thermal window bar shows the laser range");
+        QVERIFY2(!findLrfText(zoomChip), "The zoom window bar shows the laser range");
+        QCOMPARE(temps->property("text").toString(), kFirst);
+        QVERIFY2(temps->isVisible(), "Temperatures went with the laser reading in");
         checkInside();
         if (QTest::currentTestFailed()) return;
 
@@ -2596,6 +2604,12 @@ void PoliceGuidedActionUITest::_testThermalTemperatureReadout()
         QQuickItem *const fullTitle = findVisibleTextItem(fullTemps->parentItem(), QStringLiteral("열상"));
         QVERIFY2(fullTitle, "Full screen name chip does not carry the window name next to the temperatures");
         QVERIFY2(sceneRect(fullTitle).right() < sceneRect(fullTemps).left(), "Temperatures are not after the name");
+        QQuickItem *thermalPanel = fullTemps;
+        while (thermalPanel && !thermalPanel->property("panelTitle").isValid()) {
+            thermalPanel = thermalPanel->parentItem();
+        }
+        QVERIFY2(thermalPanel, "The full screen name chip is not inside a camera panel");
+        QVERIFY2(!findLrfText(thermalPanel), "The big thermal picture shows the laser range");
         if (capture) {
             _grab(QStringLiteral("thermal_temp_2_fullscreen"));
             if (QTest::currentTestFailed()) return;
