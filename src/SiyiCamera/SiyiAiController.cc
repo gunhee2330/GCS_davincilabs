@@ -62,6 +62,10 @@ constexpr int kCountKeepAliveInterval = 20;
 /// the gimbal following a person after the operator was told it had stopped.
 constexpr qint64 kCancelReplyTimeoutMs = 300;
 
+/// How long trackBox() waits on the module's answer to the point pick before sending the dragged
+/// box instead. Checked from _poll(), so the box goes out 1.0 to 1.2 s after the drag at the latest.
+constexpr qint64 kPointPickReplyTimeoutMs = 1000;
+
 /// Second byte of a SetRecognitionState reply when the module declines because its input video
 /// is above 1920x1080 (apt_set_ai_switch@0x577c80 returns 0x0600, little endian). Undocumented,
 /// and the only clue an operator gets that recognition is refusing rather than absent.
@@ -247,6 +251,7 @@ void SiyiAiController::stop()
     _vehicleClasses.clear();
     _streamRequested = false;
     _cancelPending = false;
+    _boxPending = false;
     _setHasTarget(false);
     _setConnected(false);
     _setCountsValid(false);
@@ -293,12 +298,27 @@ void SiyiAiController::trackPoint(double x, double y)
 
 void SiyiAiController::trackBox(double left, double top, double right, double bottom)
 {
-    _cancelPending = false;     // See trackPoint().
-    _send(SiyiAi::encodeTrackBox(toReference(left, _streamWidth),
-                                 toReference(top, _streamHeight),
-                                 toReference(right, _streamWidth),
-                                 toReference(bottom, _streamHeight),
-                                 _sequence++));
+    // A dragged box is tracked as a template and reported as class Arbitrary, even drawn around a
+    // person. The module's own tap selection picks the recognised object under a point and reports
+    // its class, so the box's centre goes first as a point. The box itself follows only when the
+    // module refuses the point or does not answer; see _handleFrame() and _poll().
+    trackPoint((left + right) / 2.0, (top + bottom) / 2.0);
+
+    _pendingBox[0] = toReference(left, _streamWidth);
+    _pendingBox[1] = toReference(top, _streamHeight);
+    _pendingBox[2] = toReference(right, _streamWidth);
+    _pendingBox[3] = toReference(bottom, _streamHeight);
+    _boxPending = true;
+    // With a target already on screen the stream keeps reporting that one until the module acts on
+    // the point, so only the acknowledgement can say the point was taken.
+    _boxPendingHadTarget = _hasTarget;
+    _boxPendingTimer.start();
+}
+
+void SiyiAiController::_sendPendingBox()
+{
+    _boxPending = false;
+    _send(SiyiAi::encodeTrackBox(_pendingBox[0], _pendingBox[1], _pendingBox[2], _pendingBox[3], _sequence++));
 }
 
 void SiyiAiController::cancelTracking()
@@ -322,6 +342,9 @@ void SiyiAiController::cancelTracking()
     // overdue. And the target stays on screen until one of the two actually happens, because the
     // module is still tracking until then and a dashboard that says otherwise is lying about
     // where the gimbal is pointing.
+    // A dragged box still waiting on its point pick must not go out after the operator said stop.
+    _boxPending = false;
+
     _cancelPending = true;
     _cancelSequence = _sequence;
     _cancelTimer.start();
@@ -391,6 +414,16 @@ void SiyiAiController::_handleFrame(const SiyiProtocol::Frame &frame)
     case SiyiAi::CommandId::SetTrackTarget: {
         const auto result = SiyiAi::parseTrackRequestResult(frame.data);
         if (!result) {
+            break;
+        }
+        if (_boxPending) {
+            // The answer to the point pick trackBox() sent first. Anything but accepted means no
+            // recognised object under it, so the dragged box goes out as before.
+            if (*result == SiyiAi::TrackRequestResult::Accepted) {
+                _boxPending = false;
+            } else {
+                _sendPendingBox();
+            }
             break;
         }
         switch (*result) {
@@ -471,6 +504,10 @@ void SiyiAiController::_handleFrame(const SiyiProtocol::Frame &frame)
             // A cancel from the hand controller or SIYI's own app is only reported here, so
             // drop the target now instead of waiting out kTargetTimeoutMs.
             _hasTarget = (_target.status != SiyiAi::TrackingStatus::CancelledByUser);
+            if (_boxPending && !_boxPendingHadTarget && (_target.type != SiyiAi::TargetType::Arbitrary)) {
+                // The point picked a recognised object; its class is on screen now.
+                _boxPending = false;
+            }
             emit targetChanged();
         }
         break;
@@ -500,6 +537,9 @@ void SiyiAiController::_poll()
         _cancelPending = false;
         _send(SiyiAi::encodeCancelTracking(_sequence++));
         _setHasTarget(false);
+    }
+    if (_boxPending && _boxPendingTimer.hasExpired(kPointPickReplyTimeoutMs)) {
+        _sendPendingBox();
     }
 
     if (_countSocket) {

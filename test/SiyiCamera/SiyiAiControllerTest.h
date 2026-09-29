@@ -24,4 +24,9 @@ private slots:
     void _countingIsRestartedWhenTheModuleDropsItsFlag_test();
     void _startAckIsToldApartByItsZeroRowNotItsOrder_test();
     void _streamTooLargeSurvivesTheStateReply_test();
+    void _dragKeepsAnAcceptedPointPick_test();
+    void _dragSendsTheBoxWhenThePointIsRefused_test();
+    void _dragSendsTheBoxWhenThePointGetsNoReply_test();
+    void _dragKeepsTheClassTheStreamReports_test();
+    void _cancelDropsAPendingDragBox_test();
 };

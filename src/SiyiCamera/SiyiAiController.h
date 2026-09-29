@@ -120,7 +120,9 @@ public:
     /// they are scaled to the module's reference resolution before sending.
     Q_INVOKABLE void trackPoint(double x, double y);
 
-    /// Selects a target by dragging a box, normalised 0..1.
+    /// Selects a target by dragging a box, normalised 0..1. The recognised object under the box's
+    /// centre is tried first, so a person or a vehicle keeps its class; the box itself is sent only
+    /// when the module refuses that or does not answer within a second.
     Q_INVOKABLE void trackBox(double left, double top, double right, double bottom);
 
     Q_INVOKABLE void cancelTracking();
@@ -176,6 +178,7 @@ private:
     void _setConnected(bool connected);
     void _setHasTarget(bool hasTarget);
     void _setStreamTooLarge(bool tooLarge);
+    void _sendPendingBox();
 
     void _sendCount(SiyiAi::PrivateCommandId command, const QByteArray &payload = QByteArray());
     void _readCountLink();
@@ -250,6 +253,14 @@ private:
     bool _cancelPending = false;
     quint16 _cancelSequence = 0;
     QElapsedTimer _cancelTimer;
+
+    /// A dragged box waiting on the module's answer to the point pick at its centre, in stream
+    /// coordinates, whether a target was on screen when it was drawn, and how long it has waited;
+    /// see trackBox().
+    bool _boxPending = false;
+    bool _boxPendingHadTarget = false;
+    quint16 _pendingBox[4] = {};
+    QElapsedTimer _boxPendingTimer;
 
     int _streamWidth = SiyiAi::kReferenceWidth;
     int _streamHeight = SiyiAi::kReferenceHeight;
