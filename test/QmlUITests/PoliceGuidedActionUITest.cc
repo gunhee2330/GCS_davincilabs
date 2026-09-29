@@ -2229,6 +2229,7 @@ void PoliceGuidedActionUITest::_testThermalTemperatureReadout()
         };
         QByteArray tempReply;
         QByteArray laserReply;
+        QByteArray identityReply;
         const auto setTemps = [&](int maxCenti, int minCenti) {
             QByteArray data;
             le16(data, maxCenti);
@@ -2250,6 +2251,9 @@ void PoliceGuidedActionUITest::_testThermalTemperatureReadout()
             (void) pod.writeDatagram(tempReply, controllerAddress, controllerPort);
             if (!laserReply.isEmpty()) {
                 (void) pod.writeDatagram(laserReply, controllerAddress, controllerPort);
+            }
+            if (!identityReply.isEmpty()) {
+                (void) pod.writeDatagram(identityReply, controllerAddress, controllerPort);
             }
         });
         answering.start();
@@ -2320,5 +2324,45 @@ void PoliceGuidedActionUITest::_testThermalTemperatureReadout()
         QVERIFY(dashboard->setProperty("expandedPanel", QString()));
         QTest::qWait(kSettleMs);
         QVERIFY2(!temps->isVisible(), "Temperatures stayed up on the window after the pod fell silent");
+
+        // The camera panel with a ZT30 answering: the laser switch sits under the LRF readout.
+        identityReply = SiyiProtocol::encodeRaw(static_cast<quint8>(SiyiProtocol::CommandId::AcquireHardwareId), QByteArray("7A"));
+        answering.start();
+        QTRY_VERIFY_WITH_TIMEOUT(camera->isZT30(), 5000);
+        QQuickItem *const strip = findVisibleItem(_rootItem, kCameraStrip, 5000);
+        QVERIFY2(strip, "Camera tool strip is not on screen");
+        QList<QQuickItem *> entries;
+        collectStripEntries(strip, entries);
+        QQuickItem *cameraEntry = nullptr;
+        for (QQuickItem *const entry : entries) {
+            if (entry->property("text").toString() == QStringLiteral("카메라")) {
+                cameraEntry = entry;
+            }
+        }
+        QVERIFY2(cameraEntry, "카메라 is not on the camera grid");
+        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier,
+                          cameraEntry->mapToScene(QPointF(cameraEntry->width() / 2, cameraEntry->height() / 2)).toPoint());
+        QQuickItem *const laserSwitch = findVisibleItem(_rootItem, QStringLiteral("siyiLaserSwitch"), 5000);
+        QVERIFY2(laserSwitch, "The camera panel has no laser switch with a ZT30 answering");
+        QCOMPARE(laserSwitch->property("checked").toBool(), camera->laserEnabled());
+
+        // The panel scrolls inside its drop panel; bring the switch into view and check it is whole.
+        QQuickItem *flickable = laserSwitch->parentItem();
+        while (flickable && !flickable->property("contentY").isValid()) {
+            flickable = flickable->parentItem();
+        }
+        QVERIFY2(flickable, "The camera panel is not inside a flickable");
+        const qreal switchY = laserSwitch->mapToItem(flickable->property("contentItem").value<QQuickItem *>(), QPointF(0, 0)).y();
+        const qreal maxY = qMax(0.0, flickable->property("contentHeight").toReal() - flickable->height());
+        QVERIFY(flickable->setProperty("contentY", qBound(0.0, switchY - flickable->height() / 2, maxY)));
+        QTest::qWait(kSettleMs);
+        QVERIFY2(sceneRect(flickable).contains(sceneRect(laserSwitch)),
+                 qPrintable(QStringLiteral("Laser switch %1 is clipped by the panel %2")
+                                .arg(QDebug::toString(sceneRect(laserSwitch)), QDebug::toString(sceneRect(flickable)))));
+        if (capture) {
+            _grab(QStringLiteral("lrf_switch_panel"));
+            if (QTest::currentTestFailed()) return;
+        }
+        QTest::keyClick(_window, Qt::Key_Escape);
     });
 }

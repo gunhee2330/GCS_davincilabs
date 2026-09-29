@@ -17,4 +17,5 @@ private slots:
     void _closingTheLinkStopsFollowAndSaysWhatItCouldNotSend_test();
     void _newFollowRequestDropsTheOldRefusal_test();
     void _newFollowRequestIsUnconfirmedNotOff_test();
+    void _laserSwitchIsTheOperatorsChoice_test();
 };

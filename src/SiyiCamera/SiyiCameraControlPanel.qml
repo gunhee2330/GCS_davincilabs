@@ -289,6 +289,24 @@ ColumnLayout {
         font.pointSize:     ScreenTools.smallFontPointSize
     }
 
+    RowLayout {
+        Layout.fillWidth:   true
+        visible:            root._isZT30
+        enabled:            root._connected
+
+        QGCLabel {
+            Layout.fillWidth:   true
+            text:               qsTr("레이저 거리계")
+            font.pointSize:     ScreenTools.smallFontPointSize
+        }
+
+        QGCCheckBoxSlider {
+            objectName: "siyiLaserSwitch"
+            checked:    SiyiCameraController.laserEnabled
+            onClicked:  SiyiCameraController.laserEnabled = checked
+        }
+    }
+
     // ------------------------------------------------------------------ AI module
 
     QGCLabel {

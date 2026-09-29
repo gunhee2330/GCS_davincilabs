@@ -344,6 +344,20 @@ void SiyiCameraController::setThermalGain(int gain)
     _sendSingleByte(SiyiProtocol::CommandId::SetThermalGain, static_cast<quint8>(gain));
 }
 
+void SiyiCameraController::setLaserEnabled(bool on)
+{
+    if (_laserEnabled != on) {
+        _laserEnabled = on;
+        emit laserStateChanged();
+    }
+    // Sent even when unchanged: the switch is also how the operator retries a lost datagram.
+    // Turning on re-arms the poll's retries; the 0x31 that follows the ack updates laserOn.
+    _laserOnAttemptsLeft = on ? kLaserOnAttempts : 0;
+    if (isZT30()) {
+        _send(SiyiProtocol::encodeSetLaserState(on, _sequence++));
+    }
+}
+
 void SiyiCameraController::setAiFollow(bool on)
 {
     // Payload is the single 0/1 byte UniGCS 3.1.6 sends (o/h.java O0(boolean)). Nothing is
@@ -742,7 +756,7 @@ void SiyiCameraController::_poll()
             // An unlit laser answers 0x15/0x17 with zeroes, which both parsers refuse, so the
             // range and target readouts stay blank with nothing on screen saying why. The pod
             // powers up unlit and forgets across a power cycle, so light it here.
-            if (!_laserOn && (_laserOnAttemptsLeft > 0)) {
+            if (_laserEnabled && !_laserOn && (_laserOnAttemptsLeft > 0)) {
                 --_laserOnAttemptsLeft;
                 _send(SiyiProtocol::encodeSetLaserState(true, _sequence++));
             }
