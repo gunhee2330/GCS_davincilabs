@@ -105,6 +105,10 @@ private slots:
     /// QGC_SCREENSHOT_DIR is set.
     void _testBroadcastActionAlwaysShown();
 
+    /// The stock photo/video control loads only with the pod camera control off, so it never sits
+    /// over the camera grid's 촬영. Grabs stock_record_hidden when QGC_SCREENSHOT_DIR is set.
+    void _testStockPhotoVideoOnlyWithPodOff();
+
     /// Full screen, the flight strip stands in for the hidden top bar: on the zoom and on the
     /// thermal window it is up, reads the date and time, 비행 중 with the elapsed time and the
     /// top bar's distance in flight and a dash on the ground, the relative altitude and the

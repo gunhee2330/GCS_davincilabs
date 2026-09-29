@@ -2023,6 +2023,40 @@ void PoliceGuidedActionUITest::_testDetectionCardCells()
     });
 }
 
+void PoliceGuidedActionUITest::_testStockPhotoVideoOnlyWithPodOff()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QVERIFY(vehicle);
+        QVERIFY2(vehicle->cameraManager(), "The mock vehicle has no camera manager, so the loader proves nothing");
+        QQuickItem *const loader = findVisibleItem(_rootItem, QStringLiteral("photoVideoLoader"), 5000);
+        QVERIFY2(loader, "photoVideoLoader not found");
+
+        Fact *const podEnabled = SettingsManager::instance()->siyiCameraSettings()->enabled();
+        QVERIFY(podEnabled);
+        const QVariant saved = podEnabled->rawValue();
+        const auto restore = qScopeGuard([podEnabled, saved] { podEnabled->setRawValue(saved); });
+
+        podEnabled->setRawValue(true);
+        QTRY_VERIFY_WITH_TIMEOUT(!loader->property("item").value<QObject *>(), 3000);
+        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+            _grab(QStringLiteral("stock_record_hidden"));
+            if (QTest::currentTestFailed()) return;
+        }
+
+        podEnabled->setRawValue(false);
+        QTRY_VERIFY_WITH_TIMEOUT(loader->property("item").value<QObject *>(), 3000);
+
+        podEnabled->setRawValue(true);
+        QTRY_VERIFY_WITH_TIMEOUT(!loader->property("item").value<QObject *>(), 3000);
+    });
+}
+
 void PoliceGuidedActionUITest::_testFullscreenFlightStrip()
 {
     _ignorePreexistingQmlWarnings();
