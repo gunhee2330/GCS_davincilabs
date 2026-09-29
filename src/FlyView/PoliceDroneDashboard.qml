@@ -2550,6 +2550,7 @@ Item {
         // The camera rail's 추적해제 is behind the picture full screen, which is where the
         // operator is drawing boxes; this panel carries its own.
         trackCancelEnabled:   App.SiyiAiController.hasTarget
+        trackCancelVisible:   root.expandedPanel === "secondary"
         onActivated:          root._toggleExpanded("secondary")
         onTargetBoxPicked:    (l, t, r, b) => App.SiyiAiController.trackBox(l, t, r, b)
         onTrackCancelRequested: App.SiyiAiController.cancelTracking()

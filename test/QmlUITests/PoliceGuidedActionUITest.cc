@@ -537,8 +537,29 @@ void PoliceGuidedActionUITest::_testTrackCancelButton()
         QVERIFY(panel->setProperty("trackCancelEnabled", true));
         QTest::qWait(kSettleMs);
 
+        // In the corner the rail carries the command and the window is too small to give any of
+        // its picture to a button, so the one on the picture stays off.
+        QVERIFY2(!findVisibleItem(panel, kTrackCancel, 0),
+                 "The release button is on the small zoom window, over its picture");
+        QQuickItem *const strip = findVisibleItem(_rootItem, kCameraStrip, 3000);
+        QVERIFY2(strip, "Camera rail not found");
+        QVERIFY2(findVisibleTextItem(strip, QStringLiteral("추적해제")), "The rail lost its 추적해제 button");
+        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+            _grab(QStringLiteral("cancel_0_corner_no_button"));
+        }
+
+        // Full screen is the case the button exists for: the camera rail that carries the same
+        // command is at z 2, under the fullscreen layer at 20. Set rather than tapped - this is
+        // about what is reachable, not about the gesture.
+        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
+        QTest::qWait(kSettleMs);
         QQuickItem *const button = findVisibleItem(panel, kTrackCancel, 3000);
-        QVERIFY2(button, "The release button is not on the panel");
+        QVERIFY2(button, "The release button is not on the full screen panel");
+        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+            _grab(QStringLiteral("cancel_1_fullscreen_button"));
+            if (QTest::currentTestFailed()) return;
+        }
+        QVERIFY2(findVisibleTextItem(strip, QStringLiteral("추적해제")), "The rail lost its 추적해제 button");
 
         // It has to be hittable with a glove, and it has to be on the picture it belongs to. The
         // floor is read out of the same singleton the panel sizes itself from rather than pinned
@@ -571,9 +592,9 @@ void PoliceGuidedActionUITest::_testTrackCancelButton()
         QTest::qWait(kSettleMs);
         QCOMPARE(cancelSpy.count(), 1);
         QVERIFY2(boxSpy.isEmpty(), "Clicking the release button also handed the module a box");
-        // The tap that fills the screen with this camera runs on the same panel, off a passive
-        // grab that the button's own grab does not take away.
-        QCOMPARE(dashboard->property("expandedPanel").toString(), QString());
+        // The tap that toggles full screen runs on the same panel, off a passive grab that the
+        // button's own grab does not take away.
+        QCOMPARE(dashboard->property("expandedPanel").toString(), QStringLiteral("secondary"));
 
         // Greyed, which is what no target looks like: the click has to do nothing at all.
         QVERIFY(panel->setProperty("trackCancelEnabled", false));
@@ -583,7 +604,7 @@ void PoliceGuidedActionUITest::_testTrackCancelButton()
         QTest::qWait(kSettleMs);
         QVERIFY2(cancelSpy.isEmpty(), "A click on the greyed release button still asked for a cancel");
         QVERIFY2(boxSpy.isEmpty(), "A click on the greyed release button handed the module a box");
-        QCOMPARE(dashboard->property("expandedPanel").toString(), QString());
+        QCOMPARE(dashboard->property("expandedPanel").toString(), QStringLiteral("secondary"));
 
         // A drag off the button is the button being pressed, not a box being drawn. The drag
         // handler is allowed to take the grab off an item, so this is not free.
@@ -594,21 +615,12 @@ void PoliceGuidedActionUITest::_testTrackCancelButton()
         _dragPointer({ buttonRect.center(), to });
         if (QTest::currentTestFailed()) return;
         QVERIFY2(boxSpy.isEmpty(), "A drag that started on the release button handed the module a box");
-        QCOMPARE(dashboard->property("expandedPanel").toString(), QString());
+        QCOMPARE(dashboard->property("expandedPanel").toString(), QStringLiteral("secondary"));
 
-        // Full screen is the case the button exists for: the camera rail that carries the same
-        // command is at z 2, under the fullscreen layer at 20. Set rather than tapped - this
-        // frame is about what is reachable, not about the gesture.
-        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
-            QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
-            QTest::qWait(kSettleMs);
-            QQuickItem *const fullButton = findVisibleItem(panel, kTrackCancel, 3000);
-            QVERIFY2(fullButton, "The release button went away full screen");
-            _grab(QStringLiteral("drag_2_fullscreen_cancel"));
-            if (QTest::currentTestFailed()) return;
-            QVERIFY(dashboard->setProperty("expandedPanel", QString()));
-            QTest::qWait(kSettleMs);
-        }
+        // Back to the corner, and the button goes with it.
+        QVERIFY(dashboard->setProperty("expandedPanel", QString()));
+        QTest::qWait(kSettleMs);
+        QVERIFY2(!findVisibleItem(panel, kTrackCancel, 0), "The release button stayed after leaving full screen");
     });
 }
 
