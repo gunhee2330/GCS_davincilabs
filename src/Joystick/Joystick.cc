@@ -1821,6 +1821,8 @@ void Joystick::_buildAvailableButtonsActionList(Vehicle *vehicle)
         [this]() { emit siyiToggleWideAngle(); }));
     _availableButtonActions->append(new AvailableButtonAction(_buttonActionSiyiToggleAi,
         [this]() { emit siyiToggleAiRecognition(); }));
+    _availableButtonActions->append(new AvailableButtonAction(_buttonActionSiyiToggleEoIr,
+        [this]() { emit siyiToggleEoIrView(); }));
     _availableButtonActions->append(new AvailableButtonAction(_buttonActionEmergencyStop,
         [this]() { emit emergencyStop(); }));
     _availableButtonActions->append(new AvailableButtonAction(_buttonActionGripperGrab,

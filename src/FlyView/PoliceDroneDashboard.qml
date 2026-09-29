@@ -371,6 +371,38 @@ Item {
     /// occupying two full-width bars.
     readonly property real _bottomInset:  8
 
+    /// The rangefinder reading, for wherever it has to be readable. A reading shows from any pod;
+    /// a ZT30 with no return shows dashes from the moment it answers rather than from the first
+    /// reading: the spec asks for it "상시", and a figure that appears and vanishes with the
+    /// laser's luck is one an operator stops looking for. Dashes say "no return"; an empty
+    /// corner says nothing at all.
+    readonly property string _lrfText: App.SiyiCameraController.rangefinderAvailable
+                                           ? qsTr("LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
+                                           : (App.SiyiCameraController.isZT30 ? qsTr("LRF --") : "")
+
+    /// What to mark on the thermal picture full screen: the point the operator is holding, and
+    /// only that. The scene's hottest and coldest readings stay in the text beside the name
+    /// rather than being ringed on the picture as well - marked there they were two more rings
+    /// to read past on the way to the one that was asked for. Split screen marks nothing; the
+    /// window is too small to read marks on.
+    readonly property var _thermalMarkers: {
+        const camera = App.SiyiCameraController
+        const marks = []
+        if (root.expandedPanel !== "shared") {
+            return marks
+        }
+        if (camera.pointTemperatureActive) {
+            marks.push({ x: camera.pointTemperaturePoint.x,
+                         y: camera.pointTemperaturePoint.y,
+                         color: "#ffffff",
+                         label: camera.pointTemperatureAvailable
+                                    ? qsTr("%1°C").arg(Number(camera.pointTemperatureC).toFixed(1))
+                                    : (camera.pointTemperatureNoReply ? qsTr("응답 없음")
+                                                                      : qsTr("측정 중")) })
+        }
+        return marks
+    }
+
     /// Whether the camera strip is unfolded. Folded, only its handle is left on the screen.
     property bool cameraStripOpen: true
     // The bar's proportions, pinned to the bar's own height rather than to the font. The
@@ -818,6 +850,30 @@ Item {
         }
     }
 
+    // The pod keeps reading a point until it is told to stop, and a reading left running behind
+    // a closed window is a mark that reappears on the next one. Bound to the property rather
+    // than written into _toggleExpanded, because Back and Escape leave full screen without
+    // going through it. A no-op when nothing is being measured.
+    onExpandedPanelChanged: {
+        if (expandedPanel !== "shared") {
+            App.SiyiCameraController.stopPointTemperature()
+        }
+    }
+
+    /// The handset's EO/IR button. Thermal and zoom trade places as the full screen picture;
+    /// from split screen, or from the forward camera, the first press brings up thermal, since
+    /// the zoom picture is the one already on screen at a readable size. The way back to split
+    /// screen stays what it was - a tap on the picture or the back key.
+    function _toggleEoIrView() {
+        expandedPanel = (expandedPanel === "shared") ? "secondary" : "shared"
+        forceActiveFocus()
+    }
+
+    Connections {
+        target: App.SiyiCameraController
+        function onEoIrViewToggleRequested() { root._toggleEoIrView() }
+    }
+
     focus: expandedPanel.length > 0
     Keys.priority: Keys.BeforeItem
     Keys.onPressed: (event) => {
@@ -846,6 +902,7 @@ Item {
 
         vehicle:        root._activeVehicle
         status:         root._status
+        controllerBatteryPercent: App.ControllerBattery.percent
         lowestBattery:  root._lowestBattery
         batteryPercent: root._batteryPercent
         batteryColor:   root._batteryColor
@@ -1112,6 +1169,11 @@ Item {
         // Operator words, not industry ones: zoom / wide / thermal, never EO or IR.
         title:      root._aiStreamActive ? qsTr("AI 인식")
                                          : (root.eoShowsWideAngle ? qsTr("광각") : qsTr("줌"))
+        // The range lives here as well as on the thermal window. The laser measures down the
+        // gimbal axis, which is what this camera is looking at, and this is the window an
+        // operator spends the flight watching - a reading only on the picture they are not
+        // looking at is not "상시" in any sense that helps.
+        detail:     root._lrfText
     }
 
     CameraWindow {
@@ -1121,10 +1183,8 @@ Item {
         bodyWidth:  root._stackWindowWidth
         title:      qsTr("열상")
         // At night thermal and the laser rangefinder work as a pair, so the distance lives
-        // on this window's bar once readings arrive. No reading, no text.
-        detail:     App.SiyiCameraController.rangefinderAvailable
-                        ? qsTr("LRF %1 m").arg(Number(App.SiyiCameraController.rangefinderDistance).toFixed(1))
-                        : ""
+        // on this window's bar, with dashes while a ZT30 answers without a return.
+        detail:     root._lrfText
         // RFP p11: the pod's whole-frame hottest and coldest, always up next to the name rather
         // than inside the camera panel. No reading, no text, the same as the laser.
         extraDetail: App.SiyiCameraController.thermalRangeAvailable
@@ -1478,6 +1538,33 @@ Item {
                             onClicked: {
                                 broadcastDropPanel.close()
                                 App.SpeakerController.play(index + 1)
+                            }
+                        }
+                    }
+
+                    // Volume belongs beside the messages, not in a settings page: the one moment
+                    // it needs changing is the moment a broadcast is too quiet to carry over the
+                    // rotors or too loud for the distance the aircraft has closed to. Moved on
+                    // release rather than while dragging, so a drag across the bar does not send
+                    // the payload a dozen levels on the way to the one asked for.
+                    Text {
+                        Layout.alignment: Qt.AlignHCenter
+                        color:            "white"
+                        font.bold:        true
+                        font.pixelSize:   Math.max(12, ScreenTools.defaultFontPixelHeight * 0.7)
+                        text:             qsTr("음량 %1%").arg(App.SpeakerController.volume)
+                    }
+
+                    QGCSlider {
+                        Layout.fillWidth:       true
+                        Layout.preferredHeight: root._touchHeight
+                        from:                   0
+                        to:                     100
+                        stepSize:               5
+                        value:                  App.SpeakerController.volume
+                        onPressedChanged: {
+                            if (!pressed) {
+                                App.SpeakerController.setVolume(Math.round(value))
                             }
                         }
                     }
@@ -2472,6 +2559,65 @@ Item {
                 }
             }
         }
+
+        // Thermal measuring band, switchable from the thermal picture itself.
+        //
+        // The pod measures over one of two bands and cannot span both: the high band reads
+        // -20 to 150 C and saturates above that, the low band reads 50 to 550 C and cannot see
+        // a person against cool ground. A police aircraft meets both in one flight - a figure
+        // in a field, then the fire it is running from - so the switch has to be where the
+        // thermal picture is, not three menus away. It stays up rather than fading with the
+        // hint, because unlike the way out it is not something an operator learns once.
+        //
+        // Bottom left: the map copy holds the right corner, the hint and the detection card
+        // hold the middle, and only the thermal window can be the one expanded here.
+        Rectangle {
+            id:         thermalGainChip
+            objectName: "policeThermalGainChip"
+            visible:    root.expandedPanel === "shared" && App.SiyiCameraController.isZT30
+
+            anchors.left:         parent.left
+            anchors.bottom:       parent.bottom
+            anchors.leftMargin:   12
+            anchors.bottomMargin: root._bottomInset + 12
+            width:  gainColumn.width + ScreenTools.defaultFontPixelWidth * 4
+            height: gainColumn.height + ScreenTools.defaultFontPixelHeight * 0.9
+            radius: 6
+            color:  "#c0121b24"
+            border.color: "#60ffffff"
+            border.width: 1
+            z:      3
+
+            Column {
+                id:               gainColumn
+                anchors.centerIn: parent
+                spacing:          2
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    color:                    "#9fb0c0"
+                    font.pixelSize:           Math.max(11, ScreenTools.defaultFontPixelHeight * 0.62)
+                    text:                     qsTr("측온 범위")
+                }
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    color:                    "white"
+                    font.bold:                true
+                    font.pixelSize:           Math.max(13, ScreenTools.defaultFontPixelHeight * 0.8)
+                    // Blank until the pod has answered, so the chip never claims a band it has
+                    // not been told about.
+                    text:                     App.SiyiCameraController.thermalGainRangeText.length > 0
+                                                  ? App.SiyiCameraController.thermalGainRangeText
+                                                  : qsTr("확인 중")
+                }
+            }
+
+            TapHandler {
+                gesturePolicy: TapHandler.ReleaseWithinBounds
+                onTapped:      App.SiyiCameraController.toggleThermalGain()
+            }
+        }
     }
 
     // Detection strip stacked on the telemetry bar, so the bottom band is two rows deep right of
@@ -2527,6 +2673,8 @@ Item {
         panelTitle:           root._aiStreamActive ? qsTr("줌 (AI)")
                                                     : (root.eoShowsWideAngle ? qsTr("광각") : qsTr("줌"))
         showChrome:           root.expandedPanel === "secondary"
+        // The window's title bar is gone full screen, so the reading moves onto the picture.
+        panelDetail:          root._lrfText
         streamObjectName:     "videoContent"
         personDetectionEnabled: true
         aiTargetVisible:      root.aiTargetVisible
@@ -2571,9 +2719,15 @@ Item {
         // Full screen hides the window's own chip, so the temperatures ride on this one.
         panelTitleDetail:     sharedWindow.extraDetail
         showChrome:           root.expandedPanel === "shared"
+        panelDetail:          root._lrfText
         streamObjectName:     "thermalVideo"
         // No target picking here any more: this window is always thermal now, and a tap on
         // the thermal frame would hand the module coordinates from a different sensor's view.
+        // A long press reads a temperature instead, which is what this sensor is for. Full
+        // screen only: a finger on the split window covers most of the frame it is pointing at.
+        pointPickEnabled:     root.expandedPanel === "shared"
+        markers:              root._thermalMarkers
+        onPointPicked:        (nx, ny) => App.SiyiCameraController.measurePointTemperature(nx, ny)
         onActivated:          root._toggleExpanded("shared")
     }
 

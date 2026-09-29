@@ -33,6 +33,11 @@ Rectangle {
     property var    lowestBattery: null
     property real   batteryPercent: NaN
     property color  batteryColor:  "white"
+
+    /// The handset's own charge, 0..100, or -1 where there is no such battery to read - a laptop
+    /// control desk is a real deployment. Handed in rather than read off a singleton, like
+    /// everything else here, so this file resolves nothing up the scope chain.
+    property int    controllerBatteryPercent: -1
     property bool   rcAvailable:   false
     property int    rcLevel:       0
     property bool   linkUp:        false
@@ -576,6 +581,37 @@ Rectangle {
                     MouseArea {
                         anchors.fill: parent
                         onClicked:    mainWindow.showIndicatorDrawer(batteryPage, batteryItem)
+                    }
+                }
+
+                // The controller's own battery. Drawn as the three-cell pictogram, deliberately
+                // not the aircraft's fill-level glyph beside it: two identical glyphs a few
+                // centimetres apart is how 58% and 38% get read the wrong way round. Absent
+                // rather than zero where there is no reading, because a controller showing 0% is
+                // a controller about to go dark, and that is a different thing to say.
+                Row {
+                    id:               controllerBatteryGroup
+                    objectName:       "policeControllerBattery"
+                    Layout.alignment: Qt.AlignVCenter
+                    spacing:          bar._innerGap
+                    visible:          bar.controllerBatteryPercent >= 0
+
+                    readonly property color tint:
+                        bar.controllerBatteryPercent <= 10 ? bar.alarmColor
+                        : bar.controllerBatteryPercent <= 30 ? bar.warnColor
+                                                             : "white"
+
+                    BarIcon {
+                        source: "qrc:/InstrumentValueIcons/battery-full.svg"
+                        tint:   controllerBatteryGroup.tint
+                    }
+
+                    BarText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        color:                  controllerBatteryGroup.tint
+                        font.weight:            Font.DemiBold
+                        font.pixelSize:         bar.valueSize
+                        text:                   qsTr("%1 %").arg(bar.controllerBatteryPercent)
                     }
                 }
 

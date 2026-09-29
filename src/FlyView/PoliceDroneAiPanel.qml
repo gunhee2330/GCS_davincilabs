@@ -82,6 +82,32 @@ Item {
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
+    /// How crowded the scene is, from the person count. The count alone makes an operator do
+    /// the arithmetic mid-flight; the word does not. Thresholds are settings because what counts
+    /// as a crowd is a policing judgement, not a property of the camera.
+    ///
+    /// Saturation outranks the thresholds: the module counts in a byte that wraps at 255, so a
+    /// saturated tally means "at least this many" and cannot be anything but dense.
+    readonly property int _crowdModerate: QGroundControl.settingsManager.siyiCameraSettings.crowdModerateCount.rawValue
+    readonly property int _crowdDense:    QGroundControl.settingsManager.siyiCameraSettings.crowdDenseCount.rawValue
+
+    readonly property string _crowdText: {
+        if (!_live || (_persons < 0)) {
+            return ""
+        }
+        // Only the dense grade is worth a badge. The other two are the ordinary case, and a
+        // badge that is always lit is one the operator stops seeing - which costs exactly the
+        // moment it is meant for. No badge is the scene being unremarkable.
+        return (_personsSat || (_persons >= _crowdDense)) ? qsTr("밀집") : ""
+    }
+
+    readonly property color _crowdColor: {
+        if (_personsSat || (_persons >= _crowdDense)) {
+            return "#ff5b5b"
+        }
+        return (_persons >= _crowdModerate) ? "#ffb02e" : "#4fc76b"
+    }
+
     Connections {
         target: App.SiyiAiController
 
@@ -289,5 +315,31 @@ Item {
         // particular read the same word all flight on a gimbal whose firmware has no follow
         // command at all. A slot that never changes is what teaches an operator to stop reading
         // the strip that carries the numbers they are here for.
+    }
+
+    // The crowd grade. On the card's top edge over the person count rather than under the
+    // number: the card's height is fixed to line up with the telemetry bar, and a badge stacked
+    // under the count ran out of it. Off the row's layout, so lighting it moves nothing.
+    Rectangle {
+        id:         crowdBadge
+        objectName: "policeCrowdBadge"
+        visible:    root._crowdText.length > 0
+        x:          row.x + personStat.x + (personStat.width - width) / 2
+        y:          -height / 2
+        width:      crowdBadgeText.implicitWidth + root._em * 0.5
+        height:     crowdBadgeText.implicitHeight + root._em * 0.16
+        radius:     height / 2
+        color:      root._crowdColor
+
+        Text {
+            id:               crowdBadgeText
+            anchors.centerIn: parent
+            // Black on every grade: the fills are bright enough that white type on the amber
+            // one is the hardest thing on the card to read in daylight.
+            color:            "#101820"
+            font.bold:        true
+            font.pixelSize:   Math.max(10, root._em * 0.55)
+            text:             root._crowdText
+        }
     }
 }

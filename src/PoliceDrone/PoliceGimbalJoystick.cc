@@ -110,4 +110,11 @@ void PoliceGimbalJoystick::_connectJoystick(Joystick *joystick)
         SiyiAiController *const ai = SiyiAiController::instance();
         ai->setRecognition(!ai->recognitionEnabled());
     });
+
+    // Which picture fills the screen, not which sensor feeds the stream: the spec's wording is
+    // "EO/IR 화면 전환", and re-routing the pod's main stream would also undo the AI module,
+    // whose manual requires the zoom camera there. The fly view owns the windows, so the
+    // request is relayed to it rather than acted on here.
+    (void) connect(joystick, &Joystick::siyiToggleEoIrView, camera,
+                   &SiyiCameraController::requestEoIrViewToggle);
 }

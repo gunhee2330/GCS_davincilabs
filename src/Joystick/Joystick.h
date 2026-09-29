@@ -374,6 +374,7 @@ signals:
     void siyiToggleRecording();
     void siyiToggleWideAngle();
     void siyiToggleAiRecognition();
+    void siyiToggleEoIrView();
     void setArmed(bool arm);
     void setVtolInFwdFlight(bool set);
     void setFlightMode(const QString &flightMode);
@@ -549,5 +550,6 @@ private:
     static constexpr const char *_buttonActionSiyiToggleRecord =   QT_TR_NOOP("SIYI Pod Toggle Recording");
     static constexpr const char *_buttonActionSiyiToggleWide =     QT_TR_NOOP("SIYI Pod Wide/Zoom Camera");
     static constexpr const char *_buttonActionSiyiToggleAi =       QT_TR_NOOP("SIYI Pod AI Recognition");
+    static constexpr const char *_buttonActionSiyiToggleEoIr =     QT_TR_NOOP("SIYI Pod EO/IR View");
 
 };
