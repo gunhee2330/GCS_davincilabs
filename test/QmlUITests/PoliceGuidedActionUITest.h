@@ -106,9 +106,8 @@ private slots:
     /// while the module holds an accepted pick, and greys once the module reports it cancelled.
     void _testTrackCancelStaysEnabledWhileHeld();
 
-    /// The release button on the picture: a click must ask for exactly one cancel, must not send
-    /// a box and must not take the panel full screen; greyed it must do nothing at all; and a
-    /// drag that starts on it must not send a box either.
+    /// The release button on the picture stays off, on the small zoom window and on the big one,
+    /// and the rail keeps its 추적해제 in both.
     void _testTrackCancelButton();
 
     /// The detection card's five cells are one width, the widest of a dot with its label and a
@@ -130,14 +129,12 @@ private slots:
     /// over the camera grid's 촬영. Grabs stock_record_hidden when QGC_SCREENSHOT_DIR is set.
     void _testStockPhotoVideoOnlyWithPodOff();
 
-    /// Full screen, the flight strip stands in for the hidden top bar: on the zoom and on the
-    /// thermal window it is up, reads the date and time, 비행 중 with the elapsed time and the
-    /// top bar's distance in flight and a dash on the ground, the relative altitude and the
-    /// battery, keeps ticking, and stays clear of the window's name chip, its 추종/추적 chips and
-    /// its 추적해제 button. Gone again once no window is full screen. Grabs
-    /// fullscreen_strip_0_zoom_ground, fullscreen_strip_1_zoom_flying and
-    /// fullscreen_strip_2_thermal_flying when QGC_SCREENSHOT_DIR is set.
-    void _testFullscreenFlightStrip();
+    /// A tap on a small camera window swaps it with the map: the picture fills everything under
+    /// the top bar, under the chrome, which all stays put, and the map shows in the vacated
+    /// window as 지도. A tap on the big picture keeps it; a tap on 지도 or Escape swaps back, and
+    /// another window's tap swaps that one in directly. Grabs swap_zoom_big and
+    /// swap_thermal_big when QGC_SCREENSHOT_DIR is set.
+    void _testMapSwap();
 
     /// The pod's whole-frame hottest and coldest, fed from a fake gimbal on loopback, read
     /// 최고 … °C  최저 … °C on the thermal window's name chip after the LRF reading and follow the

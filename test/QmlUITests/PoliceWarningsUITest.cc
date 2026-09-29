@@ -736,11 +736,12 @@ void PoliceWarningsUITest::_testTargetPickRefusalStrip()
         // A tap hides it at once, and only it.
         emit ai->trackRequestFailed(0, noTarget);
         QVERIFY(verifyVisibility(kPick, true, QStringLiteral("refusal before tap")));
+        const QRectF windowedPick = sceneRect(pick);
         QVERIFY2(clickItemFraction(kPick, 0.5, 0.5), "Could not tap the pick strip");
         QTRY_VERIFY_WITH_TIMEOUT(!findVisibleItem(_rootItem, kPick, 0), 500);
         QVERIFY(verifyVisibility(kBattery, true, QStringLiteral("pick strip tapped")));
 
-        // Full screen: full width under the flight strip, like the others.
+        // Swapped: the strips keep their windowed band.
         QVERIFY2(clickItemFraction(kBattery, 0.5, 0.5), "Could not tap the battery strip");
         QVERIFY(verifyVisibility(kBattery, false, QStringLiteral("battery tapped")));
         QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
@@ -751,8 +752,17 @@ void PoliceWarningsUITest::_testTargetPickRefusalStrip()
             _grab(QStringLiteral("pick_strip_fullscreen"));
             if (QTest::currentTestFailed()) return;
         }
-        QVERIFY(qAbs(sceneRect(pick).left() - sceneRect(dashboard).left()) < 1.0);
-        QVERIFY(qAbs(pick->width() - dashboard->width()) < 1.0);
+        QVERIFY(qAbs(sceneRect(pick).left() - windowedPick.left()) < 1.0);
+        QVERIFY(qAbs(sceneRect(pick).width() - windowedPick.width()) < 1.0);
+        // The big picture's chips drop below the strip rather than sit under it.
+        QQuickItem *const zoomPanel = findVisibleItem(_rootItem, QStringLiteral("policeZoomCameraPanel"), 5000);
+        QVERIFY(zoomPanel);
+        QQuickItem *const nameChip = findVisibleItem(zoomPanel, QStringLiteral("policeCameraNameChip"), 5000);
+        QVERIFY2(nameChip, "The zoom name chip is not up full screen");
+        QQuickItem *const stateChips = findVisibleItem(zoomPanel, QStringLiteral("policeCameraStateChips"), 5000);
+        QVERIFY2(stateChips, "The state chips are not up full screen");
+        QTRY_VERIFY_WITH_TIMEOUT(!sceneRect(nameChip).intersects(sceneRect(pick)), 2000);
+        QTRY_VERIFY_WITH_TIMEOUT(!sceneRect(stateChips).intersects(sceneRect(pick)), 2000);
 
         // A cancel the module did not act on: its reason is the title.
         emit ai->trackRequestFailed(-1, QStringLiteral("추적 해제 실패"));

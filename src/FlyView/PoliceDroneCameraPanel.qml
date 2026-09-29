@@ -16,6 +16,11 @@ Item {
     /// Windowed panels sit under a title bar that already names them, so the chips only come
     /// out full screen, where there is no bar and the operator needs to know what they are on.
     property bool   showChrome: true
+    /// Big picture only: how far the dashboard's chrome reaches in from each side, so the chips
+    /// land where they can be read.
+    property real   chromeLeftInset: 0
+    property real   chromeRightInset: 0
+    property real   chromeTopInset: 0
     property string streamObjectName
 
     /// Draws the on-device detector's face mosaics.
@@ -197,9 +202,12 @@ Item {
     }
 
     Rectangle {
+        objectName:     "policeCameraNameChip"
         anchors.left:   parent.left
         anchors.top:    parent.top
         anchors.margins: 8
+        anchors.leftMargin: 8 + root.chromeLeftInset
+        anchors.topMargin: 8 + root.chromeTopInset
         width:          panelHeading.implicitWidth + 18
         height:         panelHeading.implicitHeight + 10
         radius:         3
@@ -278,6 +286,8 @@ Item {
         anchors.right:   parent.right
         anchors.top:     parent.top
         anchors.margins: 8
+        anchors.rightMargin: 8 + root.chromeRightInset
+        anchors.topMargin: 8 + root.chromeTopInset
         spacing:         6
         visible:         (root.followActive !== null) || (root.trackingActive !== null)
 
@@ -300,6 +310,8 @@ Item {
         // Under the state chips when both are up, so neither has to be read through the other.
         anchors.top:     stateChips.visible ? stateChips.bottom : parent.top
         anchors.margins: 8
+        anchors.rightMargin: 8 + root.chromeRightInset
+        anchors.topMargin: 8 + (stateChips.visible ? 0 : root.chromeTopInset)
         width:           detailText.implicitWidth + 16
         height:          detailText.implicitHeight + 8
         radius:          3
@@ -337,10 +349,9 @@ Item {
         }
     }
 
-    // Letting the target go, on the picture the operator is watching it on. The camera rail
-    // carries the same command, but the rail sits at z 2 and a full screen camera at 20, so full
-    // screen - which is where boxes get drawn - the rail's button is behind the picture. In the
-    // corner the rail button is reachable and this one would only cover the small picture.
+    // Letting the target go, on the picture the operator is watching it on. Unused by the
+    // dashboard now: the big picture sits under the camera rail, so the rail's 추적해제 stays
+    // reachable and this one would only cover the picture.
     // Greyed rather than hidden, for the rail button's reason: the module drops hasTarget on a
     // 1.5 s gap in the target stream, and a button that comes and goes is one the operator
     // reaches for and misses.

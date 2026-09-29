@@ -156,8 +156,8 @@ Item {
     }
 
     property string expandedPanel
-    /// The fly view's map item. Mirrored into the top-right window while a camera is
-    /// full screen, so the operator keeps the aircraft's position in view.
+    /// The fly view's map item. Mirrored into the vacated camera window while a camera is the
+    /// big picture.
     property var mapItem: null
 
     readonly property var _activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
@@ -820,11 +820,12 @@ Item {
         }
     }
 
-    function _toggleExpanded(panelName) {
-        expandedPanel = expandedPanel === panelName ? "" : panelName
-        if (expandedPanel.length > 0) {
-            forceActiveFocus()
-        }
+    // Taking the big picture, never giving it back: a tap on the big zoom picture is a
+    // target-pick surface, so only the 지도 window or Back/Escape restore the map.
+    function _expand(panelName) {
+        if (expandedPanel === panelName) return
+        expandedPanel = panelName
+        forceActiveFocus()
     }
 
     focus: expandedPanel.length > 0
@@ -998,7 +999,8 @@ Item {
     //
     // The flight map underneath stays full screen. Each camera lives in a small movable
     // window: the grip bar drags the window around, the video area keeps the
-    // drag-to-track gesture, and a short tap on the video toggles fullscreen.
+    // drag-to-track gesture, and a tap on a window's picture swaps it with the map; the map
+    // shows in that window as 지도.
 
     component CameraWindow : Item {
         id: win
@@ -1014,11 +1016,9 @@ Item {
 
         width:  bodyWidth
         height: bodyWidth * 9 / 16
-        // Tapping a camera fills the screen with it. The other two windows go with it: they sit
-        // over the picture the operator zoomed in to see. Only the map stays, small, in the
-        // corner.
-        visible: root.expandedPanel.length === 0
         z:       10
+
+        readonly property bool _showsMap: root.expandedPanel === panelKey
 
         Rectangle {
             anchors.fill: parent
@@ -1061,7 +1061,7 @@ Item {
                     color:          "white"
                     font.bold:      true
                     font.pixelSize: Math.max(11, ScreenTools.defaultFontPixelHeight * 0.62)
-                    text:           win.title
+                    text:           win._showsMap ? qsTr("지도") : win.title
                 }
                 // The two readings side by side where they fit. The thermal window is too narrow
                 // for the laser and both temperatures on one line, so the second folds under the
@@ -1075,7 +1075,7 @@ Item {
                     // 26 is the chip's 6 margin on either side and its 14 of padding.
                     width:          Math.min(detailText.implicitWidth + (_both ? spacing : 0) + extraDetailText.implicitWidth,
                                              win.width - 26 - x)
-                    visible:        (win.detail.length > 0) || (win.extraDetail.length > 0)
+                    visible:        !win._showsMap && ((win.detail.length > 0) || (win.extraDetail.length > 0))
 
                     Text {
                         id:             detailText
@@ -1948,16 +1948,14 @@ Item {
         objectName:    "policeWarningStrips"
         // Between the left tool strip and the camera grid, 8 px clear of each, so neither column
         // is covered; bound to the items so the strips follow the grid folding away or a column
-        // hiding. Full width over the full-screen camera, as before.
-        readonly property real _left:  (fullscreenLayer.visible || !toolStrip.visible)
-                                       ? 0 : toolStrip.x + toolStrip.width + 8
-        readonly property real _right: fullscreenLayer.visible ? parent.width
-                                       : Math.min(cameraStripHandle.visible ? cameraStripHandle.x - 8 : parent.width,
-                                                  cameraToolStrip.visible ? cameraToolStrip.x - 8 : parent.width)
+        // hiding.
+        readonly property real _left:  !toolStrip.visible ? 0 : toolStrip.x + toolStrip.width + 8
+        readonly property real _right: Math.min(cameraStripHandle.visible ? cameraStripHandle.x - 8 : parent.width,
+                                                cameraToolStrip.visible ? cameraToolStrip.x - 8 : parent.width)
         x:             _left
         width:         _right - _left
         anchors.top:   topBar.bottom
-        // Over the full-screen camera layer (20), and so over the tool strips, the camera grid and
+        // Over the big picture, and over the tool strips, the camera grid and
         // the photo/video control, which stay put under it rather than being pushed down; a tap
         // on a strip takes it away and shows what it covered.
         z:             24
@@ -2171,7 +2169,7 @@ Item {
                         - height - root._toolsMargin
         mapControl: root.mapItem
         autoHide:   true
-        visible:    !ScreenTools.isTinyScreen && QGroundControl.corePlugin.options.flyView.showMapScale && QGCViewer3DManager.displayMode !== QGCViewer3DManager.View3D && !!root.mapItem && root.mapItem.pipState.state === root.mapItem.pipState.fullState &&
+        visible:    root.expandedPanel.length === 0 && !ScreenTools.isTinyScreen && QGroundControl.corePlugin.options.flyView.showMapScale && QGCViewer3DManager.displayMode !== QGCViewer3DManager.View3D && !!root.mapItem && root.mapItem.pipState.state === root.mapItem.pipState.fullState &&
                     (!root.mapItem.geoMap || (root.mapItem.geoMap.camera.mode === GeoMapCamera.Mode2D && root.mapItem.geoMap.camera.isTopDown))
     }
 
@@ -2335,241 +2333,80 @@ Item {
         }
     }
 
-    /// One figure on the full screen flight strip, in the top bar's face and weight.
-    component StripText : Text {
-        anchors.verticalCenter: parent.verticalCenter
-        font.family:            "Open Sans"
-        font.weight:            Font.DemiBold
-        font.pixelSize:         root._labelSize
-    }
-
+    // The big picture: under the top bar, full width, and under every other piece of chrome
+    // (lowest z here; obstacleGlow at -1 stays over it on purpose, it is a safety cue).
     Item {
-        id: fullscreenLayer
-        anchors.fill: parent
-        z:            20
-        visible:      root.expandedPanel.length > 0
+        id:             bigPictureLayer
+        objectName:     "policeBigPicture"
+        anchors.left:   parent.left
+        anchors.right:  parent.right
+        anchors.top:    topBar.bottom
+        anchors.bottom: parent.bottom
+        z:              -2
+        visible:        root.expandedPanel.length > 0
 
         Rectangle {
             anchors.fill: parent
             color:        "black"
             MouseArea { anchors.fill: parent }
         }
+    }
 
-        // The map, small, in the bottom corner, so the aircraft's position stays in view while
-        // a camera fills the screen. A tap swaps back: map full, camera in its window. Mirrored
-        // from the live map item rather than a second map instance, the way the EO window
-        // mirrors the main video; the texture is kept at the copy's own size so it costs little.
-        Item {
-            // Read by the layout test.
-            objectName: "policeFullscreenMapPip"
-            // Off the screen width, not the camera band's: this is the only map on screen while
-            // a camera is full, and a fraction of a window that the owner keeps resizing left it
-            // too small to read a position off.
-            width:   parent.width * 0.27
-            height:  width * 9 / 16
-            x:       parent.width - width - 8
-            y:       parent.height - height - 8
-            z:       3
-            visible: root.mapItem !== null
+    // The map, in the window the big camera left, so the aircraft's position stays in view. A
+    // tap swaps back: map full, camera in its window. Mirrored from the live map item rather
+    // than a second map instance, the way the EO window mirrors the main video; the texture is
+    // kept at the copy's own size so it costs little.
+    Item {
+        // Read by the layout test.
+        objectName:   "policeMapPip"
+        parent:       root.expandedPanel === "primary" ? primaryWindow.slot
+                    : root.expandedPanel === "secondary" ? secondaryWindow.slot
+                    : root.expandedPanel === "shared" ? sharedWindow.slot : root
+        anchors.fill: parent
+        visible:      root.expandedPanel.length > 0 && root.mapItem !== null
 
-            // Only a backdrop for the frame or two before the mirror has a texture: no border,
-            // no inset, and square, since rounding it would need a mask over the mirror that
-            // the software backend does not draw, leaving corners peeking out behind the copy.
-            Rectangle {
-                anchors.fill: parent
-                color:        root._panelColor
-            }
+        // Only a backdrop for the frame or two before the mirror has a texture: no border,
+        // no inset, and square, since rounding it would need a mask over the mirror that
+        // the software backend does not draw, leaving corners peeking out behind the copy.
+        Rectangle {
+            anchors.fill: parent
+            color:        root._panelColor
+        }
 
-            // No title bar here. It is visibly a map, it cannot be dragged (it sits in the
-            // swapped window's slot), and the bar only shrank the tap target - the whole
-            // point of this thing is to be tapped.
-            ShaderEffectSource {
-                id:           mapMirror
-                anchors.fill: parent
-                sourceItem:   root.mapItem
-                live:         true
-                textureSize:  Qt.size(Math.round(width * 2), Math.round(height * 2))
-                // A centred band of the map with this window's aspect, so the copy is not
-                // squeezed and the vehicle, which the map keeps near its centre, stays in it.
-                sourceRect: {
-                    const src = root.mapItem
-                    if (!src || width <= 0 || height <= 0) {
-                        return Qt.rect(0, 0, 0, 0)
-                    }
-                    let cw = src.width
-                    let ch = cw * height / width
-                    if (ch > src.height) {
-                        ch = src.height
-                        cw = ch * width / height
-                    }
-                    return Qt.rect((src.width - cw) / 2, (src.height - ch) / 2, cw, ch)
+        ShaderEffectSource {
+            id:           mapMirror
+            anchors.fill: parent
+            sourceItem:   root.mapItem
+            live:         true
+            textureSize:  Qt.size(Math.round(width * 2), Math.round(height * 2))
+            // A centred band of the map with this window's aspect, so the copy is not
+            // squeezed and the vehicle, which the map keeps near its centre, stays in it.
+            sourceRect: {
+                const src = root.mapItem
+                if (!src || width <= 0 || height <= 0) {
+                    return Qt.rect(0, 0, 0, 0)
                 }
-            }
-
-            TapHandler {
-                // ReleaseWithinBounds takes an exclusive grab on press, so the fullscreen
-                // panel's handler never also fires when the map re-docks under the release
-                // point. Without this a tap on the map toggled off then straight back on.
-                gesturePolicy: TapHandler.ReleaseWithinBounds
-                onTapped:      root._toggleExpanded(root.expandedPanel)
+                let cw = src.width
+                let ch = cw * height / width
+                if (ch > src.height) {
+                    ch = src.height
+                    cw = ch * width / height
+                }
+                return Qt.rect((src.width - cw) / 2, (src.height - ch) / 2, cw, ch)
             }
         }
 
-        // How to get back out, said once on the way in and then gone. It is the same two
-        // gestures every time, so after the first few seconds it is a caption printed over the
-        // picture the operator opened this view to look at. Faded rather than cut so the eye
-        // is not pulled back to it as it goes.
-        Rectangle {
-            id:                   hintChip
-            // Read by the layout test, which holds the centred detection card clear of it.
-            objectName:           "policeFullscreenHint"
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom:       parent.bottom
-            // Above the detection card, which floats over this layer.
-            anchors.bottomMargin: root._bottomInset + aiPanel.height + 12
-            width:           fullscreenHint.implicitWidth + 20
-            height:          fullscreenHint.implicitHeight + 12
-            radius:          4
-            color:           "#c0121b24"
-            z:               2
-            opacity:         0
-            visible:         opacity > 0
-
-            Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.InOutQuad } }
-
-            // Restarted on every entry, not only the first: the layer is not destroyed between
-            // them, so a timer left run out would leave the hint hidden for the rest of the
-            // session and the gesture unlearnable for whoever picks the controller up next.
-            Timer {
-                id:          hintTimer
-                interval:    3000
-                onTriggered: hintChip.opacity = 0
-            }
-
-            Connections {
-                target: root
-
-                function onExpandedPanelChanged() {
-                    if (root.expandedPanel.length > 0) {
-                        hintChip.opacity = 1
-                        hintTimer.restart()
-                    } else {
-                        hintTimer.stop()
-                        hintChip.opacity = 0
-                    }
-                }
-            }
-
-            Text {
-                id:             fullscreenHint
-                anchors.centerIn: parent
-                color:          "white"
-                font.pixelSize: Math.max(12, ScreenTools.defaultFontPixelHeight * 0.72)
-                text:           qsTr("화면 터치 또는 뒤로가기: 분할화면")
-            }
-        }
-
-        // Full screen covers the top bar, and with it the flight's date, time and distance that
-        // procurement wants readable off the video (RFP p9). The bar's own values and colours,
-        // top centre between the window's name chip and its state chips.
-        Rectangle {
-            id:                       flightStrip
-            objectName:               "policeFullscreenFlightStrip"
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top:              parent.top
-            anchors.topMargin:        8
-            width:                    stripRow.implicitWidth + root._labelSize * 1.6
-            height:                   stripRow.implicitHeight + root._labelSize * 0.5
-            radius:                   3
-            color:                    "#c0121b24"
-            z:                        2
-
-            // The banner's armed branch, the only one that carries a distance.
-            readonly property bool _flying: root._status.distance !== undefined
-
-            Row {
-                id:               stripRow
-                anchors.centerIn: parent
-                spacing:          root._labelSize * 1.15
-
-                StripText {
-                    id:         stripClock
-                    objectName: "policeFullscreenStripDateTime"
-                    color:      root._labelColor
-
-                    Timer {
-                        interval:         1000
-                        repeat:           true
-                        running:          fullscreenLayer.visible
-                        triggeredOnStart: true
-                        onTriggered:      stripClock.text = Qt.formatDateTime(new Date(), "MM-dd HH:mm:ss")
-                    }
-                }
-
-                Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing:                root._labelSize * 0.5
-
-                    StripText {
-                        objectName: "policeFullscreenStripFlight"
-                        color:      flightStrip._flying ? root._status.accent : root._labelColor
-                        text:       flightStrip._flying ? root._status.text : "—"
-                    }
-
-                    StripText {
-                        objectName: "policeFullscreenStripDistance"
-                        color:      root._status.accent
-                        text:       flightStrip._flying ? root._status.distance : ""
-                        visible:    text !== ""
-                    }
-                }
-
-                Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing:                root._labelSize * 0.3
-
-                    StripText {
-                        color:       root._labelColor
-                        font.weight: Font.Normal
-                        text:        qsTr("고도")
-                    }
-
-                    StripText {
-                        objectName: "policeFullscreenStripAltitude"
-                        readonly property real _alt: root._activeVehicle ? root._activeVehicle.altitudeRelative.rawValue : NaN
-                        color:      "white"
-                        // In the app's vertical unit, the way the distance takes the horizontal one
-                        text:       isNaN(_alt) ? "—" : root._activeVehicle.altitudeRelative.valueString + " " + root._activeVehicle.altitudeRelative.units
-                    }
-                }
-
-                Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing:                root._labelSize * 0.3
-
-                    StripText {
-                        color:       root._labelColor
-                        font.weight: Font.Normal
-                        text:        qsTr("배터리")
-                    }
-
-                    // The top bar's own reading: percentage, or the voltage when the pack sends none.
-                    StripText {
-                        objectName: "policeFullscreenStripBattery"
-                        color:      root._batteryColor
-                        text:       !root._lowestBattery
-                                        ? "—"
-                                        : (isNaN(root._batteryPercent)
-                                               ? root._lowestBattery.voltage.valueString + qsTr(" V")
-                                               : qsTr("%1 %").arg(Math.round(root._batteryPercent)))
-                    }
-                }
-            }
+        TapHandler {
+            // ReleaseWithinBounds takes an exclusive grab on press, so the swapped panel's
+            // handler never also fires when it re-docks under the release point. Without this
+            // a tap on the map toggled off then straight back on.
+            gesturePolicy: TapHandler.ReleaseWithinBounds
+            onTapped:      root.expandedPanel = ""
         }
     }
 
     // Detection strip stacked on the telemetry bar, so the bottom band is two rows deep right of
-    // the compass. Floats above the full screen layer the way the windows do.
+    // the compass.
     PoliceDroneAiPanel {
         id: aiPanel
 
@@ -2578,49 +2415,52 @@ Item {
 
         // The card starts exactly where the telemetry bar does: pulling it left to fit a wider
         // card would slide it over the attitude and compass beside them.
-        // Full screen the map in the right corner takes a quarter of the width, so the counts go
-        // to the middle of the bottom edge instead of into the gap beside it.
-        x:      root.expandedPanel.length > 0
-                    ? (root.width - width) / 2
-                    : flightInstruments.x + telemetryBar.x
-        // Full screen there is no telemetry bar under it to sit on - the instruments go with the
-        // map - so the card was left hanging one bar's height above the bottom edge, over the
-        // picture, with the fullscreen hint drawn through it. Against the bottom instead, which
-        // is where the hint already expects to find it.
-        y:      root.expandedPanel.length > 0
-                    ? root.height - root._bottomInset - height
-                    : flightInstruments.y + telemetryBar.y - 6 - height
+        x:      flightInstruments.x + telemetryBar.x
+        y:      flightInstruments.y + telemetryBar.y - 6 - height
         // One width with the bar under it, which the bar resolves from the wider of the two.
-        // Full screen there is no bar on screen to match, so the card keeps its own width.
-        width:  root.expandedPanel.length > 0 ? implicitWidth : telemetryBar.width
+        width:  telemetryBar.width
         height: implicitHeight
-        z:      root.expandedPanel.length > 0 ? 21 : 3
+        z:      3
     }
 
     // The forward-looking camera on the air unit's second LAN port. It is fixed to the
     // airframe, so it takes no AI target picking.
     PoliceDroneCameraPanel {
         id:                   primaryPanel
-        parent:               root.expandedPanel === "primary" ? fullscreenLayer : primaryWindow.slot
+        parent:               root.expandedPanel === "primary" ? bigPictureLayer : primaryWindow.slot
         anchors.fill:         parent
         panelTitle:           qsTr("전방")
         showChrome:           root.expandedPanel === "primary"
+        chromeLeftInset:      showChrome ? warningStrips._left : 0
+        chromeRightInset:     showChrome ? root.width - warningStrips._right : 0
+        chromeTopInset:       showChrome ? Math.max(warningStrips.height > 0
+                                                    ? warningStrips.y + warningStrips.height - bigPictureLayer.y : 0,
+                                                guidedConfirmHost.contentBottom > 0
+                                                    ? guidedConfirmHost.y + guidedConfirmHost.contentBottom - bigPictureLayer.y : 0)
+                                         : 0
         streamObjectName:     "fpvVideo"
         proximityRingEnabled: true
-        onActivated:          root._toggleExpanded("primary")
+        onActivated:          root._expand("primary")
     }
 
     PoliceDroneCameraPanel {
         id:                   secondaryPanel
         // Read by the chip test, which drives follow and tracking on this panel.
         objectName:           "policeZoomCameraPanel"
-        parent:               root.expandedPanel === "secondary" ? fullscreenLayer : secondaryWindow.slot
+        parent:               root.expandedPanel === "secondary" ? bigPictureLayer : secondaryWindow.slot
         anchors.fill:         parent
         // Named for the sensor on screen, not the pipe it came through: AI pins the main
         // stream to the zoom camera, so its feed is the zoom picture with boxes drawn in.
         panelTitle:           root._aiStreamActive ? qsTr("줌 · AI")
                                                     : (root.eoShowsWideAngle ? qsTr("광각") : qsTr("줌"))
         showChrome:           root.expandedPanel === "secondary"
+        chromeLeftInset:      showChrome ? warningStrips._left : 0
+        chromeRightInset:     showChrome ? root.width - warningStrips._right : 0
+        chromeTopInset:       showChrome ? Math.max(warningStrips.height > 0
+                                                    ? warningStrips.y + warningStrips.height - bigPictureLayer.y : 0,
+                                                guidedConfirmHost.contentBottom > 0
+                                                    ? guidedConfirmHost.y + guidedConfirmHost.contentBottom - bigPictureLayer.y : 0)
+                                         : 0
         streamObjectName:     "videoContent"
         personDetectionEnabled: true
         aiTargetVisible:      root.aiTargetVisible
@@ -2644,11 +2484,8 @@ Item {
         followActive:         App.SiyiCameraController.aiFollowEnabled &&
                               !App.SiyiCameraController.aiFollowStale
         targetPickEnabled:    root._aiPickEnabled
-        // The camera rail's 추적해제 is behind the picture full screen, which is where the
-        // operator is drawing boxes; this panel carries its own.
         trackCancelEnabled:   App.SiyiAiController.hasTarget
-        trackCancelVisible:   root.expandedPanel === "secondary"
-        onActivated:          root._toggleExpanded("secondary")
+        onActivated:          root._expand("secondary")
         onTargetBoxPicked:    (l, t, r, b) => App.SiyiAiController.trackBox(l, t, r, b)
         onTrackCancelRequested: App.SiyiAiController.cancelTracking()
         // The module reads selections in the stream's own resolution and never reports what
@@ -2665,21 +2502,28 @@ Item {
 
     PoliceDroneCameraPanel {
         id:                   sharedPipPanel
-        parent:               root.expandedPanel === "shared" ? fullscreenLayer : sharedWindow.slot
+        parent:               root.expandedPanel === "shared" ? bigPictureLayer : sharedWindow.slot
         anchors.fill:         parent
         panelTitle:           qsTr("열상")
-        // Full screen hides the window's own chip, so the temperatures ride on this one.
+        // Swapped big hides the window's own chip, so the temperatures ride on this one.
         panelTitleDetail:     sharedWindow.extraDetail
         showChrome:           root.expandedPanel === "shared"
+        chromeLeftInset:      showChrome ? warningStrips._left : 0
+        chromeRightInset:     showChrome ? root.width - warningStrips._right : 0
+        chromeTopInset:       showChrome ? Math.max(warningStrips.height > 0
+                                                    ? warningStrips.y + warningStrips.height - bigPictureLayer.y : 0,
+                                                guidedConfirmHost.contentBottom > 0
+                                                    ? guidedConfirmHost.y + guidedConfirmHost.contentBottom - bigPictureLayer.y : 0)
+                                         : 0
         streamObjectName:     "thermalVideo"
         // No target picking here any more: this window is always thermal now, and a tap on
         // the thermal frame would hand the module coordinates from a different sensor's view.
-        onActivated:          root._toggleExpanded("shared")
+        onActivated:          root._expand("shared")
     }
 
     // The slide-to-confirm control every guided action ends at. Top centre under the bar, and
     // below the warning strips while any are up rather than over them. z clears every other layer
-    // here, the fullscreen camera at 20 and the track toast at 30 included, so a confirmation
+    // here, the big picture and the track toast at 30 included, so a confirmation
     // the operator asked for is never buried.
     PoliceGuidedConfirmHost {
         id:                       guidedConfirmHost

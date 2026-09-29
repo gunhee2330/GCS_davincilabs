@@ -40,7 +40,6 @@
 #include "SiyiLongProtocol.h"
 #include "SiyiProtocol.h"
 #include "SpeakerSettings.h"
-#include "UnitsSettings.h"
 #include "Vehicle.h"
 #include "VehicleLinkManager.h"
 
@@ -99,9 +98,6 @@ const QString kTopBar          = QStringLiteral("policeTopBar");
 /// QGC's MapScale as the dashboard hosts it, and the map it measures.
 const QString kMapScale        = QStringLiteral("policeMapScale");
 const QString kFlyViewMap      = QStringLiteral("flyViewMap");
-/// Full screen only: the small map in the corner and the way back out.
-const QString kMapPip          = QStringLiteral("policeFullscreenMapPip");
-const QString kHint            = QStringLiteral("policeFullscreenHint");
 /// ToolStripHoverButton takes its objectName from the action it renders.
 const QString kMosaicEntry     = QStringLiteral("policeMosaicToolAction");
 
@@ -124,7 +120,8 @@ const QString kChipText   = QStringLiteral("policeCameraStateChipText");
 const QString kZoomStream  = QStringLiteral("videoContent");
 const QString kDragBox     = QStringLiteral("policeTargetDragBox");
 
-/// The release button on the picture, the only 추적해제 reachable while a camera is full screen.
+/// The release button on the picture. The dashboard never shows it: the rail's 추적해제 stays
+/// reachable over the big picture.
 const QString kTrackCancel = QStringLiteral("policeTrackCancelButton");
 
 /// The drag is walked in this many steps, each one well past the handler's drag threshold in
@@ -176,9 +173,6 @@ constexpr qreal kPillOfStack = 0.85;
 /// PoliceDroneDashboard._stackWindowScale / _windowScale: the zoom and thermal windows against
 /// the forward one, which stays at the smaller scale.
 constexpr qreal kStackOfForward = 0.7 / 0.6;
-
-/// The fraction of the screen width the full screen map copy takes.
-constexpr qreal kPipOfWidth = 0.27;
 
 /// A centred item lands on a half pixel either way.
 constexpr qreal kCentreSlack = 2.0;
@@ -780,79 +774,14 @@ void PoliceGuidedActionUITest::_testTrackCancelButton()
             _grab(QStringLiteral("cancel_0_corner_no_button"));
         }
 
-        // Full screen is the case the button exists for: the camera rail that carries the same
-        // command is at z 2, under the fullscreen layer at 20. Set rather than tapped - this is
-        // about what is reachable, not about the gesture.
+        // Big, the picture sits under the camera rail, so the rail's 추적해제 is still the one to
+        // reach for and the picture carries none.
         QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
         QTest::qWait(kSettleMs);
-        QQuickItem *const button = findVisibleItem(panel, kTrackCancel, 3000);
-        QVERIFY2(button, "The release button is not on the full screen panel");
-        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
-            _grab(QStringLiteral("cancel_1_fullscreen_button"));
-            if (QTest::currentTestFailed()) return;
-        }
-        QVERIFY2(findVisibleTextItem(strip, QStringLiteral("추적해제")), "The rail lost its 추적해제 button");
-
-        // It has to be hittable with a glove, and it has to be on the picture it belongs to. The
-        // floor is read out of the same singleton the panel sizes itself from rather than pinned
-        // to a number here, which would only pin this host's font metrics.
-        QQmlExpression touchFloor(qmlContext(panel), panel, QStringLiteral("ScreenTools.minTouchPixels"));
-        const QVariant floorValue = touchFloor.evaluate();
-        QVERIFY2(!touchFloor.hasError(), qPrintable(touchFloor.error().toString()));
-        QVERIFY2(button->height() >= floorValue.toReal(),
-                 qPrintable(QStringLiteral("The release button is %1 px high, under the %2 px touch floor")
-                                .arg(button->height())
-                                .arg(floorValue.toReal())));
-        const QRectF panelRect  = sceneRect(panel);
-        const QRectF buttonRect = sceneRect(button);
-        QVERIFY2(panelRect.contains(buttonRect),
-                 qPrintable(QStringLiteral("The release button %1 hangs outside its panel %2")
-                                .arg(QDebug::toString(buttonRect), QDebug::toString(panelRect))));
-
-        const QMetaMethod cancelled = signalByName(panel, "trackCancelRequested");
-        QVERIFY2(cancelled.isValid(), "Panel has no trackCancelRequested signal");
-        QSignalSpy cancelSpy(panel, cancelled);
-        QVERIFY(cancelSpy.isValid());
-
-        const QMetaMethod picked = signalByName(panel, "targetBoxPicked");
-        QVERIFY2(picked.isValid(), "Panel has no targetBoxPicked signal");
-        QSignalSpy boxSpy(panel, picked);
-        QVERIFY(boxSpy.isValid());
-
-        const QPoint on(qFloor(buttonRect.center().x()), qFloor(buttonRect.center().y()));
-        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, on);
-        QTest::qWait(kSettleMs);
-        QCOMPARE(cancelSpy.count(), 1);
-        QVERIFY2(boxSpy.isEmpty(), "Clicking the release button also handed the module a box");
-        // The tap that toggles full screen runs on the same panel, off a passive grab that the
-        // button's own grab does not take away.
-        QCOMPARE(dashboard->property("expandedPanel").toString(), QStringLiteral("secondary"));
-
-        // Greyed, which is what no target looks like: the click has to do nothing at all.
-        QVERIFY(panel->setProperty("trackCancelEnabled", false));
-        QTest::qWait(kSettleMs);
-        cancelSpy.clear();
-        QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, on);
-        QTest::qWait(kSettleMs);
-        QVERIFY2(cancelSpy.isEmpty(), "A click on the greyed release button still asked for a cancel");
-        QVERIFY2(boxSpy.isEmpty(), "A click on the greyed release button handed the module a box");
-        QCOMPARE(dashboard->property("expandedPanel").toString(), QStringLiteral("secondary"));
-
-        // A drag off the button is the button being pressed, not a box being drawn. The drag
-        // handler is allowed to take the grab off an item, so this is not free.
-        QVERIFY(panel->setProperty("trackCancelEnabled", true));
-        QTest::qWait(kSettleMs);
-        cancelSpy.clear();
-        const QPointF to = panelRect.topLeft() + QPointF(panelRect.width() * 0.8, panelRect.height() * 0.3);
-        _dragPointer({ buttonRect.center(), to });
-        if (QTest::currentTestFailed()) return;
-        QVERIFY2(boxSpy.isEmpty(), "A drag that started on the release button handed the module a box");
-        QCOMPARE(dashboard->property("expandedPanel").toString(), QStringLiteral("secondary"));
-
-        // Back to the corner, and the button goes with it.
+        QVERIFY2(!findVisibleItem(panel, kTrackCancel, 0), "The release button is on the big zoom picture");
+        QVERIFY2(findVisibleTextItem(strip, QStringLiteral("추적해제")), "The rail lost its 추적해제 button over the big picture");
         QVERIFY(dashboard->setProperty("expandedPanel", QString()));
         QTest::qWait(kSettleMs);
-        QVERIFY2(!findVisibleItem(panel, kTrackCancel, 0), "The release button stayed after leaving full screen");
     });
 }
 
@@ -1496,43 +1425,6 @@ void PoliceGuidedActionUITest::_testCameraBandLayout()
         QVERIFY2(left.bottom() <= forward.top() + kEdgeSlack,
                  qPrintable(QStringLiteral("Left guided tool strip bottom %1 runs into the forward window top %2")
                                 .arg(left.bottom()).arg(forward.top())));
-
-        // Full screen: the map copy is the only map on screen, so it is taken off the screen's
-        // width rather than off a camera window, and the detection card goes to the middle of the
-        // bottom edge instead of into the strip of picture beside it. The hint is found straight
-        // away - it fades in on entry and is gone again three seconds later, but the item stays,
-        // so its rectangle is still readable afterwards.
-        const QRectF dockedCard = card;
-        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
-        QQuickItem *const pip  = findVisibleItem(_rootItem, kMapPip, 1000);
-        QVERIFY2(pip, "Full screen map copy is not on screen");
-        QQuickItem *const hint = findVisibleItem(_rootItem, kHint, 1000);
-        QVERIFY2(hint, "Full screen hint label is not on screen");
-        QTest::qWait(kSettleMs);
-
-        const QRectF pipRect  = sceneRect(pip);
-        const QRectF hintRect = sceneRect(hint);
-        const QRectF fullCard = sceneRect(items[kAiPanel]);
-        QVERIFY2(qAbs(pipRect.width() - screen.width() * kPipOfWidth) <= kEdgeSlack,
-                 qPrintable(QStringLiteral("Full screen map copy is %1 wide against a wanted %2")
-                                .arg(pipRect.width()).arg(screen.width() * kPipOfWidth)));
-        QVERIFY2(qAbs(fullCard.center().x() - screen.center().x()) <= kCentreSlack,
-                 qPrintable(QStringLiteral("Full screen detection card %1 is not centred on the screen %2")
-                                .arg(QDebug::toString(fullCard), QDebug::toString(screen))));
-        QVERIFY2(!fullCard.intersects(pipRect),
-                 qPrintable(QStringLiteral("Full screen detection card %1 runs into the map copy %2")
-                                .arg(QDebug::toString(fullCard), QDebug::toString(pipRect))));
-        QVERIFY2(!fullCard.intersects(hintRect),
-                 qPrintable(QStringLiteral("Full screen detection card %1 runs into the hint label %2")
-                                .arg(QDebug::toString(fullCard), QDebug::toString(hintRect))));
-
-        // Back out: the card returns to the telemetry bar it was stacked on.
-        QVERIFY(dashboard->setProperty("expandedPanel", QString()));
-        QTest::qWait(kSettleMs);
-        QVERIFY2(sceneRect(items[kAiPanel]) == dockedCard,
-                 qPrintable(QStringLiteral("Detection card came back from full screen at %1, not at %2")
-                                .arg(QDebug::toString(sceneRect(items[kAiPanel])),
-                                     QDebug::toString(dockedCard))));
 
         // The stock altitude slider takes the whole right screen edge while a confirmation is up,
         // which is the edge this strip stands on: it steps inboard of the slider for as long as
@@ -2420,157 +2312,152 @@ void PoliceGuidedActionUITest::_testStockPhotoVideoOnlyWithPodOff()
     });
 }
 
-void PoliceGuidedActionUITest::_testFullscreenFlightStrip()
+void PoliceGuidedActionUITest::_testMapSwap()
 {
     _ignorePreexistingQmlWarnings();
 
-    // In feet, so the altitude has to follow the app's unit rather than the metres it arrives in.
-    // A fact takes the unit it is made with, so this is set before the vehicle connects.
-    Fact *const verticalUnits = SettingsManager::instance()->unitsSettings()->verticalDistanceUnits();
-    QVERIFY(verticalUnits);
-    const QVariant savedUnits = verticalUnits->rawValue();
-    const auto restoreUnits = qScopeGuard([verticalUnits, savedUnits] { verticalUnits->setRawValue(savedUnits); });
-    ignoreLogMessage("API.QGCApplication.AppMessage", QtDebugMsg,
-                     QRegularExpression(QStringLiteral("Restart application for changes to take effect")));
-    verticalUnits->setRawValue(UnitsSettings::VerticalDistanceUnitsFeet);
-
     runWithMockLink([] { return MockLink::startPX4MockLink(); },
-                    [this](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
         _window->resize(kLayoutWidth, kLayoutHeight);
         QTest::qWait(kSettleMs);
 
-        const QString kStrip = QStringLiteral("policeFullscreenFlightStrip");
-        const bool capture = !qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty();
-
         QQuickItem *const dashboard = findVisibleItem(_rootItem, kDashboard, 5000);
         QVERIFY2(dashboard, "Police dashboard not found - the layout under test is not up");
-        QQuickItem *const zoomPanel = findVisibleItem(_rootItem, kZoomPanel, 5000);
-        QVERIFY2(zoomPanel, "Zoom camera panel not found");
-        // The release button follows the AI module's own state, which no mock link can drive, so
-        // it is put up the way the release button test puts it up.
-        QVERIFY(zoomPanel->setProperty("targetPickEnabled", true));
+        QQuickItem *const zoomWindow = findVisibleItem(_rootItem, kZoomWindow, 3000);
+        QVERIFY2(zoomWindow, "Zoom window not found");
+        QQuickItem *const forwardWindow = findVisibleItem(_rootItem, kForwardWindow, 3000);
+        QVERIFY2(forwardWindow, "Forward window not found");
+        QQuickItem *const thermalWindow = findVisibleItem(_rootItem, kThermalWindow, 3000);
+        QVERIFY2(thermalWindow, "Thermal window not found");
+        QQuickItem *const panel = findVisibleItem(_rootItem, kZoomPanel, 3000);
+        QVERIFY2(panel, "Zoom camera panel not found");
+        QQuickItem *const topBar = findVisibleItem(_rootItem, kTopBar, 3000);
+        QVERIFY2(topBar, "Top bar not found");
+        QQuickItem *const rail = findVisibleItem(_rootItem, kCameraStrip, 3000);
+        QVERIFY2(rail, "Camera rail not found");
+        QQuickItem *const guided = findVisibleItem(_rootItem, kGuidedStrip, 3000);
+        QVERIFY2(guided, "Guided tool strip not found");
+        QQuickItem *const card = findVisibleItem(_rootItem, kAiPanel, 3000);
+        QVERIFY2(card, "Detection card not found");
+        const QRectF cardBefore = sceneRect(card);
+        const bool capture = !qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty();
 
-        QVERIFY2(!findVisibleItem(_rootItem, kStrip, 0), "Flight strip is up with no camera full screen");
-
-        const auto text = [](QQuickItem *strip, const char *name) {
-            QQuickItem *const item = strip->findChild<QQuickItem *>(QLatin1String(name));
-            return item ? item->property("text").toString() : QStringLiteral("<no %1>").arg(QLatin1String(name));
+        const auto expanded = [dashboard] { return dashboard->property("expandedPanel").toString(); };
+        const auto chipReads = [](QQuickItem *window, const QString &text) {
+            QQuickItem *const chip = findVisibleItem(window, kTitleChip, 0);
+            return chip && findVisibleTextItem(chip, text);
+        };
+        const auto clickAt = [this](const QPointF &point) {
+            QTest::mouseClick(_window, Qt::LeftButton, Qt::NoModifier, point.toPoint());
+            QTest::qWait(kSettleMs);
+        };
+        // QQuickItem::childAt goes by declaration order and ignores z; this goes by paint order.
+        const auto topChildAt = [dashboard](const QPointF &point) {
+            QQuickItem *top = nullptr;
+            for (QQuickItem *const child : dashboard->childItems()) {
+                if (child->isVisible() && child->contains(dashboard->mapToItem(child, point)) &&
+                        (!top || child->z() >= top->z())) {
+                    top = child;
+                }
+            }
+            return top;
+        };
+        const auto near = [](const QRectF &a, const QRectF &b) {
+            return qAbs(a.left() - b.left()) <= kEdgeSlack && qAbs(a.top() - b.top()) <= kEdgeSlack &&
+                   qAbs(a.width() - b.width()) <= kEdgeSlack && qAbs(a.height() - b.height()) <= kEdgeSlack;
         };
 
-        // Every figure on the strip against where the top bar and the aircraft have it.
-        const auto checkStrip = [&](QQuickItem *strip, bool flying) {
-            const QString clock = text(strip, "policeFullscreenStripDateTime");
-            QVERIFY2(QRegularExpression(QStringLiteral("^\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d$")).match(clock).hasMatch(),
-                     qPrintable(QStringLiteral("Strip clock reads '%1'").arg(clock)));
+        // 1. Windowed: the zoom window names itself, and there is no map copy anywhere.
+        QVERIFY2(chipReads(zoomWindow, QStringLiteral("줌")), "The zoom window chip does not read 줌");
+        QVERIFY2(!findVisibleItem(_rootItem, QStringLiteral("policeMapPip"), 0), "The map copy is up with no camera big");
 
-            const QString flight = text(strip, "policeFullscreenStripFlight");
-            QQuickItem *const distance = strip->findChild<QQuickItem *>(QStringLiteral("policeFullscreenStripDistance"));
-            QVERIFY2(distance, "Strip has no distance figure");
-            if (flying) {
-                QVERIFY2(QRegularExpression(QStringLiteral("^비행 중 \\d\\d:\\d\\d$")).match(flight).hasMatch(),
-                         qPrintable(QStringLiteral("Strip flight time reads '%1'").arg(flight)));
-                QQuickItem *const barDistance = findVisibleItem(_rootItem, QStringLiteral("policeStatusDistance"), 0);
-                QVERIFY2(barDistance, "Top bar distance is not up in flight");
-                QVERIFY(distance->isVisible());
-                QCOMPARE(distance->property("text").toString(), barDistance->property("text").toString());
-            } else {
-                QCOMPARE(flight, QStringLiteral("—"));
-                QVERIFY2(!distance->isVisible(), "Strip shows a distance on the ground");
-            }
+        // 2. A tap on the zoom window makes it the big picture.
+        clickAt(sceneRect(zoomWindow).center());
+        QCOMPARE(expanded(), QStringLiteral("secondary"));
 
-            QCOMPARE(text(strip, "policeFullscreenStripAltitude"),
-                     vehicle->altitudeRelative()->cookedValueString() + QStringLiteral(" ")
-                         + FactMetaData::appSettingsVerticalDistanceUnitsString());
+        // 3. Everything under the top bar, full width.
+        const qreal barBottom = sceneRect(topBar).bottom();
+        const QRectF wanted(0, barBottom, _window->width(), _window->height() - barBottom);
+        QVERIFY2(near(sceneRect(panel), wanted),
+                 qPrintable(QStringLiteral("Big zoom picture is at %1, wanted %2")
+                                .arg(QDebug::toString(sceneRect(panel)), QDebug::toString(wanted))));
 
-            const double percent = dashboard->property("_batteryPercent").toDouble();
-            QVERIFY2(!qIsNaN(percent), "The mock pack reports no percentage");
-            QCOMPARE(text(strip, "policeFullscreenStripBattery"), QStringLiteral("%1 %").arg(qRound(percent)));
-        };
+        // 4. The zoom window stays, now holding the map as 지도.
+        QVERIFY2(zoomWindow->isVisible(), "The zoom window went with its picture");
+        QQuickItem *const pip = findVisibleItem(_rootItem, QStringLiteral("policeMapPip"), 1000);
+        QVERIFY2(pip, "The map copy is not on screen");
+        QVERIFY2(hasAncestorNamed(pip, kZoomWindow), "The map copy is not in the vacated zoom window");
+        QVERIFY2(chipReads(zoomWindow, QStringLiteral("지도")), "The vacated window chip does not read 지도");
+        QVERIFY2(!findVisibleTextItem(zoomWindow, QStringLiteral("줌")), "줌 is still written in the vacated window");
 
-        // Clear of the window's own chrome: its name chip, found by the name it prints inside the
-        // full screen layer, and on the zoom window the state chips and the release button.
-        const auto checkClear = [&](QQuickItem *strip, const QString &title, bool zoom) {
-            const QRectF stripRect = sceneRect(strip);
-            QVERIFY2(QRectF(0, 0, _window->width(), _window->height()).contains(stripRect),
-                     qPrintable(QStringLiteral("Strip %1 hangs off the screen").arg(QDebug::toString(stripRect))));
-            QQuickItem *const titleText = findVisibleTextItem(strip->parentItem(), title);
-            QVERIFY2(titleText, qPrintable(QStringLiteral("Full screen name chip '%1' is not on screen").arg(title)));
-            QList<QPair<QString, QQuickItem *>> chrome { { QStringLiteral("name chip"), titleText->parentItem() } };
-            if (zoom) {
-                chrome.append({ QStringLiteral("state chips"), findVisibleItem(zoomPanel, kStateChips, 0) });
-                chrome.append({ QStringLiteral("release button"), findVisibleItem(zoomPanel, kTrackCancel, 0) });
-            }
-            for (const auto &item : chrome) {
-                QVERIFY2(item.second, qPrintable(QStringLiteral("Full screen %1 is not on screen").arg(item.first)));
-                QVERIFY2(!stripRect.intersects(sceneRect(item.second)),
-                         qPrintable(QStringLiteral("Strip %1 covers the %2 %3")
-                                        .arg(QDebug::toString(stripRect), item.first,
-                                             QDebug::toString(sceneRect(item.second)))));
-            }
-        };
+        // 5. The chrome stays where it was, over the picture.
+        QVERIFY2(topBar->isVisible(), "Top bar went under the big picture");
+        QVERIFY2(guided->isVisible(), "Guided tool strip went under the big picture");
+        QVERIFY2(rail->isVisible(), "Camera rail went under the big picture");
+        QVERIFY2(findVisibleTextItem(rail, QStringLiteral("추적해제")), "The rail lost its 추적해제 button");
+        QVERIFY2(forwardWindow->isVisible(), "Forward window went with the swap");
+        QVERIFY2(thermalWindow->isVisible(), "Thermal window went with the swap");
+        QVERIFY2(sceneRect(card) == cardBefore,
+                 qPrintable(QStringLiteral("Detection card moved to %1 from %2")
+                                .arg(QDebug::toString(sceneRect(card)), QDebug::toString(cardBefore))));
 
-        // On the ground, zoom full screen.
-        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
-        QQuickItem *const strip = findVisibleItem(_rootItem, kStrip, 3000);
-        QVERIFY2(strip, "Flight strip is not up with the zoom window full screen");
-        QTest::qWait(kSettleMs);
-        checkStrip(strip, false);
-        if (QTest::currentTestFailed()) return;
-        checkClear(strip, zoomPanel->property("panelTitle").toString(), true);
-        if (QTest::currentTestFailed()) return;
+        // 6. The rail is drawn over the picture, not under it.
+        const QPointF railCentre = dashboard->mapFromScene(sceneRect(rail).center());
+        QQuickItem *const onRail = topChildAt(railCentre);
+        QVERIFY2(onRail, "Nothing at the camera rail's centre");
+        QVERIFY2(onRail->objectName() != QStringLiteral("policeBigPicture"), "The big picture is over the camera rail");
+
+        // 7. The big picture's name chip is clear of the guided strip.
+        QQuickItem *const bigName = findVisibleTextItem(panel, QStringLiteral("줌"));
+        QVERIFY2(bigName, "The big zoom picture has no 줌 name chip");
+        QVERIFY2(sceneRect(bigName).left() > sceneRect(guided).right(),
+                 qPrintable(QStringLiteral("줌 chip %1 is under the guided strip %2")
+                                .arg(QDebug::toString(sceneRect(bigName)), QDebug::toString(sceneRect(guided)))));
+
         if (capture) {
-            _grab(QStringLiteral("fullscreen_strip_0_zoom_ground"));
-            if (QTest::currentTestFailed()) return;
-        }
-        QVERIFY(dashboard->setProperty("expandedPanel", QString()));
-        QTest::qWait(kSettleMs);
-        QVERIFY2(!strip->isVisible(), "Flight strip stayed up after leaving full screen");
-
-        // Take off, the way the return altitude test does.
-        QVERIFY_TRUE_WAIT(!qIsNaN(vehicle->altitudeAMSL()->rawValue().toDouble()), TestTimeout::longMs());
-        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
-                         QRegularExpression(QStringLiteral("Failed to connect to pressure backend")));
-        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
-                         QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
-        _takeOffFromPanel();
-        if (QTest::currentTestFailed()) return;
-        QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
-        QTest::qWait(kSettleMs * 2);
-
-        // In flight, zoom full screen, and the figures keep moving while it is up.
-        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
-        QVERIFY2(findVisibleItem(_rootItem, kStrip, 3000), "Flight strip is not up with the zoom window full screen in flight");
-        QTest::qWait(kSettleMs);
-        checkStrip(strip, true);
-        if (QTest::currentTestFailed()) return;
-        checkClear(strip, zoomPanel->property("panelTitle").toString(), true);
-        if (QTest::currentTestFailed()) return;
-        const QString clockBefore  = text(strip, "policeFullscreenStripDateTime");
-        const QString flightBefore = text(strip, "policeFullscreenStripFlight");
-        QTest::qWait(2200);
-        QVERIFY2(text(strip, "policeFullscreenStripDateTime") != clockBefore, "Strip clock stood still");
-        QVERIFY2(text(strip, "policeFullscreenStripFlight") != flightBefore, "Strip flight time stood still");
-        if (capture) {
-            _grab(QStringLiteral("fullscreen_strip_1_zoom_flying"));
+            SiyiCameraController *const camera = SiyiCameraController::instance();
+            QVERIFY(camera);
+            const bool savedLaser = camera->laserEnabled();
+            camera->setLaserEnabled(true);
+            _grab(QStringLiteral("swap_zoom_big"));
+            camera->setLaserEnabled(savedLaser);
             if (QTest::currentTestFailed()) return;
         }
 
-        // Thermal full screen, straight from the zoom one.
-        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("shared")));
-        QTest::qWait(kSettleMs);
-        QVERIFY2(strip->isVisible(), "Flight strip is not up with the thermal window full screen");
-        checkStrip(strip, true);
-        if (QTest::currentTestFailed()) return;
-        checkClear(strip, QStringLiteral("열상"), false);
-        if (QTest::currentTestFailed()) return;
+        // 8. A tap on the big picture keeps it big: it is the target-pick surface.
+        const QRectF bigRect = sceneRect(panel);
+        const QPointF onPicture(bigRect.center().x(), bigRect.top() + bigRect.height() * 0.4);
+        const QPointF onPictureLocal = dashboard->mapFromScene(onPicture);
+        QQuickItem *const underTap = topChildAt(onPictureLocal);
+        QVERIFY2(underTap && underTap->objectName() == QStringLiteral("policeBigPicture"),
+                 "The tap point on the big picture is covered by chrome");
+        clickAt(onPicture);
+        QCOMPARE(expanded(), QStringLiteral("secondary"));
+
+        // 9. A tap on 지도 swaps back.
+        clickAt(sceneRect(zoomWindow).center());
+        QCOMPARE(expanded(), QString());
+        QVERIFY2(chipReads(zoomWindow, QStringLiteral("줌")), "The zoom window chip does not read 줌 again");
+        QVERIFY2(near(sceneRect(panel), sceneRect(zoomWindow)),
+                 qPrintable(QStringLiteral("Zoom panel came back at %1, not in its window %2")
+                                .arg(QDebug::toString(sceneRect(panel)), QDebug::toString(sceneRect(zoomWindow)))));
+
+        // 10. Thermal big, then the forward window straight from there.
+        clickAt(sceneRect(thermalWindow).center());
+        QCOMPARE(expanded(), QStringLiteral("shared"));
         if (capture) {
-            _grab(QStringLiteral("fullscreen_strip_2_thermal_flying"));
+            _grab(QStringLiteral("swap_thermal_big"));
             if (QTest::currentTestFailed()) return;
         }
+        clickAt(sceneRect(forwardWindow).center());
+        QCOMPARE(expanded(), QStringLiteral("primary"));
+        QVERIFY2(chipReads(thermalWindow, QStringLiteral("열상")), "The thermal window chip does not read 열상 again");
+        QVERIFY2(chipReads(forwardWindow, QStringLiteral("지도")), "The vacated forward window chip does not read 지도");
 
-        QVERIFY(dashboard->setProperty("expandedPanel", QString()));
+        // 11. Escape swaps back.
+        QTest::keyClick(_window, Qt::Key_Escape);
         QTest::qWait(kSettleMs);
-        QVERIFY2(!strip->isVisible(), "Flight strip stayed up after leaving full screen");
+        QCOMPARE(expanded(), QString());
     });
 }
 
