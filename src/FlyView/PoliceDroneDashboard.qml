@@ -1541,8 +1541,11 @@ Item {
                                 required property string modelData
                                 required property int index
                                 Layout.fillWidth:       true
+                                // Never narrower than its own label: a fixed width cut the longest
+                                // name short ("6. 위험 구역 접근 ...") once three sat across.
                                 Layout.preferredWidth:  Math.max(ScreenTools.minTouchPixels * 4,
-                                                                 ScreenTools.defaultFontPixelWidth * 14)
+                                                                 ScreenTools.defaultFontPixelWidth * 14,
+                                                                 implicitWidth)
                                 Layout.preferredHeight: root._touchHeight
                                 // Track numbers are 1 based on the payload.
                                 text:                   qsTr("%1. %2").arg(index + 1).arg(modelData)
