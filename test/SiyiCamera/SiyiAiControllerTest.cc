@@ -409,6 +409,8 @@ void SiyiAiControllerTest::_lateTrackingStateDoesNotCancelANewTarget_test()
     (void) drainFrames(module);
 
     controller.trackBox(0.4, 0.4, 0.6, 0.6);
+    // The module takes the point pick, so no box follows it on the status poll's edge.
+    controller._handleFrame(trackAckFrame(SiyiAi::TrackRequestResult::Accepted));
 
     const QByteArray late = SiyiProtocol::encodeRaw(
         static_cast<quint8>(SiyiAi::CommandId::RequestTrackingState), QByteArray(1, '\1'));
@@ -1028,7 +1030,7 @@ void SiyiAiControllerTest::_dragKeepsTheClassTheStreamReports_test()
 
     controller.trackBox(0.4, 0.4, 0.6, 0.8);
     QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
-    (void) drainFrames(module);
+    QCOMPARE(boxSelections(drainFrames(module)).size(), 0);
 
     QByteArray data;
     data.append(uint16le(640));
