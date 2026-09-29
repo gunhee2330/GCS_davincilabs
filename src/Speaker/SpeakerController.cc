@@ -19,6 +19,15 @@ constexpr int kPollIntervalMs = 1000;
 /// The payload is declared offline once this long passes with no valid frame.
 constexpr qint64 kConnectionTimeoutMs = 3000;
 
+/// The port this end listens on. Fixed rather than ephemeral so a restart of the ground station
+/// keeps the same address on the wire; the bridge on the handheld answers whoever spoke to it
+/// last, and a moving port only adds to what can go wrong there.
+constexpr quint16 kLocalPort = 19857;
+
+/// The most a single reply can occupy: header, the largest data field the protocol allows, and
+/// the checksum. Nothing older than this can be the head of a frame still arriving.
+constexpr int kMaxSpeakerFrame = 8 + 512 + 2;
+
 } // namespace
 
 Q_APPLICATION_STATIC(SpeakerController, _speakerControllerInstance, nullptr);
@@ -94,12 +103,19 @@ void SpeakerController::start()
     }
     _port = static_cast<quint16>(settings->port()->rawValue().toUInt());
 
+    // A fixed local port, not an ephemeral one; see kLocalPort.
     _socket = new QUdpSocket(this);
-    if (!_socket->bind(QHostAddress::AnyIPv4, 0)) {
-        qCWarning(SpeakerControllerLog) << "bind failed:" << _socket->errorString();
-        delete _socket;
-        _socket = nullptr;
-        return;
+    if (!_socket->bind(QHostAddress::AnyIPv4, kLocalPort)) {
+        qCWarning(SpeakerControllerLog) << "bind failed on port" << kLocalPort << ":"
+                                        << _socket->errorString();
+        // Ephemeral rather than nothing: another copy of the app holding the port must not cost
+        // the operator the loudspeaker outright.
+        if (!_socket->bind(QHostAddress::AnyIPv4, 0)) {
+            qCWarning(SpeakerControllerLog) << "bind failed:" << _socket->errorString();
+            delete _socket;
+            _socket = nullptr;
+            return;
+        }
     }
     (void) connect(_socket, &QUdpSocket::readyRead, this, &SpeakerController::_readPendingDatagrams);
 
@@ -174,14 +190,33 @@ void SpeakerController::_readPendingDatagrams()
             return;
         }
         datagram.truncate(static_cast<int>(read));
-        _rxBuffer.append(datagram);
+        _ingest(datagram);
     }
+}
 
+void SpeakerController::_ingest(const QByteArray &bytes)
+{
+    _rxBuffer.append(bytes);
+
+    // Decode per delivery, and keep only what a split frame could need.
+    //
+    // The payload is not the only thing that can reach this socket through the bridge: bytes that
+    // are not the payload's are skipped one at a time until they happen to spell 0xA5 0x5A, and
+    // then a length is read out of whatever follows. A large one leaves decode() waiting for a
+    // frame that will never arrive - it returns without consuming, having no way to know the
+    // header was a coincidence - and every real reply after that lands behind it in a buffer
+    // nobody drains again. A frame is at most kMaxSpeakerFrame bytes, so anything older than that
+    // cannot be the start of one still being delivered; dropping it bounds the damage a false
+    // header can do to a single delivery.
     const QList<SpeakerProtocol::Frame> frames = SpeakerProtocol::decode(_rxBuffer);
     for (const SpeakerProtocol::Frame &frame : frames) {
         _lastFrameTimer.restart();
         _setConnected(true);
         _handleFrame(frame);
+    }
+
+    if (_rxBuffer.size() > kMaxSpeakerFrame) {
+        _rxBuffer.remove(0, _rxBuffer.size() - kMaxSpeakerFrame);
     }
 }
 

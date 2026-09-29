@@ -79,6 +79,9 @@ private slots:
 
 private:
     void _send(const QByteArray &packet);
+    /// Appends a delivery to the receive buffer, handles every whole frame in it, and trims what
+    /// is left to one frame's worth.
+    void _ingest(const QByteArray &bytes);
     void _handleFrame(const SpeakerProtocol::Frame &frame);
     void _setConnected(bool connected);
     void _reloadMessageNames();

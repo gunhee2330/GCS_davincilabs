@@ -190,7 +190,9 @@ class Player:
         self._device = device
         self._process: subprocess.Popen | None = None
         self._track = 0
-        self._volume = 80
+        # Full scale until the ground station says otherwise: the files are already levelled
+        # for the motors, and 80 here cost 2 dB of the little headroom the speaker has.
+        self._volume = 100
         self._lock = threading.Lock()
         self._player_cmd = self._find_player()
 

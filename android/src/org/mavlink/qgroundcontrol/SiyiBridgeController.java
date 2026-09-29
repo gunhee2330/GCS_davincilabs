@@ -35,6 +35,7 @@ public final class SiyiBridgeController {
     private static final int TRANSACTION_SET_SERIAL_OPEN = 1; // arg: int, nonzero = open
 
     private static ServiceConnection s_connection;
+    private static Context s_context;
 
     private SiyiBridgeController() {}
 
@@ -43,9 +44,41 @@ public final class SiyiBridgeController {
         if (s_connection != null) {
             return;
         }
+        s_context = context.getApplicationContext();
+        bind(s_context);
+    }
 
+    private static synchronized void rebind() {
+        final Context context = s_context;
+        if (context == null) {
+            return;
+        }
+        if (s_connection != null) {
+            try {
+                context.unbindService(s_connection);
+            } catch (IllegalArgumentException ignored) {
+                // Already unbound.
+            }
+            s_connection = null;
+        }
+        bind(context);
+    }
+
+    private static synchronized void bind(final Context context) {
         final Intent intent = new Intent();
         intent.setClassName(PACKAGE, SERVICE);
+
+        // Started as well as bound. SIYI's own boot receiver starts this service, which is
+        // why the instance from boot outlived every restart of ours all day; a service that
+        // is only bound is destroyed the moment its last client goes - onDestroy, 关闭串口Socket,
+        // UDP listener gone - and the copy that BIND_AUTO_CREATE conjures for the next launch
+        // came up without a working downlink. Starting it first mirrors the boot path, so our
+        // unbind on exit is no longer the thing that kills the bridge.
+        try {
+            context.startService(intent);
+        } catch (SecurityException | IllegalStateException e) {
+            QGCLogger.w(TAG, "could not start SIYI bridge as a started service: " + e.getMessage());
+        }
 
         final ServiceConnection connection = new ServiceConnection() {
             @Override
@@ -59,12 +92,24 @@ public final class SiyiBridgeController {
             public void onServiceDisconnected(ComponentName name) {
                 QGCLogger.w(TAG, "SIYI bridge service disconnected");
             }
+
+            @Override
+            public void onBindingDied(ComponentName name) {
+                // The component is gone while its process may linger; only a fresh bind
+                // brings it back, and onServiceConnected then reopens the serial side.
+                QGCLogger.w(TAG, "SIYI bridge binding died; rebinding");
+                rebind();
+            }
+
+            @Override
+            public void onNullBinding(ComponentName name) {
+                QGCLogger.w(TAG, "SIYI bridge returned a null binding");
+            }
         };
 
         boolean bound = false;
         try {
-            bound = context.getApplicationContext().bindService(
-                intent, connection, Context.BIND_AUTO_CREATE);
+            bound = context.bindService(intent, connection, Context.BIND_AUTO_CREATE);
         } catch (SecurityException e) {
             QGCLogger.w(TAG, "not allowed to bind SIYI bridge: " + e.getMessage());
         }

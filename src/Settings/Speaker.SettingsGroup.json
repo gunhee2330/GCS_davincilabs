@@ -4,41 +4,41 @@
     "QGC.MetaData.Facts": [
         {
             "name": "enabled",
-            "shortDesc": "Enable speaker",
+            "shortDesc": "기체에 실린 스피커를 사용합니다. 음성 파일은 스피커 쪽에 있고 지상국은 어느 것을 틀지만 고릅니다.",
             "longDesc": "Control a loudspeaker payload that answers on the aircraft network. The payload stores the audio files; the ground station only selects which one to play.",
             "type": "bool",
             "default": true,
-            "label": "Enable speaker",
+            "label": "스피커 사용",
             "keywords": "speaker,broadcast,loudspeaker,payload,warning"
         },
         {
             "name": "ipAddress",
-            "shortDesc": "Loudspeaker IP address",
+            "shortDesc": "스피커 명령을 보낼 주소입니다. 조종기 데이터링크에서는 조종기 안의 UDP 브리지라 루프백입니다.",
             "longDesc": "Where the ground station sends loudspeaker commands. On the datalink this is the controller's local UDP bridge (loopback), which forwards them to the payload over the air unit serial link.",
             "type": "string",
             "default": "127.0.0.1",
-            "label": "Loudspeaker IP address",
+            "label": "스피커 IP 주소",
             "keywords": "speaker,address,ip"
         },
         {
             "name": "port",
-            "shortDesc": "Loudspeaker command port",
+            "shortDesc": "스피커 명령 포트입니다. 조종기 브리지는 19856을 씁니다.",
             "longDesc": "UDP port for loudspeaker commands. On the datalink this is the controller's local bridge port (19856).",
             "type": "uint32",
             "default": 19856,
             "min": 1,
             "max": 65535,
             "decimalPlaces": 0,
-            "label": "Loudspeaker command port",
+            "label": "스피커 명령 포트",
             "keywords": "speaker,port,udp"
         },
         {
             "name": "messageNames",
-            "shortDesc": "Broadcast message names",
+            "shortDesc": "저장된 음성 파일의 이름을 트랙 순서대로 쉼표로 구분해 적습니다. 버튼에 붙는 이름일 뿐 음성 자체는 스피커 쪽에 있습니다.",
             "longDesc": "Comma separated labels for the stored audio files, in track order. The first name is track 1. These are only labels for the buttons; the audio itself lives on the payload.",
             "type": "string",
-            "default": "해산 안내,위험 경고,접근 금지,경찰 안내",
-            "label": "Broadcast message names",
+            "default": "사이렌,위험 경고,접근 금지,경찰 안내",
+            "label": "방송 문구 이름",
             "keywords": "speaker,message,track,broadcast"
         }
     ]
