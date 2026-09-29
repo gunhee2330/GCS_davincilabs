@@ -1175,8 +1175,16 @@ Item {
                 actionID:   _guidedController.actionStartMission
                 visible:    _guidedController.showStartMission
             },
-            GuidedActionLand               { text: qsTr("착륙") },
-            GuidedActionRTL                { text: qsTr("복귀") },
+            // Land opens a panel with a slide bar, like takeoff, on GuidedActionLand's terms.
+            ToolStripAction {
+                objectName:         "policeToolLand"
+                text:               qsTr("착륙")
+                iconSource:         "/res/land.svg"
+                visible:            root.guidedController ? (root.guidedController.showLand && !root.guidedController.showTakeoff) : false
+                enabled:            root.guidedController ? root.guidedController.showLand : false
+                dropPanelComponent: landComponent
+            },
+            GuidedActionRTL                { text: qsTr("복귀"); objectName: "policeToolRtl" },
             GuidedActionPause              { text: qsTr("일시정지") },
             FlyViewAdditionalActionsButton { text: qsTr("동작") },
             FlyViewGripperButton           { text: qsTr("그리퍼") },
@@ -2269,6 +2277,34 @@ Item {
                 enabled:          _offered && takeoffAltitude.value > 0
                 onAccepted: {
                     root.guidedController.executeAction(root.guidedController.actionTakeoff, undefined, takeoffAltitude.value, false)
+                    dropPanel.hide()
+                }
+            }
+        }
+    }
+
+    Component {
+        id: landComponent
+
+        ColumnLayout {
+            objectName: "policeLandPanel"
+            spacing:    ScreenTools.defaultFontPixelHeight * 0.5
+
+            readonly property bool _offered: root.guidedController ? root.guidedController.showLand : false
+
+            on_OfferedChanged: if (!_offered) Qt.callLater(dropPanel.hide)
+
+            Component.onCompleted: root.guidedController.closeAll()
+
+            DropPanelTitle { text: qsTr("착륙") }
+
+            PoliceSlideToConfirm {
+                objectName:       "policeLandSlide"
+                Layout.fillWidth: true
+                text:             qsTr("밀어서 착륙")
+                enabled:          _offered
+                onAccepted: {
+                    root.guidedController.executeAction(root.guidedController.actionLand, undefined, 0, false)
                     dropPanel.hide()
                 }
             }

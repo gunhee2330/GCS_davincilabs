@@ -68,6 +68,11 @@ const QString kAltitudeSlider  = QStringLiteral("policeAltitudeSlider");
 const QString kAltitudeBubble  = QStringLiteral("policeAltitudeBubbleText");
 const QString kAltitudeMaximum = QStringLiteral("policeAltitudeMaximum");
 const QString kSlideKnob       = QStringLiteral("policeSlideKnob");
+/// The land panel, and 복귀, which keeps the stock hold confirm.
+const QString kLandButton      = QStringLiteral("policeToolLand");
+const QString kLandPanel       = QStringLiteral("policeLandPanel");
+const QString kLandSlide       = QStringLiteral("policeLandSlide");
+const QString kRtlButton       = QStringLiteral("policeToolRtl");
 
 const QString kSlider    = QStringLiteral("guidedValueSlider");
 const QString kDashboard = QStringLiteral("policeDroneDashboard");
@@ -830,6 +835,58 @@ void PoliceGuidedActionUITest::_testSlideSendsTakeoff()
         QVERIFY2(qAbs(sentMeters - sliderMeters) < 0.1,
                  qPrintable(QStringLiteral("Takeoff altitude sent was %1 m, slider showed %2 m")
                                 .arg(sentMeters).arg(sliderMeters)));
+    });
+}
+
+void PoliceGuidedActionUITest::_testSlideSendsLand()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle *vehicle) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        // In the air first. PX4 sends the takeoff altitude as AMSL and refuses until it is known;
+        // the flying transition creates QGCPressure, which warns on hosts without a backend.
+        QVERIFY_TRUE_WAIT(!qIsNaN(vehicle->altitudeAMSL()->rawValue().toDouble()), TestTimeout::longMs());
+        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
+                         QRegularExpression(QStringLiteral("Failed to connect to pressure backend")));
+        ignoreLogMessage("Utilities.QGCSensors", QtWarningMsg,
+                         QRegularExpression(QStringLiteral("Error Initializing Pressure Sensor")));
+        _takeOffFromPanel();
+        if (QTest::currentTestFailed()) return;
+        QVERIFY_TRUE_WAIT(vehicle->flying(), TestTimeout::longMs());
+        QTest::qWait(kSettleMs);
+
+        // 복귀 keeps the stock hold confirm, in the police host.
+        QVERIFY2(clickButton(kRtlButton), "Could not click the 복귀 tool strip entry");
+        QQuickItem *const confirmButton = findVisibleItem(_rootItem, kConfirmButton, 5000);
+        QVERIFY2(confirmButton, "복귀 raised no stock hold confirm");
+        QVERIFY2(hasAncestorNamed(confirmButton, kConfirmHost), "Confirm control on screen is not the police instance");
+
+        // 착륙 opens its own panel and takes the pending stock confirm down.
+        QVERIFY2(clickButton(kLandButton), "Could not click the 착륙 tool strip entry");
+        QVERIFY2(findVisibleItem(_rootItem, kLandPanel, 5000), "Land panel never opened");
+        QTRY_VERIFY2(!findVisibleItem(_rootItem, kConfirmButton, 0), "The stock confirm stayed up under the land panel");
+        if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+            _grab(QStringLiteral("land_0_panel"));
+            if (QTest::currentTestFailed()) return;
+        }
+
+        // Let go halfway and nothing changes.
+        const QString landMode = vehicle->landFlightMode();
+        QVERIFY2(vehicle->flightMode() != landMode, "The vehicle was already landing");
+        _slide(kLandSlide, 0.5);
+        if (QTest::currentTestFailed()) return;
+        QVERIFY2(vehicle->flightMode() != landMode, "An early release started a landing");
+        QVERIFY2(findVisibleItem(_rootItem, kLandPanel, 0), "An early release closed the land panel");
+
+        // All the way: PX4 lands by switching to its land mode.
+        _slide(kLandSlide, 1.1);
+        if (QTest::currentTestFailed()) return;
+        QVERIFY_TRUE_WAIT(vehicle->flightMode() == landMode, TestTimeout::longMs());
+        QVERIFY2(!findVisibleItem(_rootItem, kLandPanel, 0), "Land panel stayed after the landing was sent");
     });
 }
 

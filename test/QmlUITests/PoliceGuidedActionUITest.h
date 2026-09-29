@@ -34,6 +34,11 @@ private slots:
     /// takeoff_1_mid_drag when QGC_SCREENSHOT_DIR is set.
     void _testSlideSendsTakeoff();
 
+    /// In flight 복귀 still raises the stock hold confirm; 착륙 opens its own panel, which takes
+    /// that confirm down; letting its knob go halfway changes nothing, and sliding it to the end
+    /// lands. Grabs land_0_panel when QGC_SCREENSHOT_DIR is set.
+    void _testSlideSendsLand();
+
     /// With a route aboard, 미션시작 appears in the strip, raises the confirm control, and
     /// holding it starts the mission.
     void _testMissionStartFromToolStrip();
