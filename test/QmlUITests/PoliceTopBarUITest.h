@@ -27,6 +27,10 @@ private slots:
     /// low below.
     void _testControllerBatteryIconFollowsPercent();
 
+    /// The RC bars follow the handset's own link while it reports one, empty with "연결 안 됨"
+    /// when it says the air unit is gone, and back on the FC rssi once it goes quiet.
+    void _testRfGaugeFollowsHandsetLink();
+
     /// Each tappable item opens its drawer under itself: the drawer hangs from the bar's bottom
     /// edge and its span covers the item that was tapped.
     void _testDrawersOpenUnderTheirItem();

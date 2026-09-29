@@ -439,10 +439,12 @@ Item {
 
     // Bars, not numbers, for the pilot's radio: four steps is all an operator acts on, and the
     // step is readable at arm's length in a way that a dBm figure is not.
-    readonly property bool _rcAvailable: _activeVehicle && _activeVehicle.rcRSSI.rawValue > 0 &&
-                                         _activeVehicle.rcRSSI.rawValue <= 100
-    readonly property int  _rcLevel:     _rcAvailable
-                                             ? Math.max(1, Math.ceil(_activeVehicle.rcRSSI.rawValue / 25)) : 0
+    // The handset's own link (PoliceRcLink) when it reports one; otherwise the FC's rssi.
+    readonly property bool _handsetRc:   App.PoliceRcLink.available
+    readonly property int  _rcPercent:   _handsetRc ? App.PoliceRcLink.percent
+                                         : (_activeVehicle ? _activeVehicle.rcRSSI.rawValue : 0)
+    readonly property bool _rcAvailable: _handsetRc || (_activeVehicle && _rcPercent > 0 && _rcPercent <= 100)
+    readonly property int  _rcLevel:     (_rcAvailable && _rcPercent > 0) ? Math.max(1, Math.ceil(_rcPercent / 25)) : 0
 
     // ------------------------------------------------------------------- the status block
     //
@@ -894,6 +896,8 @@ Item {
         batteryColor:   root._batteryColor
         rcAvailable:    root._rcAvailable
         rcLevel:        root._rcLevel
+        rcHandset:      root._handsetRc
+        rcLinkDown:     root._handsetRc && !App.PoliceRcLink.connected
         linkUp:         root._linkUp
         gpsFixed:       root._gpsFixed
         gpsFixText:     root._gpsFixText

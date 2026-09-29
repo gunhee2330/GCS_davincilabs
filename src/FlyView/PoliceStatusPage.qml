@@ -157,6 +157,16 @@ ToolIndicatorPage {
                     labelText: page._lastFlightText
                 }
 
+                // Raw handset link values, for calibrating PoliceRcLink's strength scale on the unit.
+                LabelledLabel {
+                    objectName: "policeRcLinkRaw"
+                    label:      qsTr("조종기 링크 (원시)")
+                    labelText:  qsTr("강도 %1, 품질 %2, 유효 %3 %, %4").arg(App.PoliceRcLink.strength)
+                                .arg(App.PoliceRcLink.quality).arg(App.PoliceRcLink.validPercent)
+                                .arg(App.PoliceRcLink.connected ? qsTr("연결") : qsTr("끊김"))
+                    visible:    App.PoliceRcLink.available
+                }
+
                 LabelledLabel {
                     label:     qsTr("지난 비행")
                     labelText: App.TakeoffCounter.flights.length === 0 ? qsTr("기록 없음") : ""

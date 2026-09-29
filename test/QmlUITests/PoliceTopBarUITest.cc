@@ -30,6 +30,7 @@
 #include "MultiVehicleManager.h"
 #include "ParameterManager.h"
 #include "PoliceCorePlugin.h"
+#include "PoliceRcLink.h"
 #include "QmlObjectListModel.h"
 #include "SettingsManager.h"
 #include "SimpleMissionItem.h"
@@ -395,6 +396,47 @@ void PoliceTopBarUITest::_testControllerBatteryIconFollowsPercent()
             QVERIFY2(source.endsWith(QLatin1String(c.file)),
                      qPrintable(QStringLiteral("At %1 % the handset icon is %2, not %3").arg(c.percent).arg(source, QLatin1String(c.file))));
         }
+    });
+}
+
+void PoliceTopBarUITest::_testRfGaugeFollowsHandsetLink()
+{
+    _ignorePreexistingQmlWarnings();
+
+    PoliceRcLink *const link = PoliceRcLink::instance();
+    // The singleton outlives the test.
+    const auto reset = qScopeGuard([link] { link->handleConnected(true); });
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this, link](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const rfItem = findVisibleItem(_rootItem, kRfItem, 5000);
+        QVERIFY2(rfItem, "The RF item is not on the bar");
+        QQuickItem *const gauge = findVisibleItem(rfItem, QStringLiteral("policeRfGauge"), 3000);
+        QVERIFY2(gauge, "The RF gauge is not on the bar");
+        QQuickItem *const text = rfItem->findChild<QQuickItem *>(QStringLiteral("policeRfText"));
+        QVERIFY2(text, "The RF text is not in the RF item");
+
+        QVERIFY(!link->available());
+        const int fcLevel = gauge->property("level").toInt();
+
+        link->handleLinkInfo(80, 12, 99);
+        QTRY_COMPARE(gauge->property("level").toInt(), 4);
+        QVERIFY(!text->isVisible());
+
+        link->handleLinkInfo(10, 3, 50);
+        QTRY_COMPARE(gauge->property("level").toInt(), 1);
+
+        link->handleConnected(false);
+        QTRY_COMPARE(gauge->property("level").toInt(), 0);
+        QTRY_VERIFY(text->isVisible());
+        QCOMPARE(text->property("text").toString(), QStringLiteral("연결 안 됨"));
+
+        link->handleConnected(true);
+        QTRY_VERIFY_WITH_TIMEOUT(!link->available(), 5000);
+        QTRY_COMPARE(gauge->property("level").toInt(), fcLevel);
     });
 }
 

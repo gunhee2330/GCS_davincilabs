@@ -25,6 +25,8 @@
 -keep class org.mavlink.qgroundcontrol.QGCFtdiSerialDriver$QGCFtdiSerialPort { *; }
 -keep class org.mavlink.qgroundcontrol.QGCFtdiDriver { *; }
 -keep class org.mavlink.qgroundcontrol.QGCSDLManager { *; }
+# Reached only from C++ (PoliceRcLink: start() and the natives); nothing in Java names it.
+-keep class org.mavlink.qgroundcontrol.PoliceRcLinkMonitor { *; }
 
 # SDL - native method stubs required for JNI registration
 -keep class org.libsdl.app.** { *; }

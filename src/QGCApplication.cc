@@ -42,6 +42,7 @@
 #include "SiyiAiController.h"
 #include "SiyiCameraController.h"
 #include "ControllerBattery.h"
+#include "PoliceRcLink.h"
 #include "PoliceGimbalJoystick.h"
 #include "PoliceLinkDefaults.h"
 #include "PoliceSpeechTranslator.h"
@@ -323,6 +324,7 @@ void QGCApplication::_initForNormalAppBoot()
     SpeakerController::instance()->init();
     TakeoffCounter::instance()->init();
     ControllerBattery::instance()->init();
+    PoliceRcLink::instance()->init();
 
     // Set the window icon now that custom plugin has a chance to override it
 #ifdef Q_OS_LINUX
