@@ -97,6 +97,13 @@ public final class PoliceRcLinkMonitor {
                 s_binder = service;
                 s_backoffMs = 1000;
                 s_loggedFirst = false;
+                // Receiver-connected (code 1) fires only on change, so an edge missed while
+                // unbound would stick; start every binding as connected until told otherwise.
+                try {
+                    nativeConnected(true);
+                } catch (UnsatisfiedLinkError | RuntimeException e) {
+                    QGCLogger.w(TAG, "nativeConnected unavailable: " + e);
+                }
                 register(service);
                 startStream(service);
             }
