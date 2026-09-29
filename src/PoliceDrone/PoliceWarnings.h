@@ -18,7 +18,7 @@ class Vehicle;
 /// different plan.
 ///
 /// Each warning speaks once, on the way up, through QGC's AudioOutput (the same TTS and mute
-/// setting the lost link speaks through). A small hysteresis on the way down keeps a value sitting
+/// setting the lost link speaks through), in English: the handset's voice has no Korean. A small hysteresis on the way down keeps a value sitting
 /// on its threshold from putting the strip up and down and repeating the sentence.
 ///
 /// A tap on a strip dismisses that warning alone. It stays hidden until its condition clears and

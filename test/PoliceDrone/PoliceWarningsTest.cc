@@ -118,7 +118,7 @@ void PoliceWarningsTest::_altitudeAndRadius_test()
     warnings.setFlying(true);
     QCOMPARE(warnings.altitudeText(), QStringLiteral("제한 고도 150 m를 넘었습니다"));
     QCOMPARE(spoke.count(), 1);
-    QCOMPARE(spoke.takeFirst().at(0).toString(), QStringLiteral("고도 초과. 제한 고도 150미터를 넘었습니다."));
+    QCOMPARE(spoke.takeFirst().at(0).toString(), QStringLiteral("Altitude limit exceeded. Above 150 meters."));
 
     // Inside the 2 m band it holds, and a reading that stays up says nothing more.
     warnings.setAltitude(149);
@@ -154,7 +154,7 @@ void PoliceWarningsTest::_altitudeAndRadius_test()
     QVERIFY(setParam(vehicle(), QStringLiteral("GF_MAX_HOR_DIST"), 500));
     QCOMPARE(warnings.radiusText(), QStringLiteral("제한 반경 500 m를 넘었습니다"));
     QCOMPARE(spoke.count(), 1);
-    QCOMPARE(spoke.takeFirst().at(0).toString(), QStringLiteral("반경 초과. 제한 반경 500미터를 넘었습니다."));
+    QCOMPARE(spoke.takeFirst().at(0).toString(), QStringLiteral("Distance limit exceeded. Beyond 500 meters."));
 
     warnings.setHomeDistance(499);
     QVERIFY(!warnings.radiusText().isEmpty());
@@ -186,7 +186,7 @@ void PoliceWarningsTest::_wind_test()
     warnings.setWindSpeed(10);
     QCOMPARE(warnings.windText(), QStringLiteral("제자리 유지가 어렵습니다"));
     QCOMPARE(spoke.count(), 1);
-    QCOMPARE(spoke.takeFirst().at(0).toString(), QStringLiteral("강풍 경고. 제자리 유지가 어렵습니다."));
+    QCOMPARE(spoke.takeFirst().at(0).toString(), QStringLiteral("High wind warning. Unable to hold position."));
 
     warnings.setWindSpeed(9.0);
     QVERIFY(!warnings.windText().isEmpty());

@@ -195,18 +195,23 @@ void PoliceWarnings::_evaluate()
         emit textsChanged();
     }
 
+    // Spoken in English, and kept out of the translation catalogue: the handset's voice has no
+    // Korean and read the Korean sentences out as broken Korean. The strips above stay Korean.
     if (batteryRose) {
-        _say(qIsNaN(_batteryPercent) ? tr("배터리가 부족합니다. %1.").arg(action)
-                                     : tr("배터리가 부족합니다. 잔량 %1퍼센트. %2.").arg(percent).arg(action));
+        const QString spokenAction = (_batteryLevel == 2) ? QStringLiteral("Return immediately.")
+                                                          : QStringLiteral("Prepare to return.");
+        _say(qIsNaN(_batteryPercent)
+                 ? QStringLiteral("Low battery. %1").arg(spokenAction)
+                 : QStringLiteral("Low battery, %1 percent remaining. %2").arg(percent).arg(spokenAction));
     }
     if (_altitudeOver && !altitudeWas) {
-        _say(tr("고도 초과. 제한 고도 %1미터를 넘었습니다.").arg(qRound(altitudeLimit)));
+        _say(QStringLiteral("Altitude limit exceeded. Above %1 meters.").arg(qRound(altitudeLimit)));
     }
     if (_radiusOver && !radiusWas) {
-        _say(tr("반경 초과. 제한 반경 %1미터를 넘었습니다.").arg(qRound(radiusLimit)));
+        _say(QStringLiteral("Distance limit exceeded. Beyond %1 meters.").arg(qRound(radiusLimit)));
     }
     if (_windHigh && !windWas) {
-        _say(tr("강풍 경고. 제자리 유지가 어렵습니다."));
+        _say(QStringLiteral("High wind warning. Unable to hold position."));
     }
 }
 

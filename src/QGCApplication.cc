@@ -44,6 +44,7 @@
 #include "ControllerBattery.h"
 #include "PoliceGimbalJoystick.h"
 #include "PoliceLinkDefaults.h"
+#include "PoliceSpeechTranslator.h"
 #include "PoliceVideoDefaults.h"
 #include "TakeoffCounter.h"
 #include "SpeakerController.h"
@@ -387,6 +388,9 @@ void QGCApplication::_initForNormalAppBoot()
     PoliceLinkDefaults::removeLegacyUniRcLink();
     PoliceLinkDefaults::ensureKcmvpLink();
     PoliceVideoDefaults::ensurePodStream();
+
+    // Announcements are spoken in English under the Korean interface; see PoliceSpeechTranslator.
+    PoliceSpeechTranslator::install();
 
     // Connect links with flag AutoconnectLink
     LinkManager::instance()->startAutoConnectedLinks();
