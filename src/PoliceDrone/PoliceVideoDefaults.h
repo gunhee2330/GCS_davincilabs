@@ -12,8 +12,12 @@ Q_DECLARE_LOGGING_CATEGORY(PoliceVideoDefaultsLog)
 /// sub stream, the AI module feed and the FPV camera all carry their addresses as setting
 /// defaults; only these two facts need code, because their metadata is shared with every
 /// other QGC build.
+///
+/// On Android the pod and FPV addresses go through PoliceKcmvpBridge on loopback instead, so the
+/// payload is reached behind the KCMVP encryption module when the handset's USB Ethernet adapter
+/// is plugged in; settings still holding the shipped SIYI-side addresses are moved there.
 namespace PoliceVideoDefaults {
 /// Points the main video panel at the pod unless the operator has already chosen a source.
-/// Call once at startup, after SettingsManager is up.
+/// Call once at startup, after SettingsManager is up and PoliceKcmvpBridge has started.
 void ensurePodStream();
 }  // namespace PoliceVideoDefaults

@@ -19,6 +19,9 @@ private slots:
     /// settings does not bring it back.
     void _legacyLinkIsRemovedFromSettings_test();
 
+    /// The same link as later builds repointed it, to the bridge on loopback, goes too.
+    void _loopbackLegacyLinkIsRemoved_test();
+
     /// Beside the legacy link, a user link and a link of the same name pointed elsewhere stay.
     void _otherLinksAreKept_test();
 

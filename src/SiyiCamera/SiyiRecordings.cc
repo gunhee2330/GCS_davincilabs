@@ -15,6 +15,7 @@
 #include <QtCore/QStandardPaths>
 #include <QtCore/QUrlQuery>
 #include <QtCore/QtEndian>
+#include <QtNetwork/QHostAddress>
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkReply>
 #include <QtNetwork/QNetworkRequest>
@@ -29,6 +30,10 @@
 #include "SiyiCameraController.h"
 #include "SiyiCameraSettings.h"
 #include "Vehicle.h"
+
+#ifdef Q_OS_ANDROID
+#include "PoliceKcmvpBridge.h"
+#endif
 
 QGC_LOGGING_CATEGORY(SiyiRecordingsLog, "SiyiCamera.SiyiRecordings")
 
@@ -374,10 +379,11 @@ QVariantMap SiyiRecordings::download() const
 
 QUrl SiyiRecordings::_apiUrl(const QString &call, const QList<std::pair<QString, QString>> &query) const
 {
+    const QString host = settings()->ipAddress()->rawValue().toString();
     QUrl url;
     url.setScheme(QStringLiteral("http"));
-    url.setHost(settings()->ipAddress()->rawValue().toString());
-    url.setPort(_mediaPort);
+    url.setHost(host);
+    url.setPort(_mediaPortFor(host));
     url.setPath(QStringLiteral("/cgi-bin/media.cgi/api/v1/") + call);
     QUrlQuery items;
     for (const auto &[name, value] : query) {
@@ -450,6 +456,9 @@ void SiyiRecordings::_listedMedia(QNetworkReply *reply, const QString &dir)
         // The pod may answer with its factory address for its own files, as siyi-download.py notes.
         QUrl url = reply->url().resolved(QUrl(file.value(QStringLiteral("url")).toString()));
         url.setHost(host);
+        if (_mediaPortFor(host) != _mediaPort) {
+            url.setPort(_mediaPortFor(host));
+        }
         if (name.isEmpty() || !url.isValid()) {
             continue;
         }
@@ -709,6 +718,21 @@ QString SiyiRecordings::exportCopy(const QString &key)
         }
         localName = QFileInfo(name).completeBaseName() + QStringLiteral("_%1.mp4").arg(n);
     }
+}
+
+quint16 SiyiRecordings::_mediaPortFor(const QString &host) const
+{
+#ifdef Q_OS_ANDROID
+    // On the handset PoliceVideoDefaults points the pod's settings at the KCMVP bridge on
+    // loopback, and an app cannot listen on the pod's own port 82, so the bridge relays it from
+    // PodMediaPort.
+    if (QHostAddress(host).isLoopback()) {
+        return PoliceKcmvpBridge::PodMediaPort;
+    }
+#else
+    Q_UNUSED(host);
+#endif
+    return _mediaPort;
 }
 
 QUrl SiyiRecordings::playbackUrl(const QString &key) const

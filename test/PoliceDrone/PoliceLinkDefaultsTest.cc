@@ -74,6 +74,18 @@ void PoliceLinkDefaultsTest::_legacyLinkIsRemovedFromSettings_test()
     QVERIFY(links().isEmpty());
 }
 
+void PoliceLinkDefaultsTest::_loopbackLegacyLinkIsRemoved_test()
+{
+    addUdpLink(kLegacyName, QStringLiteral("127.0.0.1"), 19856);
+    QCOMPARE(links(), QStringList{kLegacyName + QStringLiteral(" 127.0.0.1:19856")});
+
+    PoliceLinkDefaults::removeLegacyUniRcLink();
+    QVERIFY(links().isEmpty());
+
+    LinkManager::instance()->loadLinkConfigurationList();
+    QVERIFY(links().isEmpty());
+}
+
 void PoliceLinkDefaultsTest::_otherLinksAreKept_test()
 {
     addUdpLink(QStringLiteral("Bench UDP"), QStringLiteral("192.168.144.20"), 19856);

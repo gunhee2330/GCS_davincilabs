@@ -382,8 +382,10 @@ void QGCApplication::_initForNormalAppBoot()
 
     // The pod's video stream ships pre-configured so the first start on the controller shows a
     // picture without the operator adding anything. Earlier builds also saved a UniRC 7 UDP
-    // link; the aircraft connects over Bluetooth, so that link is removed.
+    // link; the aircraft connects over Bluetooth, so that link is removed. On the handset the
+    // KCMVP bridge starts first, so the pod's settings can be pointed at it.
     PoliceLinkDefaults::removeLegacyUniRcLink();
+    PoliceLinkDefaults::ensureKcmvpLink();
     PoliceVideoDefaults::ensurePodStream();
 
     // Connect links with flag AutoconnectLink

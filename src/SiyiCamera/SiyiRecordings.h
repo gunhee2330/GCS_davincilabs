@@ -119,6 +119,8 @@ private:
     /// Parses a media API answer; empty with _listError set when it failed.
     QJsonObject _apiData(QNetworkReply *reply);
     QUrl _apiUrl(const QString &call, const QList<std::pair<QString, QString>> &query) const;
+    /// The port the pod's media API answers on at \a host, the address in the pod's settings.
+    quint16 _mediaPortFor(const QString &host) const;
     QNetworkReply *_get(const QUrl &url, int timeoutMs, bool head = false);
     void _listedDirectories(QNetworkReply *reply);
     void _listedMedia(QNetworkReply *reply, const QString &dir);

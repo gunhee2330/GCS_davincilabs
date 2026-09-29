@@ -28,6 +28,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         PoliceCorePlugin.h
         PoliceGimbalJoystick.cc
         PoliceGimbalJoystick.h
+        PoliceKcmvpBridge.cc
+        PoliceKcmvpBridge.h
         PoliceLidarMonitor.cc
         PoliceLidarMonitor.h
         PoliceLinkDefaults.cc
@@ -41,6 +43,12 @@ target_sources(${CMAKE_PROJECT_NAME}
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+# PoliceKcmvpBridge calls android_setsocknetwork from the NDK's libandroid. Today GStreamer's
+# plugins happen to put it on the link line; a build without video streaming would not.
+if(ANDROID)
+    target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE android)
+endif()
 
 # On the one file that reads it, so changing the PIN does not rebuild the tree. The target is made
 # in the root directory, and a source property set from here reaches it only through
