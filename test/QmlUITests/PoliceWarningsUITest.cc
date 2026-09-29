@@ -6,6 +6,7 @@
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
 #include <QtCore/QRegularExpression>
+#include <QtCore/QTimer>
 #include <QtGui/QColor>
 #include <QtGui/QImage>
 #include <QtQml/QQmlContext>
@@ -31,6 +32,8 @@ const QString kBattery  = QStringLiteral("policeWarningBattery");
 const QString kAltitude = QStringLiteral("policeWarningAltitude");
 const QString kRadius   = QStringLiteral("policeWarningRadius");
 const QString kWind     = QStringLiteral("policeWarningWind");
+const QString kLinkLost = QStringLiteral("policeWarningLinkLost");
+const QString kFollow   = QStringLiteral("policeWarningFollowMode");
 
 const QString kStrips      = QStringLiteral("policeWarningStrips");
 const QString kLeftStrip   = QStringLiteral("policeGuidedToolStrip");
@@ -164,26 +167,20 @@ QObject *findWarnings(QQuickItem *topBar)
     return context ? context->objectForName(QStringLiteral("policeWarnings")) : nullptr;
 }
 
-/// The red link banner, up or not: the Rectangle two levels above its 통신 두절 title. It has no
-/// objectName, so it is found by what it says and its red.
-QQuickItem *findLinkBanner(QQuickItem *root)
+/// SYS_STATUS with the RC receiver present, enabled and not healthy. The mock sends its own every
+/// second without the receiver, so a caller keeps resending this to hold the state.
+void injectRcLost(MockLink *mockLink, Vehicle *vehicle)
 {
-    if (!root) {
-        return nullptr;
-    }
-    if (root->property("text").toString() == QStringLiteral("통신 두절")) {
-        QQuickItem *const banner = root->parentItem() ? root->parentItem()->parentItem() : nullptr;
-        if (banner && (banner->property("color").value<QColor>() == QColor(QStringLiteral("#d31f1f")))) {
-            return banner;
-        }
-    }
-    const QList<QQuickItem *> children = root->childItems();
-    for (QQuickItem *const child : children) {
-        if (QQuickItem *const found = findLinkBanner(child)) {
-            return found;
-        }
-    }
-    return nullptr;
+    const uint32_t rc = MAV_SYS_STATUS_SENSOR_RC_RECEIVER;
+    mavlink_message_t msg{};
+    (void) mavlink_msg_sys_status_pack_chan(
+        static_cast<uint8_t>(vehicle->id()), MAV_COMP_ID_AUTOPILOT1, mockLink->outgoingMavlinkChannel(), &msg,
+        MAV_SYS_STATUS_SENSOR_GPS | rc,  // present
+        rc,                              // enabled
+        0,                               // health
+        250, 4200 * 4, 8000, -1,
+        0, 0, 0, 0, 0, 0, 0, 0, 0);
+    mockLink->respondWithMavlinkMessage(msg);
 }
 
 }  // namespace
@@ -282,11 +279,6 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
         QString offset = checkToolStrips(0, QStringLiteral("nothing up"));
         QVERIFY2(offset.isEmpty(), qPrintable(offset));
 
-        // Where the red link banner sits with nothing up, laid out though hidden. It stays there.
-        QQuickItem *const linkBanner = findLinkBanner(_rootItem);
-        QVERIFY2(linkBanner, "The red link banner is not in the dashboard");
-        const QRectF bannerHome = sceneRect(linkBanner);
-
         // Altitude and wind count only in the air.
         injectAltitude(mockLink, vehicle, 200);
         injectWind(mockLink, vehicle, 12);
@@ -380,22 +372,31 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
         offset = checkToolStrips(4, QStringLiteral("all four"));
         QVERIFY2(offset.isEmpty(), qPrintable(offset));
 
-        // With the link gone the red banner comes up in its own place and shape, drawn over the
-        // strips where they meet, and the strips stay where they are.
-        QVERIFY2(!linkBanner->isVisible(), "The link is up, yet the red banner shows");
+        // With the link gone the red strip comes up first in the stack, the four step down one
+        // strip under it, and the tool strips follow.
+        QVERIFY(verifyVisibility(kLinkLost, false, QStringLiteral("link up")));
         mockLink->setCommLost(true);
         QVERIFY_TRUE_WAIT(linkManager->communicationLost(), TestTimeout::longMs());
-        QVERIFY_TRUE_WAIT(linkBanner->isVisible(), TestTimeout::mediumMs());
+        QVERIFY(verifyVisibility(kLinkLost, true, QStringLiteral("comm lost")));
         QTest::qWait(kSettleMs);
-        const QRectF red = sceneRect(linkBanner);
-        QVERIFY2(qAbs(red.top() - bannerHome.top()) < 1.0,
-                 qPrintable(QStringLiteral("The red banner starts at %1, not at its own %2").arg(red.top()).arg(bannerHome.top())));
-        QVERIFY(qAbs(red.center().x() - (_window->width() / 2.0)) < 1.0);
-        QVERIFY2((linkBanner->parentItem() == strips->parentItem()) && (linkBanner->z() > strips->z()),
-                 "The strips draw over the red banner");
-        QVERIFY(qAbs(sceneRect(strips).bottom() - expectedTop) < 1.0);
+        QQuickItem *const red = findVisibleItem(_rootItem, kLinkLost, 0);
+        QVERIFY(red);
+        QCOMPARE(red->property("color").value<QColor>(), QColor(QStringLiteral("#e5484d")));
+        QCOMPARE(red->property("title").toString(), QStringLiteral("통신 두절"));
+        QCOMPARE(red->property("line").toString(), QStringLiteral("기체와의 통신이 끊겼습니다"));
+        const QRectF redRect = sceneRect(red);
+        QVERIFY(qAbs(redRect.top() - barBottom) < 1.0);
+        QVERIFY(qAbs(redRect.height() - stripHeight) < 0.5);
+        QCOMPARE(redRect.width(), static_cast<qreal>(_window->width()));
+        QQuickItem *const batteryUnder = findVisibleItem(_rootItem, kBattery, 0);
+        QVERIFY(batteryUnder);
+        QVERIFY2(qAbs(sceneRect(batteryUnder).top() - redRect.bottom()) < 1.0, "The battery strip is not right under the red one");
+        QVERIFY(qAbs(sceneRect(strips).bottom() - (expectedTop + stripHeight)) < 1.0);
+        offset = checkToolStrips(5, QStringLiteral("comm lost over all four"));
+        QVERIFY2(offset.isEmpty(), qPrintable(offset));
         mockLink->setCommLost(false);
         QVERIFY_TRUE_WAIT(!linkManager->communicationLost(), TestTimeout::longMs());
+        QVERIFY(verifyVisibility(kLinkLost, false, QStringLiteral("link back")));
 
         // Once per rise, and the rises only: the held values said nothing, and 155 m is a new
         // rise after 147 m took the altitude strip down.
@@ -495,6 +496,140 @@ void PoliceWarningsUITest::_testTapDismisses()
     });
 }
 
+void PoliceWarningsUITest::_testLinkLostStrip()
+{
+    _ignorePreexistingWarnings();
+    // The link goes early here, before the vehicle's start-up requests have all been answered.
+    ignoreLogMessage("Vehicle.MavCommandQueue", QtWarningMsg,
+                     QRegularExpression(QStringLiteral("Giving up sending command after max retries")));
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> mockLink, Vehicle *vehicle) {
+        QVERIFY(mockLink);
+        QVERIFY(vehicle);
+        VehicleLinkManager *const linkManager = vehicle->vehicleLinkManager();
+        QVERIFY(linkManager);
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const topBar = findVisibleItem(_rootItem, QStringLiteral("policeTopBar"), 5000);
+        QVERIFY2(topBar, "The police top bar is not up");
+        const double barBottom = sceneRect(topBar).bottom();
+
+        injectBattery(mockLink, vehicle, 20, MAV_BATTERY_CHARGE_STATE_LOW);
+        QVERIFY(verifyVisibility(kBattery, true, QStringLiteral("low")));
+
+        const auto loseLink = [&](bool lost) {
+            mockLink->setCommLost(lost);
+            return UnitTest::waitForCondition([&] { return linkManager->communicationLost() == lost; },
+                                              TestTimeout::longMs(), QStringLiteral("comm lost %1").arg(lost));
+        };
+
+        // Up, first, above the battery strip.
+        QVERIFY(loseLink(true));
+        QVERIFY(verifyVisibility(kLinkLost, true, QStringLiteral("comm lost")));
+        QTest::qWait(300);
+        QQuickItem *const red = findVisibleItem(_rootItem, kLinkLost, 0);
+        QVERIFY(red);
+        QQuickItem *const battery = findVisibleItem(_rootItem, kBattery, 0);
+        QVERIFY(battery);
+        QVERIFY(qAbs(sceneRect(red).top() - barBottom) < 1.0);
+        QVERIFY(qAbs(sceneRect(battery).top() - sceneRect(red).bottom()) < 1.0);
+
+        // A tap takes it away and it stays away while the link stays lost; the battery moves up.
+        QVERIFY2(clickItemFraction(kLinkLost, 0.5, 0.5), "Could not tap the red strip");
+        QVERIFY(verifyVisibility(kLinkLost, false, QStringLiteral("red tapped")));
+        QTest::qWait(kSettleMs);
+        QVERIFY2(!findVisibleItem(_rootItem, kLinkLost, 0), "A dismissed link loss came back while still lost");
+        QVERIFY(linkManager->communicationLost());
+        QVERIFY(verifyVisibility(kBattery, true, QStringLiteral("red tapped")));
+        QVERIFY(qAbs(sceneRect(battery).top() - barBottom) < 1.0);
+
+        // Back and lost again: up again.
+        QVERIFY(loseLink(false));
+        QVERIFY(verifyVisibility(kLinkLost, false, QStringLiteral("link back")));
+        QVERIFY(loseLink(true));
+        QVERIFY(verifyVisibility(kLinkLost, true, QStringLiteral("lost again")));
+        QCOMPARE(red->property("title").toString(), QStringLiteral("통신 두절"));
+        QVERIFY(loseLink(false));
+
+        // The RC receiver alone: its own words. The mock's own SYS_STATUS says otherwise once a
+        // second, so the lost state is resent faster than that.
+        QTimer rcLost;
+        rcLost.setInterval(20);
+        (void) connect(&rcLost, &QTimer::timeout, mockLink.data(), [&] { injectRcLost(mockLink, vehicle); });
+        rcLost.start();
+        QVERIFY(verifyProperty(kLinkLost, "title", QStringLiteral("RC 링크 끊김"), QStringLiteral("rc lost")));
+        QVERIFY(verifyProperty(kLinkLost, "line",
+                               QStringLiteral("조종기 신호가 수신되지 않습니다, 페일세이프 동작을 확인하십시오"),
+                               QStringLiteral("rc lost")));
+        QVERIFY(verifyVisibility(kLinkLost, true, QStringLiteral("rc lost")));
+        rcLost.stop();
+        QVERIFY(verifyVisibility(kLinkLost, false, QStringLiteral("rc back")));
+    });
+}
+
+void PoliceWarningsUITest::_testFollowModeStrip()
+{
+    _ignorePreexistingWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> mockLink, Vehicle *vehicle) {
+        QVERIFY(mockLink);
+        QVERIFY(vehicle);
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const dashboard = findVisibleItem(_rootItem, QStringLiteral("policeDroneDashboard"), 5000);
+        QVERIFY2(dashboard, "The police dashboard is not up");
+        QQuickItem *const topBar = findVisibleItem(_rootItem, QStringLiteral("policeTopBar"), 5000);
+        QVERIFY2(topBar, "The police top bar is not up");
+        const double stripHeight = topBar->height() * kStripToBar;
+
+        injectBattery(mockLink, vehicle, 20, MAV_BATTERY_CHARGE_STATE_LOW);
+        QVERIFY(verifyVisibility(kBattery, true, QStringLiteral("low")));
+        QVERIFY(verifyVisibility(kFollow, false, QStringLiteral("nothing following")));
+
+        // In the air and in PX4's Hold, a guided mode. Follow slid on and then stopped, with the
+        // aircraft left in it: the dashboard's own two latches, set as the follow panel sets them.
+        QVERIFY2(takeOff(vehicle), "The mock never reported itself in the air");
+        vehicle->setFlightMode(vehicle->pauseFlightMode());
+        QVERIFY_TRUE_WAIT(vehicle->guidedMode(), TestTimeout::mediumMs());
+        QVERIFY(dashboard->setProperty("_followArmed", true));
+        QVERIFY(dashboard->setProperty("_followEngaged", true));
+
+        const QString words = QStringLiteral("추종이 꺼졌는데 기체가 GUIDED 입니다, 조종간이 듣지 않습니다. 비행모드를 바꾸십시오");
+        QVERIFY(verifyProperty(kFollow, "line", words, QStringLiteral("follow off in GUIDED")));
+        QVERIFY(verifyProperty(kFollow, "title", QStringLiteral("추종 모드"), QStringLiteral("follow off in GUIDED")));
+        QVERIFY(verifyVisibility(kFollow, true, QStringLiteral("follow off in GUIDED")));
+        QTest::qWait(300);
+        QQuickItem *const follow = findVisibleItem(_rootItem, kFollow, 0);
+        QVERIFY(follow);
+        QQuickItem *const battery = findVisibleItem(_rootItem, kBattery, 0);
+        QVERIFY(battery);
+        QCOMPARE(follow->property("color").value<QColor>(), QColor(QStringLiteral("#b35c00")));
+        QVERIFY2(sceneRect(follow).top() >= sceneRect(battery).bottom() - 0.5, "The follow strip is not under the battery strip");
+        QQuickItem *const strips = findItem(_rootItem, kStrips);
+        QVERIFY(strips);
+        QVERIFY2(qAbs(sceneRect(follow).bottom() - sceneRect(strips).bottom()) < 1.0, "The follow strip is not last");
+        // One line at the tablet's width: the strip keeps its height.
+        QVERIFY2(qAbs(follow->height() - stripHeight) < 0.5,
+                 qPrintable(QStringLiteral("The follow strip is %1 tall, not %2").arg(follow->height()).arg(stripHeight)));
+
+        QVERIFY2(clickItemFraction(kFollow, 0.5, 0.5), "Could not tap the follow strip");
+        QVERIFY(verifyVisibility(kFollow, false, QStringLiteral("follow tapped")));
+        QTest::qWait(kSettleMs);
+        QVERIFY2(!findVisibleItem(_rootItem, kFollow, 0), "A dismissed follow warning came back while unchanged");
+        QVERIFY(verifyVisibility(kBattery, true, QStringLiteral("follow tapped")));
+
+        // Cleared and back: up again.
+        QVERIFY(dashboard->setProperty("_followEngaged", false));
+        QTest::qWait(300);
+        QVERIFY(dashboard->setProperty("_followEngaged", true));
+        QVERIFY(verifyVisibility(kFollow, true, QStringLiteral("follow warning back")));
+    });
+}
+
 void PoliceWarningsUITest::_captureStrips()
 {
     if (qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
@@ -515,25 +650,54 @@ void PoliceWarningsUITest::_captureStrips()
         QVERIFY2(takeOff(vehicle), "The mock never reported itself in the air");
         injectAltitude(mockLink, vehicle, 30);
 
-        injectBattery(mockLink, vehicle, 20, MAV_BATTERY_CHARGE_STATE_LOW);
-        QVERIFY(verifyVisibility(kBattery, true, QStringLiteral("20 %")));
-        _grab(QStringLiteral("strip_1_one"));
-        if (QTest::currentTestFailed()) return;
-
-        injectAltitude(mockLink, vehicle, 152);
-        QVERIFY(verifyVisibility(kAltitude, true, QStringLiteral("152 m")));
-        _grab(QStringLiteral("strip_2_two_stacked"));
-        if (QTest::currentTestFailed()) return;
-
         mockLink->setCommLost(true);
         QVERIFY_TRUE_WAIT(linkManager->communicationLost(), TestTimeout::longMs());
-        _grab(QStringLiteral("strip_3_with_link_lost"));
+        QVERIFY(verifyVisibility(kLinkLost, true, QStringLiteral("comm lost")));
+        _grab(QStringLiteral("banner_F_red_strip"));
+        if (QTest::currentTestFailed()) return;
+
+        // Nothing reaches the vehicle while the link is lost, so the two amber strips go up first.
+        mockLink->setCommLost(false);
+        QVERIFY_TRUE_WAIT(!linkManager->communicationLost(), TestTimeout::longMs());
+        injectBattery(mockLink, vehicle, 20, MAV_BATTERY_CHARGE_STATE_LOW);
+        injectAltitude(mockLink, vehicle, 162);
+        QVERIFY(verifyVisibility(kBattery, true, QStringLiteral("20 %")));
+        QVERIFY(verifyVisibility(kAltitude, true, QStringLiteral("162 m")));
+        mockLink->setCommLost(true);
+        QVERIFY_TRUE_WAIT(linkManager->communicationLost(), TestTimeout::longMs());
+        QVERIFY(verifyVisibility(kLinkLost, true, QStringLiteral("comm lost again")));
+        _grab(QStringLiteral("banner_G_red_plus_amber"));
+        if (QTest::currentTestFailed()) return;
+
+        QVERIFY2(clickItemFraction(kLinkLost, 0.5, 0.5), "Could not tap the red strip");
+        QVERIFY(verifyVisibility(kLinkLost, false, QStringLiteral("red tapped")));
+        _grab(QStringLiteral("banner_H_after_tap"));
         if (QTest::currentTestFailed()) return;
         mockLink->setCommLost(false);
         QVERIFY_TRUE_WAIT(!linkManager->communicationLost(), TestTimeout::longMs());
-
         QVERIFY2(clickItemFraction(kBattery, 0.5, 0.5), "Could not tap the battery strip");
-        QVERIFY(verifyVisibility(kBattery, false, QStringLiteral("battery tapped")));
-        _grab(QStringLiteral("strip_4_after_dismiss"));
+        QVERIFY2(clickItemFraction(kAltitude, 0.5, 0.5), "Could not tap the altitude strip");
+        QVERIFY(verifyVisibility(kAltitude, false, QStringLiteral("altitude tapped")));
+
+        QQuickItem *const dashboard = findVisibleItem(_rootItem, QStringLiteral("policeDroneDashboard"), 5000);
+        QVERIFY(dashboard);
+        vehicle->setFlightMode(vehicle->pauseFlightMode());
+        QVERIFY_TRUE_WAIT(vehicle->guidedMode(), TestTimeout::mediumMs());
+        QVERIFY(dashboard->setProperty("_followArmed", true));
+        QVERIFY(dashboard->setProperty("_followEngaged", true));
+        QVERIFY(verifyVisibility(kFollow, true, QStringLiteral("follow off in GUIDED")));
+        _grab(QStringLiteral("banner_I_follow_strip"));
+        if (QTest::currentTestFailed()) return;
+        QVERIFY2(clickItemFraction(kFollow, 0.5, 0.5), "Could not tap the follow strip");
+        QVERIFY(verifyVisibility(kFollow, false, QStringLiteral("follow tapped")));
+
+        QTimer rcLost;
+        rcLost.setInterval(20);
+        (void) connect(&rcLost, &QTimer::timeout, mockLink.data(), [&] { injectRcLost(mockLink, vehicle); });
+        rcLost.start();
+        QVERIFY(verifyProperty(kLinkLost, "title", QStringLiteral("RC 링크 끊김"), QStringLiteral("rc lost")));
+        QVERIFY(verifyVisibility(kLinkLost, true, QStringLiteral("rc lost")));
+        _grab(QStringLiteral("banner_J_rc_lost"));
+        rcLost.stop();
     });
 }

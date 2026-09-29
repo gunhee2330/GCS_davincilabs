@@ -287,7 +287,7 @@ Item {
         // past, and the one below it means something.
         if (!root._followArmed && !root._sawNonGuided && root._activeVehicle.guidedMode
                 && App.SiyiCameraController.connected && App.SiyiCameraController.aiFollowStale) {
-            return qsTr("기체가 GUIDED 입니다 — 짐벌 추종 여부를 확인할 수 없습니다. 조종간이 듣지 않으면 비행모드를 바꾸십시오")
+            return qsTr("기체가 GUIDED 입니다, 짐벌 추종 여부를 확인할 수 없습니다. 조종간이 듣지 않으면 비행모드를 바꾸십시오")
         }
 
         if (!root._followArmed) return ""
@@ -304,12 +304,12 @@ Item {
             // stop, which does not restore the flight mode (the vendor app does not either, and
             // the manual's escape is "switching flight mode can regain control").
             if (!following && root._followEngaged) {
-                return qsTr("추종이 꺼졌는데 기체가 GUIDED 입니다 — 조종간이 듣지 않습니다. 비행모드를 바꾸십시오")
+                return qsTr("추종이 꺼졌는데 기체가 GUIDED 입니다, 조종간이 듣지 않습니다. 비행모드를 바꾸십시오")
             }
             return ""
         }
         if (following) {
-            return qsTr("짐벌은 추종 중이나 기체가 %1 입니다 — 기체는 움직이지 않습니다")
+            return qsTr("짐벌은 추종 중이나 기체가 %1 입니다, 기체는 움직이지 않습니다")
                        .arg(root._activeVehicle.flightMode)
         }
         return ""
@@ -899,14 +899,10 @@ Item {
         z:                   -1
 
         // The forward number sits under the top bar, which is also where the confirm control and
-        // the two banners drop in; all three are above this glow and would bury it. The lowest of
+        // the warning strips drop in; both are above this glow and would bury it. The lower of
         // whichever are up, in this item's own coordinates. The confirm host is already anchored
-        // below the banners, so its term covers those as well when it is up.
-        topLabelInset: Math.max(linkLostBanner.visible
-                                    ? linkLostBanner.y + linkLostBanner.height - obstacleGlow.y : 0,
-                                followModeBanner.visible
-                                    ? followModeBanner.y + followModeBanner.height - obstacleGlow.y : 0,
-                                warningStrips.height > 0
+        // below the strips, so its term covers those as well when it is up.
+        topLabelInset: Math.max(warningStrips.height > 0
                                     ? warningStrips.y + warningStrips.height - obstacleGlow.y : 0,
                                 guidedConfirmHost.contentBottom > 0
                                     ? guidedConfirmHost.y + guidedConfirmHost.contentBottom - obstacleGlow.y : 0)
@@ -1677,9 +1673,9 @@ Item {
                     // commands on two separate links, so they can disagree in both directions, and
                     // both readings are ones the operator cannot get anywhere else on this screen.
                     //
-                    // The wording is root._followModeWarning, shared with the banner on the map:
+                    // The wording is root._followModeWarning, shared with the strip on the map:
                     // this panel is destroyed on close, so the panel copy is the convenience and
-                    // the banner is the one that has to be there. Follow stopping does not restore
+                    // the strip is the one that has to be there. Follow stopping does not restore
                     // the flight mode - the vendor app does not restore it either (d7.java:122
                     // guards its mode set with the enabling branch alone), and the AI module manual
                     // is explicit that "switching flight mode can regain control", i.e. escape is
@@ -1792,107 +1788,18 @@ Item {
         }
     }
 
-    // ------------------------------------------------------------------ link loss banner
-    //
-    // Losing the pilot's radio is the one failure an operator must not miss, so it takes the
-    // centre of the map rather than a corner badge, and it stays up until the link returns.
-    Rectangle {
-        id:      linkLostBanner
-        visible: root._rcLinkLost || root._communicationLost
-        z:       25
-
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top:              topBar.bottom
-        anchors.topMargin:        ScreenTools.defaultFontPixelHeight * 2
-        width:                    linkLostColumn.width + ScreenTools.defaultFontPixelWidth * 6
-        height:                   linkLostColumn.height + ScreenTools.defaultFontPixelHeight * 1.4
-        radius:                   6
-        color:                    "#d31f1f"
-        border.color:             "#ffffff"
-        border.width:             2
-
-        SequentialAnimation on opacity {
-            running: linkLostBanner.visible
-            loops:   Animation.Infinite
-            NumberAnimation { to: 0.45; duration: 550 }
-            NumberAnimation { to: 1.0;  duration: 550 }
-        }
-
-        Column {
-            id:               linkLostColumn
-            anchors.centerIn: parent
-            spacing:          4
-
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                color:                    "white"
-                font.bold:                true
-                font.pixelSize:           ScreenTools.defaultFontPixelHeight * 1.2
-                text:                     root._rcLinkLost ? qsTr("RC 링크 끊김") : qsTr("통신 두절")
-            }
-
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                color:                    "white"
-                font.pixelSize:           Math.max(13, ScreenTools.defaultFontPixelHeight * 0.85)
-                text:                     root._rcLinkLost
-                                              ? qsTr("조종기 신호가 수신되지 않습니다 — 페일세이프 동작을 확인하십시오")
-                                              : qsTr("기체와의 통신이 끊겼습니다")
-            }
-        }
-    }
-
-    // ------------------------------------------------------------ follow / GUIDED mismatch
-    //
-    // GUIDED ignores the sticks and nothing on this side ever puts the aircraft back - the manual's
-    // own escape is "switching flight mode can regain control", i.e. the operator's job. So the
-    // sentence that says so has to be on screen whether or not the follow panel is open, and the
-    // panel is a Popup that destroys itself the moment the stop button closes it. Same treatment as
-    // the link banner, one step down in weight: amber rather than red, and no blink, because the
-    // aircraft is still flying and the operator has a mode switch to reach for.
-    Rectangle {
-        id:      followModeBanner
-        // No guidedMode term. _followModeWarning already encodes "nothing to say" as an empty
-        // string and it null-checks the vehicle itself, so the extra term was not a filter but a
-        // contradiction: the third branch of that string is built only when guidedMode is false,
-        // so the one sentence that reports "the gimbal is chasing a target and the aircraft is
-        // sitting in Loiter" could never reach the banner, and the only other place it appears is
-        // the follow panel, a Popup that destroy()s itself on close.
-        visible: root._followModeWarning.length > 0
-        z:       25
-
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top:              linkLostBanner.visible ? linkLostBanner.bottom : warningStrips.bottom
-        anchors.topMargin:        ScreenTools.defaultFontPixelHeight
-        width:                    followModeText.implicitWidth + ScreenTools.defaultFontPixelWidth * 4
-        height:                   followModeText.implicitHeight + ScreenTools.defaultFontPixelHeight
-        radius:                   6
-        color:                    "#b35c00"
-        border.color:             "#ffffff"
-        border.width:             2
-
-        Text {
-            id:                  followModeText
-            anchors.centerIn:    parent
-            width:               Math.min(implicitWidth, root.width * 0.6)
-            horizontalAlignment: Text.AlignHCenter
-            wrapMode:            Text.WordWrap
-            color:               "white"
-            font.bold:           true
-            font.pixelSize:      Math.max(13, ScreenTools.defaultFontPixelHeight * 0.85)
-            text:                root._followModeWarning
-        }
-    }
-
     // ------------------------------------------------------------------ warning strips
     //
     // RFP p6 아 and p8: low battery, the altitude and radius limits, and wind the aircraft cannot
     // hold against. One full-width amber strip each, directly under the bar and stacked in a fixed
-    // order. The tool strips, the follow banner and the confirm control hang under the stack, so
-    // they step down by its height rather than being covered. The red link banner keeps its own
-    // place and is drawn over the stack where the two meet. A tap hides a strip until its condition
-    // clears and comes back, or until the battery turns critical. What is up, what it says, the
-    // voice and the dismissals are PoliceWarnings'; this only draws it.
+    // order. The tool strips and the confirm control hang under the stack, so they step down by its
+    // height rather than being covered. A tap hides a strip until its condition clears and comes
+    // back, or until the battery turns critical. What is up, what it says, the voice and the
+    // dismissals of those four are PoliceWarnings'; this only draws them.
+    //
+    // Two more strips come from this file's own state: the lost link first, red, and the follow
+    // mismatch last, amber. Their dismissals are kept here and fall away whenever what they report
+    // changes: cleared, back, or turned from one kind of loss into the other.
     App.PoliceWarnings {
         id:             policeWarnings
         vehicle:        root._activeVehicle
@@ -1907,19 +1814,30 @@ Item {
     // 64 px on the 1920 px capture, where the bar is 135: sized off the bar so it scales with it.
     readonly property real _warningStripHeight: _statusHeight * 64 / 135
 
+    // Comm lost wins over the RC receiver: with the link gone the receiver's health bit is stale.
+    readonly property string _linkLostKind: _communicationLost ? "comm" : (_rcLinkLost ? "rc" : "")
+    property bool _linkLostDismissed:   false
+    property bool _followModeDismissed: false
+    on_LinkLostKindChanged:      _linkLostDismissed = false
+    on_FollowModeWarningChanged: _followModeDismissed = false
+
     component WarningStrip : Rectangle {
         id: strip
 
         property string title
         property string line
-        property int    warning
+        // A PoliceWarnings.Warning, or -1 for a strip whose tap this file handles through tapped.
+        property int    warning: -1
+
+        signal tapped
 
         // One pixel of the 1920 px mockup the strip was drawn on.
-        readonly property real _u: height / 64
+        readonly property real _u: root._warningStripHeight / 64
 
         visible: line.length > 0
         width:   parent ? parent.width : 0
-        height:  root._warningStripHeight
+        // Taller only when the detail has to wrap.
+        height:  Math.max(root._warningStripHeight, detailText.height + 16 * _u)
         color:   "#b35c00"
 
         Rectangle {
@@ -1981,6 +1899,7 @@ Item {
             }
 
             Text {
+                id:                     titleText
                 anchors.verticalCenter: parent.verticalCenter
                 color:                  "white"
                 font.bold:              true
@@ -1989,8 +1908,12 @@ Item {
             }
 
             Text {
+                id:                     detailText
                 anchors.verticalCenter: parent.verticalCenter
+                width:                  Math.min(implicitWidth, strip.width - 2 * 34 * strip._u
+                                                 - warningIcon.width - titleText.width - 2 * parent.spacing)
                 leftPadding:            10 * strip._u
+                wrapMode:               Text.WordWrap
                 color:                  "white"
                 font.pixelSize:         30 * strip._u
                 text:                   strip.line
@@ -1999,7 +1922,7 @@ Item {
 
         MouseArea {
             anchors.fill: parent
-            onClicked:    policeWarnings.dismiss(strip.warning)
+            onClicked:    strip.warning >= 0 ? policeWarnings.dismiss(strip.warning) : strip.tapped()
         }
     }
 
@@ -2009,9 +1932,19 @@ Item {
         anchors.left:  parent.left
         anchors.right: parent.right
         anchors.top:   topBar.bottom
-        // Under the red link banner (25), over the full-screen camera layer (20).
+        // Over the full-screen camera layer (20).
         z:             24
 
+        WarningStrip {
+            objectName: "policeWarningLinkLost"
+            color:      "#e5484d"
+            title:      root._linkLostKind === "rc" ? qsTr("RC 링크 끊김") : qsTr("통신 두절")
+            line:       root._linkLostDismissed ? ""
+                        : root._linkLostKind === "comm" ? qsTr("기체와의 통신이 끊겼습니다")
+                        : root._linkLostKind === "rc"   ? qsTr("조종기 신호가 수신되지 않습니다, 페일세이프 동작을 확인하십시오")
+                        : ""
+            onTapped:   root._linkLostDismissed = true
+        }
         WarningStrip {
             objectName: "policeWarningBattery"
             warning:    App.PoliceWarnings.Battery
@@ -2035,6 +1968,12 @@ Item {
             warning:    App.PoliceWarnings.Wind
             title:      qsTr("강풍 경고")
             line:       policeWarnings.windText
+        }
+        WarningStrip {
+            objectName: "policeWarningFollowMode"
+            title:      qsTr("추종 모드")
+            line:       root._followModeDismissed ? "" : root._followModeWarning
+            onTapped:   root._followModeDismissed = true
         }
     }
 
@@ -2700,15 +2639,13 @@ Item {
     }
 
     // The slide-to-confirm control every guided action ends at. Top centre under the bar, and
-    // below a warning banner while one is up rather than over it. z clears every other layer
+    // below the warning strips while any are up rather than over them. z clears every other layer
     // here, the fullscreen camera at 20 and the track toast at 30 included, so a confirmation
     // the operator asked for is never buried.
     PoliceGuidedConfirmHost {
         id:                       guidedConfirmHost
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top:              followModeBanner.visible
-                                      ? followModeBanner.bottom
-                                      : (linkLostBanner.visible ? linkLostBanner.bottom : warningStrips.bottom)
+        anchors.top:              warningStrips.bottom
         anchors.topMargin:        ScreenTools.defaultFontPixelHeight / 2
         z:                        40
     }
