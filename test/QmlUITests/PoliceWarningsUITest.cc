@@ -353,16 +353,16 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
         QVERIFY(verifyProperty(kBattery, "title", QStringLiteral("배터리 위험"), QStringLiteral("critical")));
         QCOMPARE(lastSpoken(), QStringLiteral("배터리가 부족합니다. 잔량 18퍼센트. 즉시 복귀하십시오."));
 
-        // Altitude: over the 150 m ceiling, held 1 m under it, down 3 m under it.
-        injectAltitude(mockLink, vehicle, 152);
-        QVERIFY(verifyProperty(kAltitude, "line", QStringLiteral("제한 고도 150 m를 넘었습니다"), QStringLiteral("152 m")));
-        QVERIFY(verifyProperty(kAltitude, "title", QStringLiteral("고도 초과"), QStringLiteral("152 m")));
-        QCOMPARE(lastSpoken(), QStringLiteral("고도 초과. 제한 고도 150미터를 넘었습니다."));
-        injectAltitude(mockLink, vehicle, 149);
-        QVERIFY_TRUE_WAIT(altitudeFact->rawValue().toDouble() == 149.0, TestTimeout::mediumMs());
+        // Altitude: over the 160 m ceiling, held 1 m under it, down 3 m under it.
+        injectAltitude(mockLink, vehicle, 162);
+        QVERIFY(verifyProperty(kAltitude, "line", QStringLiteral("제한 고도 160 m를 넘었습니다"), QStringLiteral("162 m")));
+        QVERIFY(verifyProperty(kAltitude, "title", QStringLiteral("고도 초과"), QStringLiteral("162 m")));
+        QCOMPARE(lastSpoken(), QStringLiteral("고도 초과. 제한 고도 160미터를 넘었습니다."));
+        injectAltitude(mockLink, vehicle, 159);
+        QVERIFY_TRUE_WAIT(altitudeFact->rawValue().toDouble() == 159.0, TestTimeout::mediumMs());
         QVERIFY2(findVisibleItem(_rootItem, kAltitude, 0), "1 m under the ceiling took the strip down");
-        injectAltitude(mockLink, vehicle, 147);
-        QVERIFY(verifyVisibility(kAltitude, false, QStringLiteral("147 m")));
+        injectAltitude(mockLink, vehicle, 157);
+        QVERIFY(verifyVisibility(kAltitude, false, QStringLiteral("157 m")));
 
         // Radius: none without GF_MAX_HOR_DIST, then 500 m once it is set.
         QVERIFY(setHomeDistance(vehicle, 620));
@@ -389,8 +389,8 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
 
         // All four at once: battery, altitude, radius, wind, between the columns under the bar, beside the
         // top of the tool strips, which have not moved.
-        injectAltitude(mockLink, vehicle, 155);
-        QVERIFY(verifyVisibility(kAltitude, true, QStringLiteral("155 m")));
+        injectAltitude(mockLink, vehicle, 165);
+        QVERIFY(verifyVisibility(kAltitude, true, QStringLiteral("165 m")));
         QTest::qWait(kSettleMs);
         double expectedTop = barBottom;
         for (const QString &name : { kBattery, kAltitude, kRadius, kWind }) {
@@ -434,8 +434,8 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
         QVERIFY_TRUE_WAIT(!linkManager->communicationLost(), TestTimeout::longMs());
         QVERIFY(verifyVisibility(kLinkLost, false, QStringLiteral("link back")));
 
-        // Once per rise, and the rises only: the held values said nothing, and 155 m is a new
-        // rise after 147 m took the altitude strip down.
+        // Once per rise, and the rises only: the held values said nothing, and 165 m is a new
+        // rise after 157 m took the altitude strip down.
         QStringList said;
         for (const QList<QVariant> &args : std::as_const(spoke)) {
             said.append(args.at(0).toString());
@@ -443,10 +443,10 @@ void PoliceWarningsUITest::_testStripsFollowTelemetry()
         QCOMPARE(said, QStringList({
             QStringLiteral("배터리가 부족합니다. 잔량 20퍼센트. 복귀를 준비하십시오."),
             QStringLiteral("배터리가 부족합니다. 잔량 18퍼센트. 즉시 복귀하십시오."),
-            QStringLiteral("고도 초과. 제한 고도 150미터를 넘었습니다."),
+            QStringLiteral("고도 초과. 제한 고도 160미터를 넘었습니다."),
             QStringLiteral("반경 초과. 제한 반경 500미터를 넘었습니다."),
             QStringLiteral("강풍 경고. 제자리 유지가 어렵습니다."),
-            QStringLiteral("고도 초과. 제한 고도 150미터를 넘었습니다."),
+            QStringLiteral("고도 초과. 제한 고도 160미터를 넘었습니다."),
         }));
     });
 }
@@ -479,9 +479,9 @@ void PoliceWarningsUITest::_testTapDismisses()
         QVERIFY2(takeOff(vehicle), "The mock never reported itself in the air");
         injectAltitude(mockLink, vehicle, 30);
         injectBattery(mockLink, vehicle, 25, MAV_BATTERY_CHARGE_STATE_LOW);
-        injectAltitude(mockLink, vehicle, 160);
+        injectAltitude(mockLink, vehicle, 170);
         QVERIFY(verifyVisibility(kBattery, true, QStringLiteral("low")));
-        QVERIFY(verifyVisibility(kAltitude, true, QStringLiteral("160 m")));
+        QVERIFY(verifyVisibility(kAltitude, true, QStringLiteral("170 m")));
         QVERIFY_TRUE_WAIT(spoke.count() == 2, TestTimeout::mediumMs());
         spoke.clear();
 
@@ -524,10 +524,10 @@ void PoliceWarningsUITest::_testTapDismisses()
         QVERIFY_TRUE_WAIT(altitudeFact->rawValue().toDouble() == 140.0, TestTimeout::mediumMs());
         QTest::qWait(300);
         QVERIFY(!findVisibleItem(_rootItem, kAltitude, 0));
-        injectAltitude(mockLink, vehicle, 152);
+        injectAltitude(mockLink, vehicle, 162);
         QVERIFY(verifyVisibility(kAltitude, true, QStringLiteral("back over the ceiling")));
         QVERIFY_TRUE_WAIT(spoke.count() == 1, TestTimeout::mediumMs());
-        QCOMPARE(spoke.first().at(0).toString(), QStringLiteral("고도 초과. 제한 고도 150미터를 넘었습니다."));
+        QCOMPARE(spoke.first().at(0).toString(), QStringLiteral("고도 초과. 제한 고도 160미터를 넘었습니다."));
     });
 }
 
@@ -921,7 +921,7 @@ void PoliceWarningsUITest::_captureStrips()
 
     _ignorePreexistingWarnings();
 
-    // The mockup's figures: 20 %, 150 m.
+    // The mockup's figures: 20 %, 160 m.
     runWithMockLink([] { return MockLink::startPX4MockLink(); },
                     [this](QPointer<MockLink> mockLink, Vehicle *vehicle) {
         QVERIFY(mockLink);
