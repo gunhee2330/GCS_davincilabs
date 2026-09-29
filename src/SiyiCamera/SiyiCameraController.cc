@@ -9,8 +9,12 @@
 #include "MissionAutoRecord.h"
 #include "QGCLoggingCategory.h"
 #include "SettingsManager.h"
+#include "MultiVehicleManager.h"
 #include "SiyiCameraSettings.h"
 #include "SiyiRecordings.h"
+#include "Vehicle.h"
+#include "VehicleFactGroup.h"
+#include "VehicleLocalPositionFactGroup.h"
 
 QGC_LOGGING_CATEGORY(SiyiCameraControllerLog, "SiyiCamera.SiyiCameraController")
 
@@ -22,6 +26,16 @@ constexpr int kPollIntervalMs = 100;
 constexpr qint64 kConnectionTimeoutMs = 2000;
 constexpr qint64 kRangefinderTimeoutMs = 1000;
 constexpr qint64 kThermalRangeTimeoutMs = 3000;
+
+/// The thermal core's picture, which is the frame the pod counts temperature positions in.
+/// Also the size of the thermal stream it sends (a recording of it is 640x512), so a fraction
+/// of the picture the operator is looking at scales straight to the pixel the pod wants.
+constexpr double kThermalWidthPx = 640.0;
+constexpr double kThermalHeightPx = 512.0;
+
+/// How long the pod has to answer a point temperature request before the reading is called
+/// missing. Its own continuous measurement runs at 5 Hz, so this is many readings' worth.
+constexpr int kPointReplyTimeoutMs = 2500;
 
 /// How long a 0xC3 confirmation is worth showing as "following". Not a link timeout: it is the
 /// age at which a past answer stops being evidence about the present, and there is no way to ask
@@ -50,6 +64,23 @@ constexpr int kRangefinderInterval = 5;   ///< 2 Hz
 constexpr int kThermalInterval = 10;      ///< 1 Hz
 constexpr int kIdentityInterval = 20;     ///< Retry firmware/model discovery at 0.5 Hz.
 
+/// The pod only needs the aircraft's position and attitude accurately enough to turn a laser
+/// shot into a coordinate, and a shot takes a third of a second. Five hertz is comfortably
+/// inside that and costs a couple of hundred bytes a second on a link that carries video.
+constexpr int kFcDataInterval = 2;        ///< 5 Hz
+
+/// How often the thermal correction constants are reconsidered. They only go on the wire when
+/// something actually moved, so this is a polling rate, not a send rate.
+constexpr int kThermalCalibrationInterval = 20;   ///< 0.5 Hz
+
+/// Below this the path length has not changed enough to matter to the correction, and resending
+/// on every rangefinder tick would put traffic on the link for nothing.
+constexpr double kCalibrationDistanceEpsilonM = 5.0;
+
+/// Radians per degree, for the attitude the pod wants in radians and the vehicle reports in
+/// degrees.
+constexpr double kDegreesToRadians = 0.017453292519943295;
+
 /// How many times the poll may ask the pod to light its laser before giving up on this link.
 /// Enough to ride out a dropped datagram, and bounded because 0x31 is unverified hardware: a
 /// pod that never answers it would otherwise leave _laserOn false and the poll re-sending
@@ -65,6 +96,15 @@ SiyiCameraController::SiyiCameraController(QObject *parent)
 {
     _pollTimer.setInterval(kPollIntervalMs);
     (void) connect(&_pollTimer, &QTimer::timeout, this, &SiyiCameraController::_poll);
+
+    _pointReplyTimer.setSingleShot(true);
+    _pointReplyTimer.setInterval(kPointReplyTimeoutMs);
+    (void) connect(&_pointReplyTimer, &QTimer::timeout, this, [this]() {
+        if (_pointActive && !pointTemperatureAvailable() && !_pointNoReply) {
+            _pointNoReply = true;
+            emit pointTemperatureChanged();
+        }
+    });
 }
 
 SiyiCameraController::~SiyiCameraController()
@@ -126,10 +166,24 @@ void SiyiCameraController::init()
     });
     _autoRecord->init();
 
+    // The pod has no GPS and no idea how the airframe is oriented, so the only source for both
+    // is the vehicle this station is already talking to.
+    MultiVehicleManager *const vehicles = MultiVehicleManager::instance();
+    (void) connect(vehicles, &MultiVehicleManager::activeVehicleChanged, this,
+                   &SiyiCameraController::_activeVehicleChanged);
+    _activeVehicleChanged(vehicles->activeVehicle());
+
+    _uptime.start();
+
     _initialized = true;
     // The recording log follows this controller from app start, whether or not the page is opened
     SiyiRecordings::instance()->init();
     applySettings();
+}
+
+void SiyiCameraController::_activeVehicleChanged(Vehicle *vehicle)
+{
+    _vehicle = vehicle;
 }
 
 void SiyiCameraController::start()
@@ -277,6 +331,29 @@ void SiyiCameraController::_sendRecordingToggle()
     _sendCommand(SiyiProtocol::CommandId::AcquireConfigInfo);
 }
 
+void SiyiCameraController::setLaser(bool on)
+{
+    if (!isZT30()) {
+        return;
+    }
+    // Disarm the connect-time relight when putting it out, and re-arm it when lighting: without
+    // this the poll at kRangefinderInterval would light it again a moment after the operator
+    // asked for it off.
+    _laserOnAttemptsLeft = on ? kLaserOnAttempts : 0;
+    _send(SiyiProtocol::encodeSetLaserState(on, _sequence++));
+    qCDebug(SiyiCameraControllerLog) << "laser requested" << on;
+}
+
+void SiyiCameraController::toggleLaser()
+{
+    setLaser(!_laserOn);
+}
+
+void SiyiCameraController::requestEoIrViewToggle()
+{
+    emit eoIrViewToggleRequested();
+}
+
 void SiyiCameraController::toggleHdr()
 {
     _sendSingleByte(SiyiProtocol::CommandId::PhotoAndMode, static_cast<quint8>(SiyiProtocol::PhotoFunction::ToggleHdr));
@@ -341,7 +418,67 @@ void SiyiCameraController::setThermalPalette(int palette)
 
 void SiyiCameraController::setThermalGain(int gain)
 {
-    _sendSingleByte(SiyiProtocol::CommandId::SetThermalGain, static_cast<quint8>(gain));
+    const auto wanted = static_cast<quint8>(qBound(0, gain, 1));
+    _sendSingleByte(SiyiProtocol::CommandId::SetThermalGain, wanted);
+    // The set reply carries the new value, but ask anyway: a pod that refuses the change answers
+    // the read with what it actually kept, and the button then shows the truth rather than the
+    // request.
+    _sendCommand(SiyiProtocol::CommandId::ReadThermalGain);
+}
+
+void SiyiCameraController::toggleThermalGain()
+{
+    // Unknown resolves to the high band, which is the one an operator wants the moment they
+    // realise they cannot see a person.
+    setThermalGain(_thermalGain == 1 ? 0 : 1);
+}
+
+QString SiyiCameraController::thermalGainRangeText() const
+{
+    switch (_thermalGain) {
+    case 0:
+        return tr("50 ~ 550 °C");
+    case 1:
+        return tr("-20 ~ 150 °C");
+    default:
+        return QString();
+    }
+}
+
+void SiyiCameraController::measurePointTemperature(double x, double y)
+{
+    // The pod counts in thermal pixels from the top left of its own picture, which is what the
+    // caller's fractions are of, so the two only differ by the scale.
+    const auto pixel = [](double fraction, double span) {
+        return static_cast<quint16>(qBound(0.0, std::round(fraction * span), span - 1.0));
+    };
+    const quint16 px = pixel(x, kThermalWidthPx);
+    const quint16 py = pixel(y, kThermalHeightPx);
+
+    _pointActive = true;
+    _pointNoReply = false;
+    _pointTempC = std::numeric_limits<double>::quiet_NaN();
+    _pointPoint = QPointF(px / kThermalWidthPx, py / kThermalHeightPx);
+    emit pointTemperatureChanged();
+
+    // Continuous: the gimbal moves and the scene with it, so a reading taken once is a reading
+    // of somewhere else a second later. The pod stops when it is told to, in stopPointTemperature().
+    (void) _send(SiyiProtocol::encodeTempAtPoint(px, py, 2, _sequence++));
+    _pointReplyTimer.start();
+}
+
+void SiyiCameraController::stopPointTemperature()
+{
+    if (!_pointActive) {
+        return;
+    }
+
+    (void) _send(SiyiProtocol::encodeTempAtPoint(0, 0, 0, _sequence++));
+    _pointReplyTimer.stop();
+    _pointActive = false;
+    _pointNoReply = false;
+    _pointTempC = std::numeric_limits<double>::quiet_NaN();
+    emit pointTemperatureChanged();
 }
 
 void SiyiCameraController::setAiFollow(bool on)
@@ -574,6 +711,20 @@ void SiyiCameraController::_handleFrame(const SiyiProtocol::Frame &frame)
         break;
     }
 
+    case SiyiProtocol::CommandId::TempAtPoint: {
+        const auto point = SiyiProtocol::parsePointTemperature(frame.data);
+        if (point && _pointActive) {
+            _pointTempC = point->tempC;
+            // The pod's own point, not the one asked for: with the thermal camera zoomed the
+            // two differ, and the mark belongs where the reading was taken.
+            _pointPoint = QPointF(point->x / kThermalWidthPx, point->y / kThermalHeightPx);
+            _pointNoReply = false;
+            _pointReplyTimer.stop();
+            emit pointTemperatureChanged();
+        }
+        break;
+    }
+
     case SiyiProtocol::CommandId::GetTempFullImage: {
         const auto range = SiyiProtocol::parseThermalRange(frame.data);
         if (range) {
@@ -635,6 +786,46 @@ void SiyiCameraController::_handleFrame(const SiyiProtocol::Frame &frame)
         }
         break;
     }
+
+    case SiyiProtocol::CommandId::ReadThermalGain:
+    case SiyiProtocol::CommandId::SetThermalGain: {
+        const auto gain = SiyiProtocol::parseThermalGain(frame.data);
+        if (gain) {
+            const int value = static_cast<int>(*gain);
+            if (value != _thermalGain) {
+                _thermalGain = value;
+                emit thermalGainChanged();
+            }
+        }
+        break;
+    }
+
+    case SiyiProtocol::CommandId::ReadThermalCorrection:
+    case SiyiProtocol::CommandId::SetThermalCorrection: {
+        const auto on = SiyiProtocol::parseThermalCorrection(frame.data);
+        if (on && (*on != _thermalCorrectionOn)) {
+            _thermalCorrectionOn = *on;
+            emit thermalCalibrationChanged();
+        }
+        break;
+    }
+
+    case SiyiProtocol::CommandId::ReadThermalCalibration: {
+        const auto calibration = SiyiProtocol::parseThermalCalibration(frame.data);
+        if (calibration) {
+            qCDebug(SiyiCameraControllerLog)
+                << "thermal correction constants: distance" << calibration->distanceM
+                << "m, emissivity" << calibration->emissivityPercent << "%, humidity"
+                << calibration->humidityPercent << "%, air" << calibration->ambientTempC
+                << "C, reflected" << calibration->reflectedTempC << "C";
+        }
+        break;
+    }
+
+    case SiyiProtocol::CommandId::SetThermalCalibration:
+        // One ack byte, and nothing to show for it: the values that matter are the ones read
+        // back by ReadThermalCalibration above.
+        break;
 
     case SiyiProtocol::CommandId::FunctionFeedbackInfo:
         if (!frame.data.isEmpty()) {
@@ -755,11 +946,150 @@ void SiyiCameraController::_poll()
         if ((_pollTicks % kThermalInterval) == 0) {
             _send(SiyiProtocol::encodeThermalRangeRequest(_sequence++));
         }
+        if ((_pollTicks % kConfigInterval) == 0) {
+            _sendCommand(SiyiProtocol::CommandId::ReadThermalGain);
+            _sendCommand(SiyiProtocol::CommandId::ReadThermalCorrection);
+        }
+        if ((_pollTicks % kThermalCalibrationInterval) == 0) {
+            _sendThermalCalibrationIfChanged();
+        }
     }
+
+    // Outside the ZT30 branch: every SIYI pod stabilises better for knowing the airframe's
+    // attitude, and the models without a rangefinder simply ignore the position.
+    if ((_pollTicks % kFcDataInterval) == 0) {
+        _sendFcData();
+    }
+}
+
+void SiyiCameraController::_sendFcData()
+{
+    SiyiCameraSettings *const settings = SettingsManager::instance()->siyiCameraSettings();
+    if (!settings || !settings->sendFcDataToGimbal()->rawValue().toBool()) {
+        return;
+    }
+
+    Vehicle *const vehicle = _vehicle.data();
+    if (!vehicle) {
+        return;
+    }
+
+    auto *const facts = qobject_cast<VehicleFactGroup *>(vehicle->vehicleFactGroup());
+    if (!facts) {
+        return;
+    }
+
+    const auto layout = static_cast<SiyiProtocol::FcDataLayout>(
+        qBound(0, settings->fcDataLayout()->rawValue().toInt(), 1));
+
+    SiyiProtocol::FcAttitude attitude;
+    attitude.rollRad = static_cast<float>(facts->roll()->rawValue().toDouble() * kDegreesToRadians);
+    attitude.pitchRad = static_cast<float>(facts->pitch()->rawValue().toDouble() * kDegreesToRadians);
+    attitude.yawRad = static_cast<float>(facts->heading()->rawValue().toDouble() * kDegreesToRadians);
+    attitude.rollRateRadPerSec =
+        static_cast<float>(facts->rollRate()->rawValue().toDouble() * kDegreesToRadians);
+    attitude.pitchRateRadPerSec =
+        static_cast<float>(facts->pitchRate()->rawValue().toDouble() * kDegreesToRadians);
+    attitude.yawRateRadPerSec =
+        static_cast<float>(facts->yawRate()->rawValue().toDouble() * kDegreesToRadians);
+
+    const auto timeBootMs = static_cast<quint32>(_uptime.isValid() ? _uptime.elapsed() : 0);
+    _send(SiyiProtocol::encodeFcAttitude(attitude, layout, timeBootMs, _sequence++));
+
+    const QGeoCoordinate coordinate = vehicle->coordinate();
+    if (!coordinate.isValid()) {
+        // Attitude without a position is still worth having - it is what the pod stabilises and
+        // locks against - but a geolocation from a zero coordinate would be a lie.
+        return;
+    }
+
+    SiyiProtocol::FcPosition position;
+    position.timeBootMs = timeBootMs;
+    position.latDegE7 = static_cast<qint32>(qRound(coordinate.latitude() * 1.0e7));
+    position.lonDegE7 = static_cast<qint32>(qRound(coordinate.longitude() * 1.0e7));
+    const double altitudeAmsl = facts->altitudeAMSL()->rawValue().toDouble();
+    position.altMslCm = static_cast<qint32>(qRound(altitudeAmsl * 100.0));
+    // No ellipsoid height reaches this station separately, and the difference is a geoid model
+    // the pod is likelier to hold than we are. Sending the same figure is better than a zero,
+    // which would read as sea level on the ellipsoid.
+    position.altEllipsoidCm = position.altMslCm;
+
+    if (auto *const local = qobject_cast<VehicleLocalPositionFactGroup *>(vehicle->localPositionFactGroup())) {
+        position.northMPerSec = static_cast<float>(local->vx()->rawValue().toDouble());
+        position.eastMPerSec = static_cast<float>(local->vy()->rawValue().toDouble());
+        position.downMPerSec = static_cast<float>(local->vz()->rawValue().toDouble());
+    }
+
+    _send(SiyiProtocol::encodeFcPosition(position, layout, _sequence++));
+}
+
+void SiyiCameraController::_sendThermalCalibrationIfChanged()
+{
+    SiyiCameraSettings *const settings = SettingsManager::instance()->siyiCameraSettings();
+    if (!settings) {
+        return;
+    }
+
+    const bool wanted = settings->thermalCorrectionEnabled()->rawValue().toBool();
+    if (wanted != _thermalCorrectionOn) {
+        _send(SiyiProtocol::encodeSetThermalCorrection(wanted, _sequence++));
+    }
+    if (!wanted) {
+        return;
+    }
+
+    SiyiProtocol::ThermalCalibration calibration;
+    calibration.emissivityPercent =
+        static_cast<float>(settings->thermalEmissivity()->rawValue().toDouble());
+    calibration.humidityPercent =
+        static_cast<float>(settings->thermalHumidity()->rawValue().toDouble());
+    calibration.ambientTempC =
+        static_cast<float>(settings->thermalAmbientTempC()->rawValue().toDouble());
+    calibration.reflectedTempC =
+        static_cast<float>(settings->thermalReflectedTempC()->rawValue().toDouble());
+
+    // The one constant nobody should have to type: the rangefinder is already measuring the
+    // path the correction is about. Without a reading the pod keeps whatever it had, which is
+    // better than telling it zero metres.
+    calibration.distanceM = rangefinderAvailable() ? static_cast<float>(_rangefinderDistance)
+                                                   : _sentCalibration.distanceM;
+
+    const bool distanceMoved =
+        std::abs(static_cast<double>(calibration.distanceM - _sentCalibration.distanceM)) >=
+        kCalibrationDistanceEpsilonM;
+    const bool constantsMoved =
+        (calibration.emissivityPercent != _sentCalibration.emissivityPercent) ||
+        (calibration.humidityPercent != _sentCalibration.humidityPercent) ||
+        (calibration.ambientTempC != _sentCalibration.ambientTempC) ||
+        (calibration.reflectedTempC != _sentCalibration.reflectedTempC);
+
+    if (_calibrationSent && !distanceMoved && !constantsMoved) {
+        return;
+    }
+
+    _send(SiyiProtocol::encodeThermalCalibration(calibration, _sequence++));
+    _sendCommand(SiyiProtocol::CommandId::ReadThermalCalibration);
+    _sentCalibration = calibration;
+    _calibrationSent = true;
+    emit thermalCalibrationChanged();
 }
 
 void SiyiCameraController::_resetCameraState()
 {
+    if (_thermalGain != -1) {
+        _thermalGain = -1;
+        emit thermalGainChanged();
+    }
+    if (_thermalCorrectionOn) {
+        _thermalCorrectionOn = false;
+        emit thermalCalibrationChanged();
+    }
+    // Forget what was written so a pod that came back from a power cycle is set up again rather
+    // than left on its factory defaults because the numbers had not changed on this side.
+    _calibrationSent = false;
+    _sentCalibration = {};
+    emit thermalCalibrationChanged();
+
     if (!_model.isEmpty()) {
         _model.clear();
         emit modelChanged();
@@ -828,6 +1158,15 @@ void SiyiCameraController::_resetCameraState()
         emit laserStateChanged();
     }
     _lastThermalRangeTimer.invalidate();
+
+    // The pod forgets the point when the link does; asking again is the operator's to do.
+    if (_pointActive) {
+        _pointReplyTimer.stop();
+        _pointActive = false;
+        _pointNoReply = false;
+        _pointTempC = std::numeric_limits<double>::quiet_NaN();
+        emit pointTemperatureChanged();
+    }
 }
 
 void SiyiCameraController::_setConnected(bool connected)

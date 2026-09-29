@@ -26,4 +26,13 @@ public:
     DEFINE_SETTINGFACT(recordingFileName)
     DEFINE_SETTINGFACT(recordingAutoDeleteDays)
     DEFINE_SETTINGFACT(recordingAdminOnly)
+    DEFINE_SETTINGFACT(thermalCorrectionEnabled)
+    DEFINE_SETTINGFACT(thermalEmissivity)
+    DEFINE_SETTINGFACT(thermalHumidity)
+    DEFINE_SETTINGFACT(thermalAmbientTempC)
+    DEFINE_SETTINGFACT(thermalReflectedTempC)
+    DEFINE_SETTINGFACT(sendFcDataToGimbal)
+    DEFINE_SETTINGFACT(fcDataLayout)
+    DEFINE_SETTINGFACT(crowdModerateCount)
+    DEFINE_SETTINGFACT(crowdDenseCount)
 };

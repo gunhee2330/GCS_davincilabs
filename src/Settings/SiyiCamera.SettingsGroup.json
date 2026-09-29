@@ -4,89 +4,89 @@
     "QGC.MetaData.Facts": [
         {
             "name": "enabled",
-            "shortDesc": "Enable camera control",
+            "shortDesc": "짐벌 카메라를 SDK로 직접 제어합니다.",
             "longDesc": "Control an optical pod (ZT30, ZT6, ZR30, ZR10, A8) directly over its own Ethernet link using the SDK protocol. The ground station must share a network with the camera. On this airframe a ZT30 is always fitted, so this is on by default; with no pod answering the controller simply reports it as disconnected. Video is configured separately under Video settings.",
             "type": "bool",
             "default": true,
-            "label": "Enable camera control",
+            "label": "카메라 제어 사용",
             "keywords": "siyi,zt30,gimbal,camera,payload"
         },
         {
             "name": "ipAddress",
-            "shortDesc": "Camera IP address",
+            "shortDesc": "카메라의 IP 주소입니다. ZT30 기본값은 192.168.144.25입니다.",
             "longDesc": "IP address of the optical pod. The factory default is 192.168.144.25; on this airframe the pod is readdressed to 192.168.144.26 so the FPV camera can keep .25.",
             "type": "string",
             "default": "192.168.144.26",
-            "label": "Camera IP address",
+            "label": "카메라 IP 주소",
             "keywords": "siyi,address,ip"
         },
         {
             "name": "port",
-            "shortDesc": "Camera SDK port",
+            "shortDesc": "카메라 SDK 명령을 보내는 UDP 포트입니다.",
             "longDesc": "UDP port the pod listens on for SDK commands. Factory default is 37260.",
             "type": "uint32",
             "default": 37260,
             "min": 1,
             "max": 65535,
             "decimalPlaces": 0,
-            "label": "Camera SDK port",
+            "label": "카메라 SDK 포트",
             "keywords": "siyi,port,udp"
         },
         {
             "name": "secondaryRtspUrl",
-            "shortDesc": "Secondary RTSP stream URL",
+            "shortDesc": "보조 스트림 주소입니다. 펌웨어마다 경로가 달라 실제 값을 확인해 넣어야 합니다.",
             "longDesc": "RTSP URL for the ZT30 sub stream shown in the second camera panel. The pod publishes its main stream on /video1 and its sub stream on /video2; the path varies by camera firmware, so verify it on the installed payload.",
             "type": "string",
             "default": "rtsp://192.168.144.26:8554/video2",
-            "label": "Secondary RTSP URL",
+            "label": "보조 스트림 주소",
             "keywords": "siyi,zt30,secondary,sub stream,rtsp,video2"
         },
         {
             "name": "aiEnabled",
-            "shortDesc": "Enable AI tracking module",
+            "shortDesc": "AI 추적 모듈을 사용합니다.",
             "longDesc": "Talk to an AI tracking module on its own Ethernet address. The module is separate hardware between the optical pod and the link; it recognises and tracks one selected target (person, car, bus, truck). Enabling it also moves the main video window onto the module's own RTSP feed, which is where tap-to-track has to happen: the target the operator picks is only meaningful in the frame the module itself sees, and a tap on the pod's own stream lands somewhere else in the module's picture. Off by default all the same, because on this airframe the module answers RTSP DESCRIBE but sends no media - turning it on before that is fixed replaces the working pod stream with a black window.",
             "type": "bool",
             "default": false,
-            "label": "Enable AI tracking module",
+            "label": "AI 추적 모듈 사용",
             "keywords": "siyi,ai,tracking,recognition"
         },
         {
             "name": "aiIpAddress",
-            "shortDesc": "AI module IP address",
+            "shortDesc": "AI 모듈의 IP 주소입니다. 기본값은 192.168.144.60입니다.",
             "longDesc": "IP address of the AI tracking module. Factory default is 192.168.144.60.",
             "type": "string",
             "default": "192.168.144.60",
-            "label": "AI module IP address",
+            "label": "AI 모듈 IP 주소",
             "keywords": "siyi,ai,address,ip"
         },
         {
             "name": "aiPort",
-            "shortDesc": "AI module SDK port",
+            "shortDesc": "AI 모듈 SDK 명령을 보내는 포트입니다.",
             "longDesc": "UDP port the AI tracking module listens on. Factory default is 37260.",
             "type": "uint32",
             "default": 37260,
             "min": 1,
             "max": 65535,
             "decimalPlaces": 0,
-            "label": "AI module SDK port",
+            "label": "AI 모듈 SDK 포트",
             "keywords": "siyi,ai,port,udp"
         },
         {
             "name": "aiRtspUrl",
-            "shortDesc": "AI module RTSP URL",
+            "shortDesc": "AI 모듈이 내보내는 영상 주소입니다. 카메라와 달리 554 포트를 씁니다.",
             "longDesc": "RTSP stream carrying the AI recognition boxes. Verified on the actual Module II hardware: the module publishes this on its OWN address, port 554 - not on the pod's address the manual mirrors suggest. The pod's plain main/sub streams stay at the pod address. Which gimbal the module reads is set in setip.txt on its SD card (VideoAddress). Not yet playing on this airframe: the module answers DESCRIBE with 200 OK and takes SDK commands on UDP 37260, but no media follows and GStreamer retries every 11 s, while the pod's own streams and the FPV camera play in the same app.",
             "type": "string",
             "default": "rtsp://192.168.144.60:554/video0",
-            "label": "AI module RTSP URL",
+            "label": "AI 모듈 영상 주소",
             "keywords": "siyi,ai,rtsp,video0,tracking,stream"
         },
         {
             "name": "fpvRtspUrl",
-            "shortDesc": "RTSP address of the FPV camera on the air unit LAN2 port.",
+            "shortDesc": "에어유닛 두 번째 랜 포트에 달린 전방 카메라 주소입니다.",
             "longDesc": "RTSP address of the forward-looking FPV camera on the air unit's LAN2 port. Left empty the FPV window stays closed. On this airframe the FPV camera keeps the default 192.168.144.25 and the pod moved to .26; a third-party camera uses its own address. Probed on the airframe: this camera answers /main.264, and every video0/video1/video2 path 404s - those belong to the pod and the AI module.",
             "type": "string",
             "default": "rtsp://192.168.144.25:8554/main.264",
-            "label": "FPV camera RTSP URL",
+            "label": "전방 카메라 영상 주소",
             "keywords": "fpv,rtsp,camera,lan2,forward"
         },
         {
@@ -130,6 +130,111 @@
             "default": false,
             "label": "Video records for administrators only",
             "keywords": "recording,access,administrator"
+        },
+        {
+            "name": "thermalCorrectionEnabled",
+            "shortDesc": "방사율과 중간 공기를 감안해 측온값을 보정합니다. 카메라 기본값은 손에 들고 재는 거리 기준이라, 상공에서는 공기가 무시할 수 없습니다.",
+            "longDesc": "Let the thermal camera correct its readings for emissivity and for the air between the pod and the target. The camera's own defaults suit a handheld measurement at arm's length; from flight altitude the air is no longer negligible and an uncorrected reading drifts by several degrees.",
+            "type": "bool",
+            "default": true,
+            "label": "열상 환경 보정",
+            "keywords": "thermal,temperature,calibration,emissivity,열화상,보정"
+        },
+        {
+            "name": "thermalEmissivity",
+            "shortDesc": "대상이 얼마나 잘 복사하는지입니다. 피부/초목 98, 도장면/아스팔트 90, 맨 금속은 10까지 내려가며 실제보다 차갑게 읽힙니다.",
+            "longDesc": "How efficiently the target radiates compared with a perfect emitter. Around 98 for skin and vegetation, 90 for painted surfaces and asphalt, and as low as 10 for bare polished metal, which reads far colder than it is.",
+            "type": "double",
+            "default": 95,
+            "min": 1,
+            "max": 100,
+            "units": "%",
+            "decimalPlaces": 0,
+            "label": "대상 방사율",
+            "keywords": "thermal,emissivity,방사율"
+        },
+        {
+            "name": "thermalHumidity",
+            "shortDesc": "포드와 대상 사이 상대습도입니다. 수증기가 열화상이 보는 파장을 흡수해서, 습한 날은 같은 거리라도 신호가 더 깎입니다.",
+            "longDesc": "Relative humidity between the pod and the target. Water vapour absorbs the same infrared band the thermal camera sees, so a humid day costs more of the signal over the same distance.",
+            "type": "double",
+            "default": 60,
+            "min": 0,
+            "max": 100,
+            "units": "%",
+            "decimalPlaces": 0,
+            "label": "대기 습도",
+            "keywords": "thermal,humidity,습도"
+        },
+        {
+            "name": "thermalAmbientTempC",
+            "shortDesc": "포드와 대상 사이 공기 온도입니다. 카메라가 부호 없는 값으로 받아서 영하는 표현하지 못하고 0으로 보냅니다.",
+            "longDesc": "Temperature of the air between the pod and the target. The camera sends this as hundredths of a degree in an unsigned field, so temperatures below zero cannot be expressed and are sent as zero.",
+            "type": "double",
+            "default": 20,
+            "min": 0,
+            "max": 60,
+            "units": "C",
+            "decimalPlaces": 0,
+            "label": "대기 온도",
+            "keywords": "thermal,ambient,temperature,주변온도"
+        },
+        {
+            "name": "thermalReflectedTempC",
+            "shortDesc": "대상이 무엇을 반사하고 있는지의 온도입니다. 방사율이 낮은 금속면에서 특히 중요합니다. 보통은 대기 온도와 같게 두면 됩니다.",
+            "longDesc": "Apparent temperature of whatever the target reflects. It matters most on shiny low-emissivity surfaces: a metal roof reflecting clear sky reads cold, and the same roof beside a fire reads hot. For an ordinary outdoor scene the air temperature is a fair stand-in.",
+            "type": "double",
+            "default": 20,
+            "min": 0,
+            "max": 60,
+            "units": "C",
+            "decimalPlaces": 0,
+            "label": "반사 온도",
+            "keywords": "thermal,reflected,temperature,반사온도"
+        },
+        {
+            "name": "sendFcDataToGimbal",
+            "shortDesc": "기체 위치와 자세를 카메라 링크로 포드에 넘깁니다. 포드는 이게 있어야 레이저가 가리킨 지점의 좌표를 계산합니다.",
+            "longDesc": "Relay the aircraft's position and attitude to the pod over the camera link. The pod needs both to report where its laser is pointing, and normally gets them over a serial line from the flight controller. On an aircraft where the pod is only on Ethernet, this is the way in.",
+            "type": "bool",
+            "default": true,
+            "label": "기체 위치를 짐벌에 전송",
+            "keywords": "gimbal,gps,attitude,rangefinder,target,좌표"
+        },
+        {
+            "name": "fcDataLayout",
+            "shortDesc": "위치/자세를 어느 형식으로 보낼지입니다. 매뉴얼과 ArduPilot 구현이 서로 달라서, 표적 좌표가 안 나오면 다른 쪽으로 바꿔 시험하십시오.",
+            "longDesc": "Which of the two payload layouts to use when sending aircraft position and attitude. The pod manual and ArduPilot's shipped driver disagree about whether attitude carries a leading timestamp and whether velocity is metres or millimetres per second. If the laser target coordinates stay blank with one, try the other.",
+            "type": "uint32",
+            "default": 0,
+            "enumStrings": "ArduPilot 방식,매뉴얼 방식",
+            "enumValues": "0,1",
+            "label": "기체 데이터 전송 형식",
+            "keywords": "gimbal,payload,layout,compatibility"
+        },
+        {
+            "name": "crowdModerateCount",
+            "shortDesc": "검출 카드가 '보통'으로 표시하기 시작하는 인원입니다.",
+            "longDesc": "Number of people in view at which the detection card calls the scene moderate rather than clear.",
+            "type": "uint32",
+            "default": 10,
+            "min": 2,
+            "max": 200,
+            "decimalPlaces": 0,
+            "label": "밀집도 '보통' 기준 인원",
+            "keywords": "crowd,density,people,밀집도,인원"
+        },
+        {
+            "name": "crowdDenseCount",
+            "shortDesc": "검출 카드가 '밀집'으로 표시하기 시작하는 인원입니다. 모듈 카운터가 255에서 넘치므로 포화 표시가 뜨면 이 값과 무관하게 밀집입니다.",
+            "longDesc": "Number of people in view at which the detection card calls the scene dense. The module counts in a single byte that wraps at 255, so a card showing the saturation mark is dense whatever this is set to.",
+            "type": "uint32",
+            "default": 30,
+            "min": 3,
+            "max": 250,
+            "decimalPlaces": 0,
+            "label": "밀집도 '밀집' 기준 인원",
+            "keywords": "crowd,density,people,밀집도,인원"
         }
     ]
 }

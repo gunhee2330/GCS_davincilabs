@@ -289,6 +289,28 @@ ColumnLayout {
         font.pointSize:     ScreenTools.smallFontPointSize
     }
 
+    // The laser lights itself on connect, because the range and the target readouts are blank
+    // without it and nothing on screen would say why. This is how it gets put out again: the beam
+    // is an eye hazard, and flying low over people is exactly when an operator wants it off.
+    QGCButton {
+        Layout.fillWidth:   true
+        visible:            root._isZT30
+        enabled:            root._connected
+        text:               SiyiCameraController.laserOn ? qsTr("레이저 끄기") : qsTr("레이저 켜기")
+        onClicked:          SiyiCameraController.toggleLaser()
+    }
+
+    // ------------------------------------------------------------------ picture
+
+    // Hidden rather than greyed with no pod on the line, like everything else that asks the pod
+    // a question: a control for hardware that is not there reads as a broken control.
+    QGCButton {
+        Layout.fillWidth:   true
+        visible:            root._connected
+        text:               SiyiCameraController.hdrEnabled ? qsTr("HDR 끄기") : qsTr("HDR 켜기")
+        onClicked:          SiyiCameraController.toggleHdr()
+    }
+
     // ------------------------------------------------------------------ AI module
 
     QGCLabel {

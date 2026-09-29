@@ -3,6 +3,8 @@
 #include <QtCore/QtGlobal>
 #include <QtCore/QtNumeric>
 
+#include <cstring>
+
 namespace {
 
 /// Upper bound on DATA_LEN accepted while framing. Real SIYI replies are a few dozen bytes;
@@ -28,6 +30,36 @@ qint32 readInt32(const QByteArray &data, int offset)
 {
     return static_cast<qint32>(static_cast<quint32>(readUint16(data, offset)) |
                                (static_cast<quint32>(readUint16(data, offset + 2)) << 16));
+}
+
+void appendUint16(QByteArray &data, quint16 value)
+{
+    data.append(static_cast<char>(value & 0xFF));
+    data.append(static_cast<char>((value >> 8) & 0xFF));
+}
+
+void appendInt32(QByteArray &data, qint32 value)
+{
+    const auto raw = static_cast<quint32>(value);
+    appendUint16(data, static_cast<quint16>(raw & 0xFFFF));
+    appendUint16(data, static_cast<quint16>((raw >> 16) & 0xFFFF));
+}
+
+/// SIYI takes IEEE-754 singles in the same byte order as everything else on this wire.
+void appendFloat(QByteArray &data, float value)
+{
+    static_assert(sizeof(float) == 4, "float is not 32 bits");
+    quint32 raw = 0;
+    memcpy(&raw, &value, sizeof(raw));
+    appendInt32(data, static_cast<qint32>(raw));
+}
+
+/// Hundredths of a unit in an unsigned 16-bit field. See encodeThermalCalibration for why
+/// negatives clamp to zero rather than wrapping.
+void appendHundredths(QByteArray &data, float value, float maximum)
+{
+    const float bounded = qIsFinite(value) ? qBound(0.0F, value, maximum) : 0.0F;
+    appendUint16(data, static_cast<quint16>(qRound(bounded * 100.0F)));
 }
 
 QString formatVersion(const QByteArray &data, int offset)
@@ -127,6 +159,17 @@ QByteArray encodeSingleByte(CommandId commandId, quint8 value, quint16 sequence)
 QByteArray encodeThermalRangeRequest(quint16 sequence)
 {
     return encodeSingleByte(CommandId::GetTempFullImage, 2, sequence);
+}
+
+QByteArray encodeTempAtPoint(quint16 x, quint16 y, quint8 flag, quint16 sequence)
+{
+    QByteArray data;
+    data.append(static_cast<char>(x & 0xFF));
+    data.append(static_cast<char>((x >> 8) & 0xFF));
+    data.append(static_cast<char>(y & 0xFF));
+    data.append(static_cast<char>((y >> 8) & 0xFF));
+    data.append(static_cast<char>(flag));
+    return encode(CommandId::TempAtPoint, data, sequence);
 }
 
 QList<Frame> decode(QByteArray &buffer)
@@ -242,6 +285,21 @@ std::optional<ThermalRange> parseThermalRange(const QByteArray &data)
     return range;
 }
 
+std::optional<PointTemperature> parsePointTemperature(const QByteArray &data)
+{
+    if (data.size() < 6) {
+        return std::nullopt;
+    }
+
+    PointTemperature point;
+    // Signed, though the spec calls it unsigned: below freezing is a reading this camera can
+    // take (-20 degrees in high gain) and an unsigned read would hand it back as 655.
+    point.tempC = readInt16(data, 0) * 0.01F;
+    point.x = readUint16(data, 2);
+    point.y = readUint16(data, 4);
+    return point;
+}
+
 std::optional<float> parseZoomMultiple(const QByteArray &data)
 {
     if (data.size() < 2) {
@@ -311,6 +369,102 @@ std::optional<bool> parseLaserState(const QByteArray &data)
         return std::nullopt;
     }
     return static_cast<quint8>(data.at(0)) != 0;
+}
+
+std::optional<ThermalGain> parseThermalGain(const QByteArray &data)
+{
+    if (data.isEmpty()) {
+        return std::nullopt;
+    }
+    const auto raw = static_cast<quint8>(data.at(0));
+    if (raw > 1) {
+        return std::nullopt;
+    }
+    return static_cast<ThermalGain>(raw);
+}
+
+std::optional<bool> parseThermalCorrection(const QByteArray &data)
+{
+    if (data.isEmpty()) {
+        return std::nullopt;
+    }
+    const auto raw = static_cast<quint8>(data.at(0));
+    if (raw > 1) {
+        return std::nullopt;
+    }
+    // 0 is ON in this one command, which is the opposite of every other flag on this wire.
+    return raw == 0;
+}
+
+QByteArray encodeSetThermalCorrection(bool on, quint16 sequence)
+{
+    return encodeSingleByte(CommandId::SetThermalCorrection, on ? 0 : 1, sequence);
+}
+
+QByteArray encodeThermalCalibration(const ThermalCalibration &calibration, quint16 sequence)
+{
+    QByteArray data;
+    // Field order is fixed by the SDK: distance, emissivity, humidity, air, reflected.
+    appendHundredths(data, calibration.distanceM, 655.0F);
+    appendHundredths(data, calibration.emissivityPercent, 100.0F);
+    appendHundredths(data, calibration.humidityPercent, 100.0F);
+    appendHundredths(data, calibration.ambientTempC, 655.0F);
+    appendHundredths(data, calibration.reflectedTempC, 655.0F);
+    return encode(CommandId::SetThermalCalibration, data, sequence);
+}
+
+std::optional<ThermalCalibration> parseThermalCalibration(const QByteArray &data)
+{
+    if (data.size() < 10) {
+        return std::nullopt;
+    }
+    ThermalCalibration calibration;
+    calibration.distanceM = readUint16(data, 0) / 100.0F;
+    calibration.emissivityPercent = readUint16(data, 2) / 100.0F;
+    calibration.humidityPercent = readUint16(data, 4) / 100.0F;
+    calibration.ambientTempC = readUint16(data, 6) / 100.0F;
+    calibration.reflectedTempC = readUint16(data, 8) / 100.0F;
+    return calibration;
+}
+
+QByteArray encodeFcAttitude(const FcAttitude &attitude, FcDataLayout layout, quint32 timeBootMs,
+                            quint16 sequence)
+{
+    QByteArray data;
+    if (layout == FcDataLayout::ArduPilot) {
+        appendInt32(data, static_cast<qint32>(timeBootMs));
+    }
+    appendFloat(data, attitude.rollRad);
+    appendFloat(data, attitude.pitchRad);
+    appendFloat(data, attitude.yawRad);
+    appendFloat(data, attitude.rollRateRadPerSec);
+    appendFloat(data, attitude.pitchRateRadPerSec);
+    appendFloat(data, attitude.yawRateRadPerSec);
+    return encode(CommandId::SendFcAttitude, data, sequence);
+}
+
+QByteArray encodeFcPosition(const FcPosition &position, FcDataLayout layout, quint16 sequence)
+{
+    QByteArray data;
+    appendInt32(data, static_cast<qint32>(position.timeBootMs));
+    appendInt32(data, position.latDegE7);
+    appendInt32(data, position.lonDegE7);
+    appendInt32(data, position.altMslCm);
+    appendInt32(data, position.altEllipsoidCm);
+
+    if (layout == FcDataLayout::ArduPilot) {
+        const auto millimetres = [](float metresPerSecond) {
+            return static_cast<qint32>(qRound(metresPerSecond * 1000.0F));
+        };
+        appendInt32(data, millimetres(position.northMPerSec));
+        appendInt32(data, millimetres(position.eastMPerSec));
+        appendInt32(data, millimetres(position.downMPerSec));
+    } else {
+        appendFloat(data, position.northMPerSec);
+        appendFloat(data, position.eastMPerSec);
+        appendFloat(data, position.downMPerSec);
+    }
+    return encode(CommandId::SendFcPosition, data, sequence);
 }
 
 QString parseHardwareModel(const QByteArray &data)

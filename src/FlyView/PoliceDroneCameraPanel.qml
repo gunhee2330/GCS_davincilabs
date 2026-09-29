@@ -33,6 +33,14 @@ Item {
     /// Whether there is a target to let go of, which is all the release button below reacts to.
     property bool trackCancelEnabled: false
 
+    /// Long press reads the temperature under the finger. Thermal only, and only full screen:
+    /// the split window is too small to put a finger on a spot and mean it.
+    property bool pointPickEnabled: false
+
+    /// What to mark on the picture, as {x, y, color, label} with x and y in 0..1 frame
+    /// coordinates. Drawn through contentRect, so a cropped picture still marks the right spot.
+    property var markers: []
+
     property bool aiTargetVisible:      false
     property real aiTargetX:            0
     property real aiTargetY:            0
@@ -68,6 +76,9 @@ Item {
 
     /// The operator letting the tracked target go, from the button on the picture.
     signal trackCancelRequested()
+
+    /// Long press on a panel with pointPickEnabled, in the same 0..1 frame coordinates.
+    signal pointPicked(real normalisedX, real normalisedY)
 
     Rectangle {
         anchors.fill: parent
@@ -384,6 +395,113 @@ Item {
         onTapped:        (point) => {
             if (!root._onTrackCancel(point.position)) {
                 root.activated()
+            }
+        }
+    }
+
+    // Long press reads a temperature. It rides beside the drag handler rather than inside it:
+    // the two never run on the same panel - the thermal window does not pick AI targets - and a
+    // threshold is what keeps a press that is really a tap from reading as a pick.
+    TapHandler {
+        enabled:            root.pointPickEnabled
+        gesturePolicy:      TapHandler.DragThreshold
+        onLongPressed: {
+            const c = videoOutput.contentRect
+            const p = point.position
+            const nx = (p.x - c.x) / Math.max(1, c.width)
+            const ny = (p.y - c.y) / Math.max(1, c.height)
+            // Ignored outside the picture: with the whole frame shown the panel has bars down its
+            // sides, and they are not part of what there is to read.
+            if ((nx >= 0) && (nx <= 1) && (ny >= 0) && (ny <= 1)) {
+                pickFlash.x = p.x - pickFlash.width / 2
+                pickFlash.y = p.y - pickFlash.height / 2
+                pickFlash.flash()
+                root.pointPicked(nx, ny)
+            }
+        }
+    }
+
+    // Says the press was taken, at the moment it was taken. The reading itself is a round trip to
+    // the pod away, and without this the panel answered a long press with nothing for a beat.
+    Rectangle {
+        id:      pickFlash
+        width:   ScreenTools.minTouchPixels * 1.4
+        height:  width
+        radius:  width / 2
+        color:   "transparent"
+        border.color: "#ff3b30"
+        border.width: 3
+        opacity: 0
+        z:       5
+
+        function flash() { flashAnim.restart() }
+
+        NumberAnimation {
+            id:       flashAnim
+            target:   pickFlash
+            property: "opacity"
+            from:     1
+            to:       0
+            duration: 700
+        }
+    }
+
+    // The marks, through contentRect like the target box, so a picture cropped to fill the screen
+    // still has them on the right spot of it. A point the crop has cut off is left unmarked rather
+    // than pinned to the edge, where it would claim a place it is not.
+    Repeater {
+        model: root.markers
+
+        delegate: Item {
+            id: marker
+            required property var modelData
+            readonly property rect _content: videoOutput.contentRect
+            readonly property real _ring:    ScreenTools.defaultFontPixelHeight * 1.2
+            // Labels read to the right of their mark, and swap sides near the right edge so a hot
+            // spot in the corner does not push its reading off the screen.
+            readonly property bool _labelLeft: x > root.width * 0.72
+
+            x:       _content.x + modelData.x * _content.width
+            y:       _content.y + modelData.y * _content.height
+            visible: (x >= 0) && (y >= 0) && (x <= root.width) && (y <= root.height)
+            z:       4
+
+            Rectangle {
+                anchors.centerIn: parent
+                width:            marker._ring
+                height:           width
+                radius:           width / 2
+                color:            "transparent"
+                border.color:     marker.modelData.color
+                border.width:     Math.max(2, width * 0.12)
+            }
+
+            Rectangle {
+                anchors.centerIn: parent
+                width:            Math.max(4, marker._ring * 0.22)
+                height:           width
+                radius:           width / 2
+                color:            marker.modelData.color
+            }
+
+            Rectangle {
+                x:      marker._labelLeft ? -width - marker._ring * 0.7 : marker._ring * 0.7
+                // Beside the mark, and inside the panel: a reading on the bottom edge of the
+                // frame ended up half off the screen.
+                y:      Math.max(-marker.y, Math.min(-height / 2, root.height - marker.y - height))
+                width:  markerLabel.implicitWidth + ScreenTools.defaultFontPixelWidth * 1.2
+                height: markerLabel.implicitHeight + ScreenTools.defaultFontPixelHeight * 0.3
+                radius: 3
+                color:  "#cc000000"
+
+                Text {
+                    id:               markerLabel
+                    anchors.centerIn: parent
+                    color:            marker.modelData.color
+                    font.bold:        true
+                    font.pixelSize:   Math.max(13, ScreenTools.defaultFontPixelHeight * 0.85)
+                    text:             marker.modelData.label
+                }
             }
         }
     }

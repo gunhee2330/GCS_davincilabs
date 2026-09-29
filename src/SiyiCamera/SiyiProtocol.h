@@ -40,14 +40,34 @@ enum class CommandId : quint8 {
     AcquireGimbalAttitude   = 0x0D,
     AbsoluteZoom            = 0x0F,
     SetCameraImageType      = 0x11,
+    TempAtPoint             = 0x12,
     GetTempFullImage        = 0x14,
     ReadRangefinder         = 0x15,
     ReadRangefinderTarget   = 0x17,
     SetThermalPalette       = 0x1B,
+
+    /// Aircraft attitude and position, pushed to the pod by whoever has them.
+    ///
+    /// The pod needs both to answer ReadRangefinderTarget: it has no GPS, and the angles it
+    /// knows are relative to the airframe, so without the airframe's own orientation and
+    /// position it cannot turn "30 degrees down, 45 right of the nose, 180 metres away" into a
+    /// latitude and longitude. SIYI's own wiring feeds these over a serial line from the flight
+    /// controller; on an aircraft where the pod is only on Ethernet these two commands are the
+    /// way in.
+    SendFcAttitude          = 0x22,
+    SendFcPosition          = 0x3E,
+
     ReadLaserState          = 0x31,
     SetLaserState           = 0x32,
     SetThermalRawData       = 0x34,
+    ReadThermalGain         = 0x37,
     SetThermalGain          = 0x38,
+
+    /// Environmental correction of the thermal measurement, and the constants it corrects with.
+    ReadThermalCorrection   = 0x39,
+    SetThermalCorrection    = 0x3A,
+    ReadThermalCalibration  = 0x3B,
+    SetThermalCalibration   = 0x3C,
 
     /// Aircraft follow. Absent from every SIYI manual: found in UniGCS 3.1.6, whose
     /// biz/siyi/protocol/bu/camera/siyi/{o,h}.java O0(boolean) sends command 195 to
@@ -145,6 +165,14 @@ struct FirmwareVersion {
     QString zoom;   ///< Empty on models that report no zoom firmware.
 };
 
+/// Temperature under one point of the thermal image, from CommandId::TempAtPoint. The pod
+/// echoes the point it measured, which is the one it rounded the request to.
+struct PointTemperature {
+    float tempC = 0.0F;
+    quint16 x = 0;
+    quint16 y = 0;
+};
+
 /// Hottest and coldest point of the thermal image, from CommandId::GetTempFullImage.
 struct ThermalRange {
     float maxTempC = 0.0F;
@@ -153,6 +181,58 @@ struct ThermalRange {
     quint16 maxY = 0;
     quint16 minX = 0;
     quint16 minY = 0;
+};
+
+/// Constants the thermal camera corrects its reading with.
+///
+/// A thermal camera measures arriving infrared power, not temperature. Turning one into the
+/// other means separating what the target itself radiated from what it reflected of its
+/// surroundings and from what the air in between both absorbed and added. Emissivity splits the
+/// first two; distance, humidity and air temperature account for the third. The pod ships with
+/// defaults suited to a handheld camera at arm's length, and this aircraft looks at things from
+/// tens of metres up, which is exactly where the air stops being negligible.
+struct ThermalCalibration {
+    float distanceM = 0.0F;          ///< To the target. The rangefinder already measures this.
+    float emissivityPercent = 95.0F; ///< 98 for skin, ~90 for painted surfaces, ~10 for bare metal.
+    float humidityPercent = 60.0F;
+    float ambientTempC = 20.0F;      ///< Air temperature between pod and target.
+    float reflectedTempC = 20.0F;    ///< Apparent temperature of what the target reflects.
+};
+
+/// Aircraft attitude for CommandId::SendFcAttitude, in the radians the SDK asks for.
+struct FcAttitude {
+    float rollRad = 0.0F;
+    float pitchRad = 0.0F;
+    float yawRad = 0.0F;
+    float rollRateRadPerSec = 0.0F;
+    float pitchRateRadPerSec = 0.0F;
+    float yawRateRadPerSec = 0.0F;
+};
+
+/// Aircraft position for CommandId::SendFcPosition.
+struct FcPosition {
+    quint32 timeBootMs = 0;
+    qint32 latDegE7 = 0;
+    qint32 lonDegE7 = 0;
+    qint32 altMslCm = 0;
+    qint32 altEllipsoidCm = 0;
+    float northMPerSec = 0.0F;
+    float eastMPerSec = 0.0F;
+    float downMPerSec = 0.0F;
+};
+
+/// Which of the two payload layouts seen in the wild to send for the two commands above.
+///
+/// The ZT30 manual and ArduPilot's shipped SIYI driver disagree, and both have a claim: the
+/// manual is the specification, ArduPilot's is the one flying on real pods. They differ in two
+/// places - whether attitude carries a leading boot timestamp, and whether position velocity is
+/// metres per second as floats or millimetres per second as integers. Since a pod that dislikes
+/// a payload simply ignores it, and the only way to tell them apart is to watch whether
+/// ReadRangefinderTarget starts answering, the choice is left settable rather than guessed at
+/// build time.
+enum class FcDataLayout : quint8 {
+    ArduPilot = 0,  ///< 28-byte attitude with a leading timestamp; velocity as int32 mm/s.
+    Manual    = 1,  ///< 24-byte attitude, no timestamp; velocity as float m/s.
 };
 
 [[nodiscard]] quint16 crc16(const QByteArray &data);
@@ -181,6 +261,10 @@ struct ThermalRange {
 /// the min/max response format used by ZT6 and ZT30 cameras.
 [[nodiscard]] QByteArray encodeThermalRangeRequest(quint16 sequence = 0);
 
+/// Asks for the temperature at one point of the thermal image, in thermal pixels from the
+/// top left. `flag` is 0 to stop measuring, 1 for a single reading, 2 for 5 Hz readings.
+[[nodiscard]] QByteArray encodeTempAtPoint(quint16 x, quint16 y, quint8 flag, quint16 sequence = 0);
+
 /// Pulls every complete, CRC-valid frame out of `buffer` and erases the bytes it consumed.
 /// Bytes ahead of a header and frames failing CRC are dropped; a trailing partial frame is
 /// left in place for the next call.
@@ -190,6 +274,7 @@ struct ThermalRange {
 [[nodiscard]] std::optional<ConfigInfo> parseConfigInfo(const QByteArray &data);
 [[nodiscard]] std::optional<FirmwareVersion> parseFirmwareVersion(const QByteArray &data);
 [[nodiscard]] std::optional<ThermalRange> parseThermalRange(const QByteArray &data);
+[[nodiscard]] std::optional<PointTemperature> parsePointTemperature(const QByteArray &data);
 
 /// Zoom factor reported by the camera in reply to a manual zoom command.
 [[nodiscard]] std::optional<float> parseZoomMultiple(const QByteArray &data);
@@ -225,5 +310,34 @@ struct RangefinderTarget
 /// Model name decoded from the first two hardware id characters, e.g. "ZT30".
 /// Empty when the id is not one this driver knows.
 [[nodiscard]] QString parseHardwareModel(const QByteArray &data);
+
+/// Thermal gain, from a ReadThermalGain or SetThermalGain reply.
+[[nodiscard]] std::optional<ThermalGain> parseThermalGain(const QByteArray &data);
+
+/// True when the pod reports environmental correction switched on.
+///
+/// The wire value is inverted from the obvious reading: the SDK defines 0 as ON and 1 as OFF.
+[[nodiscard]] std::optional<bool> parseThermalCorrection(const QByteArray &data);
+
+/// Switches environmental correction of the thermal measurement on or off.
+[[nodiscard]] QByteArray encodeSetThermalCorrection(bool on, quint16 sequence = 0);
+
+/// Writes the constants the correction uses.
+///
+/// Every field goes on the wire as an unsigned 16-bit hundredth, so the distance saturates at
+/// 655 m and temperatures below zero cannot be expressed at all. Both are clamped here rather
+/// than wrapped: a winter ambient sent as 64,536 hundredths would corrupt every reading, where
+/// a clamp to zero merely leaves the correction slightly optimistic.
+[[nodiscard]] QByteArray encodeThermalCalibration(const ThermalCalibration &calibration, quint16 sequence = 0);
+
+[[nodiscard]] std::optional<ThermalCalibration> parseThermalCalibration(const QByteArray &data);
+
+/// Aircraft attitude for the pod. See FcDataLayout for why the layout is a parameter.
+[[nodiscard]] QByteArray encodeFcAttitude(const FcAttitude &attitude, FcDataLayout layout,
+                                          quint32 timeBootMs, quint16 sequence = 0);
+
+/// Aircraft position for the pod. See FcDataLayout for why the layout is a parameter.
+[[nodiscard]] QByteArray encodeFcPosition(const FcPosition &position, FcDataLayout layout,
+                                          quint16 sequence = 0);
 
 } // namespace SiyiProtocol

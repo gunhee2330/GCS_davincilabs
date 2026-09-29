@@ -8,7 +8,9 @@
 #include <QtPositioning/QGeoCoordinate>
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QObject>
+#include <QtCore/QPointF>
 #include <QtCore/QString>
+#include <QtCore/QPointer>
 #include <QtCore/QTimer>
 #include <QtNetwork/QHostAddress>
 #include <QtQmlIntegration/QtQmlIntegration>
@@ -21,6 +23,7 @@ class MissionAutoRecord;
 class QQmlEngine;
 class QJSEngine;
 class QUdpSocket;
+class Vehicle;
 
 /// \brief Drives a SIYI optical pod over the vendor SDK protocol on UDP.
 ///
@@ -73,6 +76,27 @@ class SiyiCameraController : public QObject
     Q_PROPERTY(double   thermalMaxTempC     READ thermalMaxTempC        NOTIFY thermalRangeChanged)
     Q_PROPERTY(double   thermalMinTempC     READ thermalMinTempC        NOTIFY thermalRangeChanged)
     Q_PROPERTY(bool     thermalRangeAvailable READ thermalRangeAvailable NOTIFY thermalRangeChanged)
+
+    /// 0 for the low gain band and 1 for the high one, or -1 before the pod has said.
+    ///
+    /// Which band is loaded decides what the camera can read at all: high covers -20 to 150 C
+    /// and low covers 50 to 550 C, so a fire seen on the high band saturates and reads 150.
+    Q_PROPERTY(int      thermalGain         READ thermalGain            NOTIFY thermalGainChanged)
+    Q_PROPERTY(QString  thermalGainRangeText READ thermalGainRangeText  NOTIFY thermalGainChanged)
+
+    /// True while the pod reports it is correcting readings for emissivity and for the air.
+    Q_PROPERTY(bool     thermalCorrectionOn READ thermalCorrectionOn    NOTIFY thermalCalibrationChanged)
+    /// Distance last sent to the pod as the correction's path length, in metres.
+    Q_PROPERTY(double   thermalCalibrationDistanceM READ thermalCalibrationDistanceM NOTIFY thermalCalibrationChanged)
+
+    /// A point of the thermal picture the operator asked to read, and what came back. Active
+    /// says a point is set, available says a reading has arrived for it, and noReply says the
+    /// pod ignored the request - firmware that predates the point command does exactly that.
+    Q_PROPERTY(bool     pointTemperatureActive    READ pointTemperatureActive    NOTIFY pointTemperatureChanged)
+    Q_PROPERTY(bool     pointTemperatureAvailable READ pointTemperatureAvailable NOTIFY pointTemperatureChanged)
+    Q_PROPERTY(bool     pointTemperatureNoReply   READ pointTemperatureNoReply   NOTIFY pointTemperatureChanged)
+    Q_PROPERTY(double   pointTemperatureC         READ pointTemperatureC         NOTIFY pointTemperatureChanged)
+    Q_PROPERTY(QPointF  pointTemperaturePoint     READ pointTemperaturePoint     NOTIFY pointTemperatureChanged)
 
     /// True only once the gimbal has confirmed it is following the aircraft. A gimbal whose
     /// firmware predates the command never answers, and reporting follow from the send alone
@@ -159,6 +183,20 @@ public:
     Q_INVOKABLE void toggleRecording();
     Q_INVOKABLE void toggleHdr();
 
+    /// Lights or puts out the laser. The poll lights it on connect by itself, because 0x15/0x17
+    /// answer an unlit laser with zeroes and both readouts stay blank with nothing saying why;
+    /// this is how an operator puts it out again. Off stays off for the rest of the connection -
+    /// the beam is an eye hazard, and a station that relit it behind the operator would be worse
+    /// than one that never lit it.
+    Q_INVOKABLE void setLaser(bool on);
+    Q_INVOKABLE void toggleLaser();
+
+    /// A handset button asking the fly view to swap which picture fills the screen, EO or IR.
+    /// Nothing goes to the pod: this class only relays it, because it is where the handset's
+    /// pod buttons already arrive and the screen already listens to it. The fly view decides
+    /// what "swap" means for the windows it has up.
+    Q_INVOKABLE void requestEoIrViewToggle();
+
     /// SiyiProtocol::MotionMode value.
     Q_INVOKABLE void setMotionMode(int mode);
 
@@ -179,6 +217,13 @@ public:
     /// SiyiProtocol::ThermalPalette / ThermalGain values.
     Q_INVOKABLE void setThermalPalette(int palette);
     Q_INVOKABLE void setThermalGain(int gain);
+    /// Swaps to the other gain band, so one button covers both.
+    Q_INVOKABLE void toggleThermalGain();
+
+    /// Reads the temperature under a point of the thermal picture, given as fractions across
+    /// and down it, and keeps reading it until stopPointTemperature().
+    Q_INVOKABLE void measurePointTemperature(double x, double y);
+    Q_INVOKABLE void stopPointTemperature();
 
     /// Asks the gimbal to point itself at the aircraft's AI target, or to stop. The state it
     /// reports back lands in aiFollowEnabled / aiFollowError.
@@ -211,8 +256,18 @@ public:
     [[nodiscard]] int aiFollowError() const { return static_cast<int>(_aiFollowError); }
     [[nodiscard]] bool aiFollowStale() const { return _aiFollowStale; }
     [[nodiscard]] int aiFollowStopState() const { return static_cast<int>(_aiFollowStopState); }
+    [[nodiscard]] int thermalGain() const { return _thermalGain; }
+    [[nodiscard]] QString thermalGainRangeText() const;
+    [[nodiscard]] bool thermalCorrectionOn() const { return _thermalCorrectionOn; }
+    [[nodiscard]] double thermalCalibrationDistanceM() const { return _sentCalibration.distanceM; }
+
     [[nodiscard]] double thermalMaxTempC() const { return _thermalMaxTempC; }
     [[nodiscard]] double thermalMinTempC() const { return _thermalMinTempC; }
+    [[nodiscard]] bool pointTemperatureActive() const { return _pointActive; }
+    [[nodiscard]] bool pointTemperatureAvailable() const { return _pointActive && std::isfinite(_pointTempC); }
+    [[nodiscard]] bool pointTemperatureNoReply() const { return _pointNoReply; }
+    [[nodiscard]] double pointTemperatureC() const { return _pointTempC; }
+    [[nodiscard]] QPointF pointTemperaturePoint() const { return _pointPoint; }
     [[nodiscard]] bool thermalRangeAvailable() const
     {
         return std::isfinite(_thermalMaxTempC) && std::isfinite(_thermalMinTempC);
@@ -229,7 +284,11 @@ signals:
     void rangefinderDistanceChanged();
     void rangefinderTargetChanged();
     void laserStateChanged();
+    void eoIrViewToggleRequested();
     void thermalRangeChanged();
+    void thermalGainChanged();
+    void thermalCalibrationChanged();
+    void pointTemperatureChanged();
     void aiFollowChanged();
 
     /// Raised for failures the camera reports itself, e.g. a photo that could not be saved.
@@ -238,6 +297,7 @@ signals:
 private slots:
     void _readPendingDatagrams();
     void _poll();
+    void _activeVehicleChanged(Vehicle *vehicle);
 
 private:
     /// False when nothing left this process - no socket, or the write failed. The stop path needs
@@ -248,6 +308,14 @@ private:
     void _handleFrame(const SiyiProtocol::Frame &frame);
     void _handleFunctionFeedback(quint8 code);
     void _resetCameraState();
+
+    /// Pushes the aircraft's attitude and position to the pod, which has neither of its own and
+    /// cannot geolocate its laser spot without them.
+    void _sendFcData();
+
+    /// Writes the correction constants when they have moved since the last write. The path
+    /// length comes from the rangefinder, so it changes on its own as the aircraft flies.
+    void _sendThermalCalibrationIfChanged();
     void _setConnected(bool connected);
     /// toggleRecording() without marking the recording as the operator's
     void _sendRecordingToggle();
@@ -260,6 +328,11 @@ private:
     quint16 _sequence = 0;
 
     /// Milliseconds since the last valid frame, used to decide the connected state.
+    /// Milliseconds since this controller started, which is what the pod's position and
+    /// attitude commands want as their boot timestamp. The pod only uses it to order frames,
+    /// so a station clock rather than the autopilot's is fine.
+    QElapsedTimer _uptime;
+
     QElapsedTimer _lastFrameTimer;
     QElapsedTimer _lastRangefinderTimer;
     QElapsedTimer _lastRangefinderTargetTimer;
@@ -307,7 +380,25 @@ private:
     int _aiFollowStopSendsLeft = 0;
     int _aiFollowStopNextTick = 0;
     AiFollowStop _aiFollowStopState = AiFollowStop::StopIdle;
+    /// -1 until the pod answers, so the button can say "unknown" rather than guess a band.
+    int _thermalGain = -1;
+    bool _thermalCorrectionOn = false;
+
+    /// What was last put on the wire, so the periodic refresh only sends on a real change.
+    SiyiProtocol::ThermalCalibration _sentCalibration;
+    bool _calibrationSent = false;
+
+    /// Follows the active vehicle only to relay its position and attitude to the pod.
+    QPointer<Vehicle> _vehicle;
+
     double _thermalMaxTempC = std::numeric_limits<double>::quiet_NaN();
+
+    bool _pointActive = false;
+    bool _pointNoReply = false;
+    double _pointTempC = std::numeric_limits<double>::quiet_NaN();
+    QPointF _pointPoint;
+    /// Gives the pod its chance to answer a point request before the reading is called missing.
+    QTimer _pointReplyTimer;
     double _thermalMinTempC = std::numeric_limits<double>::quiet_NaN();
 
     friend class SiyiCameraControllerTest;
