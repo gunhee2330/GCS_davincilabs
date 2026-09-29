@@ -37,7 +37,7 @@
             "shortDesc": "저장된 음성 파일의 이름을 트랙 순서대로 쉼표로 구분해 적습니다. 버튼에 붙는 이름일 뿐 음성 자체는 스피커 쪽에 있습니다.",
             "longDesc": "Comma separated labels for the stored audio files, in track order. The first name is track 1. These are only labels for the buttons; the audio itself lives on the payload.",
             "type": "string",
-            "default": "사이렌,위험 경고,접근 금지,경찰 안내",
+            "default": "사이렌,범죄예방 순찰,교통 단속,교통 안전 순찰,인파 밀집 안내,위험 구역 접근 금지,긴급 대피,실종자 수색,야간 순찰",
             "label": "방송 문구 이름",
             "keywords": "speaker,message,track,broadcast"
         }

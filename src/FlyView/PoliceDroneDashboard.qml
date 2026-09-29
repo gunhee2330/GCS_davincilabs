@@ -1523,21 +1523,33 @@ Item {
                         text:             qsTr("방송 메시지")
                     }
 
-                    Repeater {
-                        model: App.SpeakerController.messageNames
+                    // Four messages stack in one column; more go into a grid, three across once
+                    // there are seven or more, so the payload's nine still fit under the top bar
+                    // on the handset instead of running off the bottom of the screen.
+                    GridLayout {
+                        readonly property int _count: App.SpeakerController.messageNames.length
 
-                        delegate: Button {
-                            required property string modelData
-                            required property int index
-                            Layout.fillWidth:       true
-                            Layout.preferredWidth:  Math.max(ScreenTools.minTouchPixels * 4,
-                                                             ScreenTools.defaultFontPixelWidth * 14)
-                            Layout.preferredHeight: root._touchHeight
-                            // Track numbers are 1 based on the payload.
-                            text:                   qsTr("%1. %2").arg(index + 1).arg(modelData)
-                            onClicked: {
-                                broadcastDropPanel.close()
-                                App.SpeakerController.play(index + 1)
+                        Layout.fillWidth: true
+                        columns:          (_count <= 4) ? 1 : ((_count <= 6) ? 2 : 3)
+                        columnSpacing:    6
+                        rowSpacing:       6
+
+                        Repeater {
+                            model: App.SpeakerController.messageNames
+
+                            delegate: Button {
+                                required property string modelData
+                                required property int index
+                                Layout.fillWidth:       true
+                                Layout.preferredWidth:  Math.max(ScreenTools.minTouchPixels * 4,
+                                                                 ScreenTools.defaultFontPixelWidth * 14)
+                                Layout.preferredHeight: root._touchHeight
+                                // Track numbers are 1 based on the payload.
+                                text:                   qsTr("%1. %2").arg(index + 1).arg(modelData)
+                                onClicked: {
+                                    broadcastDropPanel.close()
+                                    App.SpeakerController.play(index + 1)
+                                }
                             }
                         }
                     }
