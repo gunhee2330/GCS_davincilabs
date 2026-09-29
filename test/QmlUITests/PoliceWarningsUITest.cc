@@ -753,6 +753,12 @@ void PoliceWarningsUITest::_testTargetPickRefusalStrip()
         }
         QVERIFY(qAbs(sceneRect(pick).left() - sceneRect(dashboard).left()) < 1.0);
         QVERIFY(qAbs(pick->width() - dashboard->width()) < 1.0);
+
+        // A cancel the module did not act on: its reason is the title.
+        emit ai->trackRequestFailed(-1, QStringLiteral("추적 해제 실패"));
+        QVERIFY(verifyProperty(kPick, "title", QStringLiteral("추적 해제 실패"), QStringLiteral("cancel failed")));
+        QCOMPARE(pick->property("line").toString(), QString());
+        QVERIFY(verifyVisibility(kPick, true, QStringLiteral("cancel failed")));
         QVERIFY(dashboard->setProperty("expandedPanel", QString()));
         QTest::qWait(kSettleMs);
     });

@@ -66,6 +66,10 @@ constexpr qint64 kCancelReplyTimeoutMs = 300;
 /// box instead, and on the box before giving up. Checked from _poll(), so 1.0 to 1.2 s.
 constexpr qint64 kPointPickReplyTimeoutMs = 1000;
 
+/// How long a sent cancel may go on seeing the target stream report tracking before it is resent,
+/// and then before it is reported as failed.
+constexpr qint64 kCancelConfirmTimeoutMs = 500;
+
 /// Second byte of a SetRecognitionState reply when the module declines because its input video
 /// is above 1920x1080 (apt_set_ai_switch@0x577c80 returns 0x0600, little endian). Undocumented,
 /// and the only clue an operator gets that recognition is refusing rather than absent.
@@ -251,7 +255,9 @@ void SiyiAiController::stop()
     _vehicleClasses.clear();
     _streamRequested = false;
     _cancelPending = false;
+    _cancelConfirmPending = false;
     _pickStep = PickStep::None;
+    _setSelectionHeld(false);
     _setHasTarget(false);
     _setConnected(false);
     _setCountsValid(false);
@@ -288,6 +294,7 @@ void SiyiAiController::trackPoint(double x, double y)
     // reply sees the module tracking - it is, the new target - and cancels the target the operator
     // just picked, which looks like the selection failing for no reason on screen.
     _cancelPending = false;
+    _cancelConfirmPending = false;
 
     // Selection coordinates are in the video stream's own resolution, not the reference
     // frame the target stream reports in.
@@ -323,7 +330,7 @@ void SiyiAiController::trackBox(double left, double top, double right, double bo
 
 bool SiyiAiController::_targetHeld() const
 {
-    return _hasTarget || (_target.status == SiyiAi::TrackingStatus::Tracking) ||
+    return _hasTarget || _selectionHeld || (_target.status == SiyiAi::TrackingStatus::Tracking) ||
            (_target.status == SiyiAi::TrackingStatus::IntermittentLoss) ||
            (_target.status == SiyiAi::TrackingStatus::TrackingArbitrary);
 }
@@ -355,6 +362,7 @@ void SiyiAiController::_handlePickAnswer(SiyiAi::TrackRequestResult result)
     case PickStep::Point:
         if (result == Result::Accepted) {
             _pickStep = PickStep::None;
+            _setSelectionHeld(true);
         } else if (result == Result::OutOfRange) {
             // Nothing recognised near the point: the drawn box, once.
             _sendPickBox(false);
@@ -372,6 +380,7 @@ void SiyiAiController::_handlePickAnswer(SiyiAi::TrackRequestResult result)
             ((result == Result::TrackingInProgress) && _pickBoxAfterTimeout)) {
             // A 6 on a box sent after an unanswered point means the point did take; its answer was lost.
             _pickStep = PickStep::None;
+            _setSelectionHeld(true);
         } else {
             _pickRefused(result);
         }
@@ -454,6 +463,19 @@ void SiyiAiController::_startCancel()
     _cancelSequence = _sequence;
     _cancelTimer.start();
     _send(SiyiAi::encodeRequest(SiyiAi::CommandId::RequestTrackingState, _sequence++));
+}
+
+void SiyiAiController::_sendCancel()
+{
+    // Sent is not done: the module may miss it or refuse it, and a gimbal that goes on following
+    // after 추적해제 is the one outcome the operator must hear about. So watch the target stream;
+    // see _poll().
+    _send(SiyiAi::encodeCancelTracking(_sequence++));
+    if (!_cancelConfirmPending) {
+        _cancelResent = false;
+    }
+    _cancelConfirmPending = true;
+    _cancelConfirmTimer.start();
 }
 
 void SiyiAiController::_cancelResolved(bool cancelSent)
@@ -579,7 +601,9 @@ void SiyiAiController::_handleFrame(const SiyiProtocol::Frame &frame)
         }
         _cancelPending = false;
         if (*tracking) {
-            _send(SiyiAi::encodeCancelTracking(_sequence++));
+            _sendCancel();
+        } else {
+            _setSelectionHeld(false);
         }
         _cancelResolved(*tracking);
         break;
@@ -607,6 +631,12 @@ void SiyiAiController::_handleFrame(const SiyiProtocol::Frame &frame)
             // A cancel from the hand controller or SIYI's own app is only reported here, so
             // drop the target now instead of waiting out kTargetTimeoutMs.
             _hasTarget = (_target.status != SiyiAi::TrackingStatus::CancelledByUser);
+            if ((_target.status == SiyiAi::TrackingStatus::CancelledByUser) ||
+                (_target.status == SiyiAi::TrackingStatus::Lost)) {
+                // The module has let go, which is what a cancel waits to hear.
+                _cancelConfirmPending = false;
+                _setSelectionHeld(false);
+            }
             if (((_pickStep == PickStep::Point) || (_pickStep == PickStep::Box)) &&
                 (_target.type != SiyiAi::TargetType::Arbitrary) &&
                 ((_target.status == SiyiAi::TrackingStatus::Tracking) ||
@@ -614,6 +644,7 @@ void SiyiAiController::_handleFrame(const SiyiProtocol::Frame &frame)
                 // The pick found a recognised object; its class is on screen now. Any target held
                 // before the pick was cancelled first, so this frame is the new one.
                 _pickStep = PickStep::None;
+                _setSelectionHeld(true);
             }
             emit targetChanged();
         }
@@ -642,8 +673,25 @@ void SiyiAiController::_poll()
     if (_cancelPending && _cancelTimer.hasExpired(kCancelReplyTimeoutMs)) {
         // No answer to the state query, so send the cancel without one; see kCancelReplyTimeoutMs.
         _cancelPending = false;
-        _send(SiyiAi::encodeCancelTracking(_sequence++));
+        _sendCancel();
         _cancelResolved(true);
+    }
+    if (_cancelConfirmPending && _cancelConfirmTimer.hasExpired(kCancelConfirmTimeoutMs)) {
+        // Still tracking means a target frame arrived after the cancel went out and said so. With
+        // no frame at all there is nothing to go on, and the flag stays up so 추적해제 stays usable.
+        const bool stillTracking = _lastTargetTimer.isValid() &&
+                                   (_lastTargetTimer.elapsed() < _cancelConfirmTimer.elapsed()) &&
+                                   (_target.status != SiyiAi::TrackingStatus::CancelledByUser) &&
+                                   (_target.status != SiyiAi::TrackingStatus::Lost);
+        if (!stillTracking) {
+            _cancelConfirmPending = false;
+        } else if (!_cancelResent) {
+            _cancelResent = true;
+            _sendCancel();
+        } else {
+            _cancelConfirmPending = false;
+            emit trackRequestFailed(-1, tr("추적 해제 실패"));
+        }
     }
     if ((_pickStep == PickStep::CancelAnswer) && _pickTimer.hasExpired(kCancelReplyTimeoutMs)) {
         _sendPickPoint();
@@ -727,6 +775,15 @@ void SiyiAiController::_setConnected(bool connected)
     }
     qCDebug(SiyiAiControllerLog) << "connected:" << _connected;
     emit connectedChanged();
+}
+
+void SiyiAiController::_setSelectionHeld(bool held)
+{
+    if (_selectionHeld == held) {
+        return;
+    }
+    _selectionHeld = held;
+    emit selectionHeldChanged();
 }
 
 void SiyiAiController::_setHasTarget(bool hasTarget)

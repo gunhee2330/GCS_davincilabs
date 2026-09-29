@@ -54,6 +54,11 @@ class SiyiAiController : public QObject
     Q_PROPERTY(QString  targetTypeName      READ targetTypeName     NOTIFY targetChanged)
     Q_PROPERTY(bool     targetLost          READ targetLost         NOTIFY targetChanged)
 
+    /// The module holds a selection we made, whether or not its coordinates are arriving: set on an
+    /// accepted pick, cleared by a confirmed cancel, a lost or cancelled status, or the module
+    /// saying it holds nothing. Keeps 추적해제 usable through a pause in the target stream.
+    Q_PROPERTY(bool     selectionHeld       READ selectionHeld      NOTIFY selectionHeldChanged)
+
     /// Resolution the module's video is delivered at. Target selection coordinates are sent
     /// in this space per the SDK, while the reported target stream always uses the module's
     /// fixed reference frame, so the two are kept separate.
@@ -137,6 +142,7 @@ public:
     [[nodiscard]] double targetHeight() const { return static_cast<double>(_target.height) / SiyiAi::kReferenceHeight; }
     [[nodiscard]] QString targetTypeName() const { return SiyiAi::targetTypeName(_target.type); }
     [[nodiscard]] bool targetLost() const { return _target.status == SiyiAi::TrackingStatus::Lost; }
+    [[nodiscard]] bool selectionHeld() const { return _selectionHeld; }
 
     [[nodiscard]] bool streamTooLarge() const { return _streamTooLarge; }
     [[nodiscard]] bool countsValid() const { return _countsValid; }
@@ -162,11 +168,13 @@ signals:
     void connectedChanged();
     void recognitionEnabledChanged();
     void targetChanged();
+    void selectionHeldChanged();
     void streamResolutionChanged();
     void streamTooLargeChanged();
     void countsChanged();
 
-    /// Raised when the module refuses a target pick, with its 0x06 answer code and a Korean reason.
+    /// Raised when the module refuses a target pick, with its 0x06 answer code and a Korean reason,
+    /// and with code -1 when a cancel did not stop the module tracking.
     void trackRequestFailed(int code, const QString &reason);
 
 private slots:
@@ -180,6 +188,8 @@ private:
     void _setHasTarget(bool hasTarget);
     void _setStreamTooLarge(bool tooLarge);
     void _startCancel();
+    void _sendCancel();
+    void _setSelectionHeld(bool held);
     void _cancelResolved(bool cancelSent);
     void _sendPickPoint();
     void _sendPickBox(bool afterTimeout);
@@ -260,6 +270,14 @@ private:
     bool _cancelPending = false;
     quint16 _cancelSequence = 0;
     QElapsedTimer _cancelTimer;
+
+    /// A cancel that has gone out and is waiting for the module to stop reporting a target, whether
+    /// it has been resent, and how long it has waited; see _sendCancel() and _poll().
+    bool _cancelConfirmPending = false;
+    bool _cancelResent = false;
+    QElapsedTimer _cancelConfirmTimer;
+
+    bool _selectionHeld = false;
 
     /// Where a dragged pick is: cancelling a held target (the state query, then the cancel's own
     /// answer), waiting on the point at the box's centre, or on the box. See trackBox().

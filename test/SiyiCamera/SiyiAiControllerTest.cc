@@ -1,6 +1,7 @@
 #include "SiyiAiControllerTest.h"
 
 #include <QtCore/QRegularExpression>
+#include <QtCore/QTimer>
 #include <QtNetwork/QTcpServer>
 #include <QtNetwork/QTcpSocket>
 #include <QtNetwork/QUdpSocket>
@@ -1151,7 +1152,8 @@ void SiyiAiControllerTest::_dragBoxAnswersDecideTheResult_test()
     (void) drainFrames(module);
     QSignalSpy refused(&controller, &SiyiAiController::trackRequestFailed);
 
-    for (const int boxAnswer : {1, 4}) {
+    // The refusal first: an accepted box leaves a selection held, which the next drag cancels first.
+    for (const int boxAnswer : {4, 1}) {
         controller.trackBox(0.4, 0.4, 0.6, 0.8);
         QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
         QList<SiyiProtocol::Frame> sent = drainFrames(module);
@@ -1165,13 +1167,10 @@ void SiyiAiControllerTest::_dragBoxAnswersDecideTheResult_test()
         QCOMPARE(pointSelections(sent).size(), 0);
 
         controller._handleFrame(trackAckCode(boxAnswer));
-        if (boxAnswer == 1) {
-            QCOMPARE(refused.count(), 0);
-        } else {
-            QCOMPARE(refused.count(), 1);
-            QCOMPARE(refused.at(0).at(0).toInt(), 4);
-            QCOMPARE(refused.at(0).at(1).toString(), QStringLiteral("선택 영역의 무늬가 너무 적습니다"));
-        }
+        // The 4 is reported; the 1 after it adds nothing.
+        QCOMPARE(refused.count(), 1);
+        QCOMPARE(refused.at(0).at(0).toInt(), 4);
+        QCOMPARE(refused.at(0).at(1).toString(), QStringLiteral("선택 영역의 무늬가 너무 적습니다"));
         QCOMPARE(selectionCount(framesOverTheTimeout(module)), 0);
     }
 }
@@ -1285,6 +1284,112 @@ void SiyiAiControllerTest::_dragBoxRefusedAsHeldAfterATimeoutIsASuccess_test()
     QCOMPARE(selectionCount(sent), 0);
     QCOMPARE(cancelCount(sent), 0);
     QCOMPARE(lastTrackingQuery(sent), -1);
+}
+
+void SiyiAiControllerTest::_pickThenCancel(SiyiAiController &controller, QUdpSocket &module, QTimer &pump)
+{
+    controller.trackBox(0.4, 0.4, 0.6, 0.8);
+    QVERIFY(module.waitForReadyRead(TestTimeout::shortMs()));
+    (void) drainFrames(module);
+    controller._handleFrame(trackAckFrame(SiyiAi::TrackRequestResult::Accepted));
+    QVERIFY(controller.selectionHeld());
+    pump.start();
+    QTRY_VERIFY_WITH_TIMEOUT(controller.hasTarget(), TestTimeout::shortMs());
+
+    controller.cancelTracking();
+    QList<SiyiProtocol::Frame> sent;
+    QTRY_VERIFY_WITH_TIMEOUT(lastTrackingQuery(sent += drainFrames(module)) >= 0, TestTimeout::shortMs());
+    controller._handleFrame(trackingStateFrame(1, static_cast<quint16>(lastTrackingQuery(sent))));
+    QTRY_VERIFY_WITH_TIMEOUT(cancelCount(sent += drainFrames(module)) == 1, TestTimeout::shortMs());
+}
+
+/// A cancel that has gone out is done once the module reports the target cancelled: nothing is
+/// resent, nothing is reported, and the selection is no longer held.
+void SiyiAiControllerTest::_cancelIsConfirmedByTheStream_test()
+{
+    QUdpSocket module;
+    QHostAddress controllerAddress;
+    quint16 controllerPort = 0;
+
+    SiyiAiController controller(nullptr);
+    openFakeModule(module, controller, controllerAddress, controllerPort);
+    (void) drainFrames(module);
+    QSignalSpy refused(&controller, &SiyiAiController::trackRequestFailed);
+
+    QByteArray pushing = targetStreamFrame(SiyiAi::TrackingStatus::Tracking);
+    QTimer pump;
+    pump.setInterval(100);
+    (void) connect(&pump, &QTimer::timeout, &module, [&] { (void) module.writeDatagram(pushing, controllerAddress, controllerPort); });
+
+    _pickThenCancel(controller, module, pump);
+    if (QTest::currentTestFailed()) return;
+
+    pushing = targetStreamFrame(SiyiAi::TrackingStatus::CancelledByUser);
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.selectionHeld(), TestTimeout::shortMs());
+    QCOMPARE(cancelCount(framesOverTheTimeout(module)), 0);
+    QCOMPARE(refused.count(), 0);
+}
+
+/// The stream still says tracking 500 ms after the cancel: the cancel goes out once more, and a
+/// cancelled status after that ends it quietly.
+void SiyiAiControllerTest::_unconfirmedCancelIsResentOnce_test()
+{
+    QUdpSocket module;
+    QHostAddress controllerAddress;
+    quint16 controllerPort = 0;
+
+    SiyiAiController controller(nullptr);
+    openFakeModule(module, controller, controllerAddress, controllerPort);
+    (void) drainFrames(module);
+    QSignalSpy refused(&controller, &SiyiAiController::trackRequestFailed);
+
+    QByteArray pushing = targetStreamFrame(SiyiAi::TrackingStatus::Tracking);
+    QTimer pump;
+    pump.setInterval(100);
+    (void) connect(&pump, &QTimer::timeout, &module, [&] { (void) module.writeDatagram(pushing, controllerAddress, controllerPort); });
+
+    _pickThenCancel(controller, module, pump);
+    if (QTest::currentTestFailed()) return;
+
+    QList<SiyiProtocol::Frame> sent;
+    QTRY_VERIFY_WITH_TIMEOUT(cancelCount(sent += drainFrames(module)) == 1, TestTimeout::mediumMs());
+    QVERIFY(controller.selectionHeld());
+
+    pushing = targetStreamFrame(SiyiAi::TrackingStatus::CancelledByUser);
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.selectionHeld(), TestTimeout::shortMs());
+    QCOMPARE(cancelCount(framesOverTheTimeout(module)), 0);
+    QCOMPARE(refused.count(), 0);
+}
+
+/// Still tracking after the resend: the operator is told the cancel failed, the selection is still
+/// held so 추적해제 stays usable, and nothing more goes out on its own.
+void SiyiAiControllerTest::_cancelThatNeverTakesIsReported_test()
+{
+    QUdpSocket module;
+    QHostAddress controllerAddress;
+    quint16 controllerPort = 0;
+
+    SiyiAiController controller(nullptr);
+    openFakeModule(module, controller, controllerAddress, controllerPort);
+    (void) drainFrames(module);
+    QSignalSpy refused(&controller, &SiyiAiController::trackRequestFailed);
+
+    const QByteArray pushing = targetStreamFrame(SiyiAi::TrackingStatus::Tracking);
+    QTimer pump;
+    pump.setInterval(100);
+    (void) connect(&pump, &QTimer::timeout, &module, [&] { (void) module.writeDatagram(pushing, controllerAddress, controllerPort); });
+
+    _pickThenCancel(controller, module, pump);
+    if (QTest::currentTestFailed()) return;
+
+    QList<SiyiProtocol::Frame> sent;
+    QTRY_VERIFY_WITH_TIMEOUT(refused.count() == 1, TestTimeout::mediumMs());
+    QCOMPARE(refused.at(0).at(0).toInt(), -1);
+    QCOMPARE(refused.at(0).at(1).toString(), QStringLiteral("추적 해제 실패"));
+    sent += framesOverTheTimeout(module);
+    QCOMPARE(cancelCount(sent), 1);
+    QCOMPARE(refused.count(), 1);
+    QVERIFY(controller.selectionHeld());
 }
 
 UT_REGISTER_TEST(SiyiAiControllerTest, TestLabel::Unit)

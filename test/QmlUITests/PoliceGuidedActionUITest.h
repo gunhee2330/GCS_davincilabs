@@ -102,6 +102,10 @@ private slots:
     /// word. Grabs box_0_person, box_1_car and box_2_object when QGC_SCREENSHOT_DIR is set.
     void _testTrackedBoxColourByClass();
 
+    /// The rail's 추적해제 stays enabled through a 2 s pause in the fake module's target stream
+    /// while the module holds an accepted pick, and greys once the module reports it cancelled.
+    void _testTrackCancelStaysEnabledWhileHeld();
+
     /// The release button on the picture: a click must ask for exactly one cancel, must not send
     /// a box and must not take the panel full screen; greyed it must do nothing at all; and a
     /// drag that starts on it must not send a box either.

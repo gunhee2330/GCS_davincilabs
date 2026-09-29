@@ -107,9 +107,12 @@ Item {
     // stream; without this the operator would just see nothing happen. Shown as the first
     // warning strip for 3 s; a new refusal starts it over.
     property string _pickRefusal
+    // -1 is a cancel the module did not act on; its reason is the strip's title.
+    property int    _pickRefusalCode: 0
     Connections {
         target: App.SiyiAiController
         function onTrackRequestFailed(code, reason) {
+            root._pickRefusalCode = code
             root._pickRefusal = reason
             pickRefusalTimer.restart()
         }
@@ -1341,7 +1344,9 @@ Item {
                 // A reticle, not the AI glyph the switch above already wears: two buttons with
                 // the same picture read as two halves of one control.
                 iconSource:  "/qmlimages/TrackingIcon.svg"
-                enabled:     App.SiyiAiController.hasTarget
+                // selectionHeld keeps it live through a pause in the coordinate stream while the
+                // module still holds the target.
+                enabled:     App.SiyiAiController.hasTarget || App.SiyiAiController.selectionHeld
                 onTriggered: App.SiyiAiController.cancelTracking()
             },
             ToolStripAction {
@@ -1959,8 +1964,9 @@ Item {
 
         WarningStrip {
             objectName: "policeWarningTargetPick"
-            title:      qsTr("표적 지정 실패")
-            line:       root._pickRefusal
+            visible:    root._pickRefusal.length > 0
+            title:      root._pickRefusalCode < 0 ? root._pickRefusal : qsTr("표적 지정 실패")
+            line:       root._pickRefusalCode < 0 ? "" : root._pickRefusal
             onTapped:   root._pickRefusal = ""
         }
         WarningStrip {

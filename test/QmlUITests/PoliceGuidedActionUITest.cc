@@ -667,6 +667,88 @@ void PoliceGuidedActionUITest::_testTrackedBoxColourByClass()
     });
 }
 
+void PoliceGuidedActionUITest::_testTrackCancelStaysEnabledWhileHeld()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const strip = findVisibleItem(_rootItem, kCameraStrip, 5000);
+        QVERIFY2(strip, "Camera rail not found");
+        QQuickItem *const cancel = findVisibleTextItem(strip, QStringLiteral("추적해제"));
+        QVERIFY2(cancel, "The rail lost its 추적해제 button");
+        QVERIFY2(!cancel->isEnabled(), "추적해제 is live with nothing tracked");
+
+        QUdpSocket module;
+        QVERIFY(module.bind(QHostAddress::LocalHost, 0));
+        SiyiAiController *const ai = SiyiAiController::instance();
+        QVERIFY(ai);
+        Fact *const aiAddress = SettingsManager::instance()->siyiCameraSettings()->aiIpAddress();
+        Fact *const aiPort = SettingsManager::instance()->siyiCameraSettings()->aiPort();
+        const QVariant savedAddress = aiAddress->rawValue();
+        const QVariant savedPort = aiPort->rawValue();
+        const auto restoreModule = qScopeGuard([ai, aiAddress, aiPort, savedAddress, savedPort] {
+            ai->stop();
+            aiAddress->setRawValue(savedAddress);
+            aiPort->setRawValue(savedPort);
+        });
+        aiAddress->setRawValue(QStringLiteral("127.0.0.1"));
+        aiPort->setRawValue(module.localPort());
+        ai->start();
+        QVERIFY(module.waitForReadyRead(5000));
+        QTest::qWait(300);
+        QNetworkDatagram probe;
+        while (module.hasPendingDatagrams()) {
+            probe = module.receiveDatagram();
+        }
+        QVERIFY(probe.isValid());
+        const QHostAddress controllerAddress = probe.senderAddress();
+        const quint16 controllerPort = static_cast<quint16>(probe.senderPort());
+        const auto reply = [&](SiyiAi::CommandId command, const QByteArray &data) {
+            const QByteArray frame = SiyiProtocol::encodeRaw(static_cast<quint8>(command), data);
+            QCOMPARE(module.writeDatagram(frame, controllerAddress, controllerPort), frame.size());
+        };
+        QByteArray target;
+        for (const quint16 value : { quint16(640), quint16(360), quint16(120), quint16(300) }) {
+            target.append(static_cast<char>(value & 0xFF));
+            target.append(static_cast<char>(value >> 8));
+        }
+        target.append(static_cast<char>(SiyiAi::TargetType::Person));
+
+        // Nothing held to begin with, whatever an earlier test left the singleton's last target at.
+        reply(SiyiAi::CommandId::TargetStream, target + QByteArray(1, static_cast<char>(SiyiAi::TrackingStatus::CancelledByUser)));
+        QTRY_COMPARE_WITH_TIMEOUT(ai->targetTypeName(), QStringLiteral("person"), 3000);
+        QVERIFY(!ai->selectionHeld());
+
+        // A pick the module accepts, then its target on the stream.
+        ai->trackBox(0.4, 0.4, 0.6, 0.8);
+        reply(SiyiAi::CommandId::SetTrackTarget, QByteArray(1, '\1'));
+        QTRY_VERIFY_WITH_TIMEOUT(ai->selectionHeld(), 3000);
+        QTimer pusher;
+        pusher.setInterval(200);
+        (void) connect(&pusher, &QTimer::timeout, &module, [&] {
+            reply(SiyiAi::CommandId::TargetStream, target + QByteArray(1, static_cast<char>(SiyiAi::TrackingStatus::Tracking)));
+        });
+        pusher.start();
+        QTRY_VERIFY_WITH_TIMEOUT(ai->hasTarget(), 3000);
+        QTRY_VERIFY_WITH_TIMEOUT(cancel->isEnabled(), 3000);
+
+        // The stream pauses for 2 s, past the 1.5 s the box stays up for; the module still holds it.
+        pusher.stop();
+        QTest::qWait(2000);
+        QVERIFY2(!ai->hasTarget(), "The target outlived the stream pause, so the pause proved nothing");
+        QVERIFY2(cancel->isEnabled(), "추적해제 greyed out while the module still held the target");
+
+        // The module reports the target cancelled: nothing left to release.
+        reply(SiyiAi::CommandId::TargetStream, target + QByteArray(1, static_cast<char>(SiyiAi::TrackingStatus::CancelledByUser)));
+        QTRY_VERIFY_WITH_TIMEOUT(!ai->selectionHeld(), 3000);
+        QTRY_VERIFY_WITH_TIMEOUT(!cancel->isEnabled(), 3000);
+    });
+}
+
 void PoliceGuidedActionUITest::_testTrackCancelButton()
 {
     _ignorePreexistingQmlWarnings();

@@ -2,6 +2,10 @@
 
 #include "UnitTest.h"
 
+class QTimer;
+class QUdpSocket;
+class SiyiAiController;
+
 class SiyiAiControllerTest : public UnitTest
 {
     Q_OBJECT
@@ -34,4 +38,12 @@ private slots:
     void _dragRetriesOnceWhenTheModuleIsStillTracking_test();
     void _dragRefusalsSendNoBox_test();
     void _dragBoxRefusedAsHeldAfterATimeoutIsASuccess_test();
+    void _cancelIsConfirmedByTheStream_test();
+    void _unconfirmedCancelIsResentOnce_test();
+    void _cancelThatNeverTakesIsReported_test();
+
+private:
+    /// A pick the module accepted, @a pump pushing its target, then 추적해제 with the module
+    /// answering the state query "holding", so the cancel itself has gone out.
+    static void _pickThenCancel(SiyiAiController &controller, QUdpSocket &module, QTimer &pump);
 };
