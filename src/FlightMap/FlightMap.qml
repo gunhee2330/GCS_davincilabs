@@ -240,11 +240,16 @@ Map {
         }
     }
 
-    /// Ground Station location
+    /// Ground Station location.
+    ///
+    /// Off in this fork. It marked the controller with QGroundControl's own logo in the middle
+    /// of a map the rest of which carries the operator's branding, and it marks a position the
+    /// operator is standing at - the one place on the map they do not need telling about. The
+    /// item is kept rather than deleted so the upstream one stays easy to merge against.
     MapQuickItem {
         anchorPoint.x:  sourceItem.width / 2
         anchorPoint.y:  sourceItem.height / 2
-        visible:        gcsPosition.isValid && !planView
+        visible:        false
         coordinate:     gcsPosition
 
         sourceItem: Image {

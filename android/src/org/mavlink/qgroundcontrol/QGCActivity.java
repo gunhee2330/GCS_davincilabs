@@ -16,6 +16,7 @@ import android.provider.OpenableColumns;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.WindowManager;
 
 
 import org.qtproject.qt.android.bindings.QtActivity;
@@ -35,6 +36,15 @@ public class QGCActivity extends QtActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         m_instance = this;
+
+        // Keep the screen on for the whole life of the app, not only while a vehicle is
+        // connected (QGC's default). A ground station that blanks its screen mid-flight is
+        // useless, and on this handset the blank was worse than useless: Android demotes the
+        // backgrounded window and, under the memory a live video feed needs, reclaims the
+        // process - the app "just closed" a minute after launch. Setting the window flag here,
+        // unconditionally, is the fix for both. It costs nothing off a delivered unit that is
+        // always on a charger anyway.
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         QGCLogger.initialize(getApplicationContext());
         nativeInit();

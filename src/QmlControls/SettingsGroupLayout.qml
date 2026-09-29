@@ -65,6 +65,9 @@ ColumnLayout {
 
         QGCLabel {
             Layout.fillWidth:   true
+            // A wrapping label reports its unwrapped run as implicitWidth, which the page would
+            // then size itself to, pushing a long description past a 7 inch handheld's edge
+            Layout.preferredWidth: 1
             text:               headingDescription
             wrapMode:           Text.WordWrap
             font.pointSize:     ScreenTools.smallFontPointSize

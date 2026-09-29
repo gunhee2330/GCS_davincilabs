@@ -62,6 +62,30 @@ Item {
         return coordinate
     }
 
+    // Waits for the aircraft to actually leave mission mode before uploading. Sending the plan in
+    // the same breath as the pause races the autopilot, which is still in mission mode when the
+    // next line runs and rejects the upload exactly as it did before the pause.
+    Timer {
+        id: pauseThenUploadTimer
+
+        property int triesLeft: 0
+
+        interval: 400
+        repeat:   true
+        onTriggered: {
+            if (_missionController.sendToVehiclePreCheck() === MissionController.SendToVehiclePreCheckStateOk) {
+                stop()
+                _planMasterController.sendToVehicle()
+                return
+            }
+            if (--triesLeft <= 0) {
+                stop()
+                QGroundControl.showMessageDialog(_root, qsTr("항로 재설정"),
+                                                 qsTr("기체가 임무를 멈추지 않았습니다. 비행 모드를 직접 바꾼 뒤 다시 올려주십시오."))
+            }
+        }
+    }
+
     MapFitFunctions {
         id: mapFitFunctions  // The name for this id cannot be changed without breaking references outside of this code. Beware!
         map: editorMap
@@ -106,6 +130,17 @@ Item {
             return true
         }
 
+        function pauseThenSendToVehicle() {
+            if (!globals.activeVehicle) {
+                return
+            }
+            globals.activeVehicle.pauseVehicle()
+            // Ten tries at 400 ms. Four seconds is far longer than a mode change over a healthy
+            // link, and on an unhealthy one the operator needs to be told rather than left waiting.
+            pauseThenUploadTimer.triesLeft = 10
+            pauseThenUploadTimer.restart()
+        }
+
         function upload() {
             if (!checkReadyForSaveUpload(false /* save */)) {
                 return
@@ -113,7 +148,13 @@ Item {
             switch (_missionController.sendToVehiclePreCheck()) {
                 case MissionController.SendToVehiclePreCheckStateOk: sendToVehicle()
                     break
-                case MissionController.SendToVehiclePreCheckStateActiveMission: QGroundControl.showMessageDialog(_root, qsTr("Send To Vehicle"), qsTr("Current mission must be paused prior to uploading a new Plan"))
+                case MissionController.SendToVehiclePreCheckStateActiveMission:
+                    QGroundControl.showMessageDialog(_root, qsTr("항로 재설정"),
+                                                     qsTr("새 항로를 올리려면 진행 중인 임무를 먼저 멈춰야 합니다.\n\n" +
+                                                          "'Ok'를 누르면 기체를 제자리에 세우고 새 항로를 올립니다. " +
+                                                          "올린 뒤 비행 모드를 임무로 되돌리면 새 항로로 비행합니다."),
+                                                     Dialog.Ok | Dialog.Cancel,
+                                                     function() { pauseThenSendToVehicle() })
                     break
                 case MissionController.SendToVehiclePreCheckStateFirwmareVehicleMismatch: QGroundControl.showMessageDialog(_root, qsTr("Plan Upload"),
                                                  qsTr("This Plan was created for a different firmware or vehicle type than the firmware/vehicle type of vehicle you are uploading to. " +

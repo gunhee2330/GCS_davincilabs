@@ -15,8 +15,12 @@ SetupPage {
 
         Item {
             // The floor is a constant rather than outerColumn.width because outerColumn now
-            // takes its width from this Item, and reading it back would close a binding loop
-            width: Math.max(availableWidth, ScreenTools.defaultFontPixelWidth * 70)
+            // takes its width from this Item, and reading it back would close a binding loop.
+            // Seventy characters was wider than a 7 inch handheld's config body, so the floor
+            // won on the one screen that matters and the value fields sat off the right edge
+            // with the page scrolling sideways to reach them. Fifty is what the settings pages
+            // use, and it leaves this one sized by the body it is actually drawn in.
+            width: Math.max(availableWidth, ScreenTools.defaultFontPixelWidth * 50)
             height: outerColumn.height
 
             {{ controller_type }} {
