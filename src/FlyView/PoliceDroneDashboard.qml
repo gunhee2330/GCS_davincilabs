@@ -69,9 +69,9 @@ Item {
     //
     // Return altitude is a firmware parameter, not an argument of the RTL command, so the
     // chosen height is written first and the vehicle is then told to return. Parameter name
-    // and unit differ per firmware, hence the lookup rather than a hardcoded name.
-
-    FactPanelController { id: rtlParamController }
+    // and unit differ per firmware, hence the lookup rather than a hardcoded name. The lookup
+    // goes through a FactPanelController made with the panel: one made with the dashboard is
+    // bound to whatever vehicle was active then, which at startup is the offline one.
 
     readonly property var _rtlAltCandidates: [
         { name: "RTL_RETURN_ALT", scale: 1 },     // PX4, metres
@@ -80,19 +80,19 @@ Item {
         { name: "ALT_HOLD_RTL",   scale: 100 }    // ArduPlane, centimetres
     ]
 
-    function _rtlAltFact() {
+    function _rtlAltFact(paramController) {
         for (let i = 0; i < _rtlAltCandidates.length; ++i) {
             const c = _rtlAltCandidates[i]
-            if (rtlParamController.parameterExists(-1, c.name)) {
-                return { fact: rtlParamController.getParameterFact(-1, c.name, false), scale: c.scale }
+            if (paramController.parameterExists(-1, c.name)) {
+                return { fact: paramController.getParameterFact(-1, c.name, false), scale: c.scale }
             }
         }
         return null
     }
 
-    function _returnAt(altitudeMetres) {
+    function _returnAt(altitudeMetres, paramController) {
         if (altitudeMetres > 0) {
-            const found = _rtlAltFact()
+            const found = _rtlAltFact(paramController)
             if (found && found.fact) {
                 found.fact.rawValue = altitudeMetres * found.scale
             } else {
@@ -2322,49 +2322,41 @@ Item {
             objectName: "policeRtlAltPanel"
             spacing: 6
 
-            onVisibleChanged: customAltField.text = ""
+            // The range the preset buttons and the typed height allowed, 1 to 1000 m, in the app's
+            // unit. 최대 narrows it for this opening of the panel only.
+            readonly property real _floor:   QGroundControl.unitsConversion.metersToAppSettingsVerticalDistanceUnits(1)
+            readonly property real _ceiling: QGroundControl.unitsConversion.metersToAppSettingsVerticalDistanceUnits(1000)
+            property real _maximum: _ceiling
 
-            RowLayout {
-                spacing: 5
+            FactPanelController { id: rtlParamController }
 
-                Repeater {
-                    model: [10, 50, 100]
-
-                    delegate: Button {
-                        required property int modelData
-                        Layout.preferredWidth:  Math.max(ScreenTools.minTouchPixels * 1.4,
-                                                         ScreenTools.defaultFontPixelWidth * 6)
-                        Layout.preferredHeight: root._touchHeight
-                        text:                   qsTr("%1 m").arg(modelData)
-                        onClicked: {
-                            dropPanel.hide()
-                            root._returnAt(modelData)
-                        }
-                    }
-                }
+            // Starts at the height the vehicle would return at now, 50 m when that is not known.
+            Component.onCompleted: {
+                const found = root._rtlAltFact(rtlParamController)
+                const metres = (found && found.fact) ? found.fact.rawValue / found.scale : 50
+                rtlAltitude.value = QGroundControl.unitsConversion.metersToAppSettingsVerticalDistanceUnits(metres)
             }
 
-            RowLayout {
-                spacing: 5
+            PoliceAltitudeSlider {
+                id:               rtlAltitude
+                objectName:       "policeRtlAltitude"
+                Layout.fillWidth: true
+                minimum:          _floor
+                maximum:          _maximum
+                maximumLimit:     _ceiling
+                onMaximumEdited:  (newMaximum) => _maximum = newMaximum
+            }
 
-                TextField {
-                    id:                     customAltField
-                    Layout.preferredWidth:  Math.max(74, ScreenTools.defaultFontPixelWidth * 9)
-                    Layout.preferredHeight: root._touchHeight
-                    placeholderText:        qsTr("사용자 설정")
-                    inputMethodHints:       Qt.ImhFormattedNumbersOnly
-                    validator:              DoubleValidator { bottom: 1; top: 1000; decimals: 0 }
-                }
-
-                Button {
-                    Layout.preferredHeight: root._touchHeight
-                    text:                   qsTr("복귀")
-                    enabled:                customAltField.acceptableInput
-                    onClicked: {
-                        const alt = Number(customAltField.text)
-                        dropPanel.hide()
-                        root._returnAt(alt)
-                    }
+            Button {
+                objectName:             "policeRtlAltReturn"
+                Layout.fillWidth:       true
+                Layout.preferredHeight: root._touchHeight
+                text:                   qsTr("복귀")
+                onClicked: {
+                    // Written before the panel, and the controller with it, goes away.
+                    root._returnAt(QGroundControl.unitsConversion.appSettingsVerticalDistanceUnitsToMeters(rtlAltitude.value),
+                                   rtlParamController)
+                    dropPanel.hide()
                 }
             }
         }

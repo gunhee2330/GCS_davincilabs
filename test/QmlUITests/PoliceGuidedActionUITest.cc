@@ -31,6 +31,7 @@
 #include "FlyViewSettings.h"
 #include "MAVLinkLib.h"
 #include "MockLink.h"
+#include "ParameterManager.h"
 #include "SettingsManager.h"
 #include "SiyiAiController.h"
 #include "SiyiAiProtocol.h"
@@ -975,10 +976,33 @@ void PoliceGuidedActionUITest::_testRtlAltitudeFromToolStrip()
 
         QVERIFY2(!findVisibleItem(_rootItem, kRtlAltPanel, 0), "Return altitude panel was open before the tap");
         QVERIFY2(clickButton(kRtlAltButton), "Could not click the 복귀고도 tool strip entry");
-        QVERIFY2(findVisibleItem(_rootItem, kRtlAltPanel, 3000), "Return altitude panel never opened");
+        QQuickItem *const panel = findVisibleItem(_rootItem, kRtlAltPanel, 3000);
+        QVERIFY2(panel, "Return altitude panel never opened");
+
+        // PX4's return altitude, which the old presets wrote.
+        Fact *const rtlAlt = vehicle->parameterManager()->getParameter(ParameterManager::defaultComponentId,
+                                                                       QStringLiteral("RTL_RETURN_ALT"));
+        QVERIFY2(rtlAlt, "The mock carries no RTL_RETURN_ALT");
+
+        // The slider starts at the height the vehicle would return at now, over 1 to 1000 m.
+        QQuickItem *const slider = findVisibleItem(panel, kAltitudeSlider, 1000);
+        QVERIFY2(slider, "Return altitude panel has no slider");
+        QVERIFY2(findVisibleItem(panel, kAltitudeMaximum, 0), "Return altitude panel has no 최대 field");
+        QCOMPARE(qRound(slider->property("value").toDouble()), qRound(rtlAlt->rawValue().toDouble()));
+        QCOMPARE(slider->property("from").toDouble(), 1.0);
+        QCOMPARE(slider->property("to").toDouble(), 1000.0);
         if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
             _grab(QStringLiteral("rtl_alt_1_panel"));
+            if (QTest::currentTestFailed()) return;
         }
+
+        // 50 m, the middle preset, and 복귀: the parameter takes it and the stock RTL confirm comes up.
+        QVERIFY(slider->setProperty("value", 50));
+        QVERIFY2(clickButton(QStringLiteral("policeRtlAltReturn")), "Could not click the panel's 복귀");
+        QVERIFY_TRUE_WAIT(qRound(rtlAlt->rawValue().toDouble()) == 50, TestTimeout::longMs());
+        QQuickItem *const confirmButton = findVisibleItem(_rootItem, kConfirmButton, 5000);
+        QVERIFY2(confirmButton, "복귀 raised no stock hold confirm");
+        QVERIFY2(hasAncestorNamed(confirmButton, kConfirmHost), "Confirm control on screen is not the police instance");
     });
 }
 

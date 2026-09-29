@@ -121,7 +121,7 @@ Item {
         anchors.right:          unitLabel.left
         anchors.rightMargin:    ScreenTools.defaultFontPixelWidth / 2
         anchors.verticalCenter: slider.verticalCenter
-        width:                  ScreenTools.defaultFontPixelWidth * 7
+        width:                  ScreenTools.defaultFontPixelWidth * 9
         numericValuesOnly:      true
         text:                   Math.round(control.maximum)
         validator:              IntValidator { bottom: Math.floor(control.minimum) + 1; top: control.maximumLimit }
