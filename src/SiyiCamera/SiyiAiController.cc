@@ -499,6 +499,11 @@ void SiyiAiController::_handleFrame(const SiyiProtocol::Frame &frame)
     case SiyiAi::CommandId::TargetStream: {
         const auto target = SiyiAi::parseTargetStream(frame.data);
         if (target) {
+            if (target->type != _target.type) {
+                // Raw, so a bench run can read which numbers the module uses for boat, smoke and
+                // fire before targetTypeName() learns them.
+                qCDebug(SiyiAiControllerLog) << "target type" << static_cast<int>(target->type);
+            }
             _target = *target;
             _lastTargetTimer.restart();
             // A cancel from the hand controller or SIYI's own app is only reported here, so

@@ -14,7 +14,18 @@ Item {
     property real sourceHeight:  720
     property string targetLabel: qsTr("TARGET")
     property int fillMode:       Image.PreserveAspectCrop
-    readonly property color trackedColor: "#ff9500"
+    // Box and label colour by the module's class word. A class the bench confirms is one more
+    // line here; anything not listed is drawn as object.
+    readonly property var _classColours: ({
+        "person": { box: "#e0a800", text: "black" },
+        "car":    { box: "#a78bfa", text: "black" },
+        "object": { box: "#ff9500", text: "white" },
+        "boat":   { box: "#1f9fd0", text: "white" },
+        "smoke":  { box: "#9aa5b1", text: "black" },
+        "fire":   { box: "#ff5b3a", text: "white" }
+    })
+    readonly property var _classColour: _classColours[targetLabel] || _classColours["object"]
+    readonly property color trackedColor: _classColour.box
 
     readonly property real _scaleX: fillMode === Image.Stretch ? width / sourceWidth
                                                                 : fillMode === Image.PreserveAspectFit
@@ -44,12 +55,12 @@ Item {
             anchors.bottom: parent.top
             height:         targetText.implicitHeight + 8
             width:          targetText.implicitWidth + 14
-            color:          Qt.rgba(1, 0.58, 0, 0.85)
+            color:          root.trackedColor
 
             Text {
                 id:             targetText
                 anchors.centerIn: parent
-                color:          "white"
+                color:          root._classColour.text
                 font.bold:      true
                 font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.62
                 text:           root.targetLabel

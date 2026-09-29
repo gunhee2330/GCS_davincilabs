@@ -96,6 +96,12 @@ private slots:
     /// full screen.
     void _testTargetDragPicksBox();
 
+    /// The tracked box and its label take their colour from the class the module reports, driven
+    /// by a fake module's target stream: person amber with black text, car violet with black
+    /// text, the arbitrary template orange with white text, each labelled with the module's own
+    /// word. Grabs box_0_person, box_1_car and box_2_object when QGC_SCREENSHOT_DIR is set.
+    void _testTrackedBoxColourByClass();
+
     /// The release button on the picture: a click must ask for exactly one cancel, must not send
     /// a box and must not take the panel full screen; greyed it must do nothing at all; and a
     /// drag that starts on it must not send a box either.

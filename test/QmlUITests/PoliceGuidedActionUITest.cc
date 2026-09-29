@@ -560,6 +560,113 @@ void PoliceGuidedActionUITest::_testTargetDragPicksBox()
     });
 }
 
+void PoliceGuidedActionUITest::_testTrackedBoxColourByClass()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const dashboard = findVisibleItem(_rootItem, kDashboard, 5000);
+        QVERIFY2(dashboard, "Police dashboard not found - the layout under test is not up");
+        QQuickItem *const panel = findVisibleItem(_rootItem, kZoomPanel, 5000);
+        QVERIFY2(panel, "Zoom camera panel not found");
+
+        // A fake module on loopback: the controller's first request says where to answer, and the
+        // target stream is resent faster than the controller's 1.5 s target timeout.
+        QUdpSocket module;
+        QVERIFY(module.bind(QHostAddress::LocalHost, 0));
+        SiyiAiController *const ai = SiyiAiController::instance();
+        QVERIFY(ai);
+        Fact *const aiAddress = SettingsManager::instance()->siyiCameraSettings()->aiIpAddress();
+        Fact *const aiPort = SettingsManager::instance()->siyiCameraSettings()->aiPort();
+        const QVariant savedAddress = aiAddress->rawValue();
+        const QVariant savedPort = aiPort->rawValue();
+        const auto restoreModule = qScopeGuard([ai, aiAddress, aiPort, savedAddress, savedPort] {
+            ai->stop();
+            aiAddress->setRawValue(savedAddress);
+            aiPort->setRawValue(savedPort);
+        });
+        aiAddress->setRawValue(QStringLiteral("127.0.0.1"));
+        aiPort->setRawValue(module.localPort());
+        ai->start();
+        // The settings writes above may restart the link on their own, so the last socket to
+        // speak is the live one.
+        QVERIFY(module.waitForReadyRead(5000));
+        QTest::qWait(300);
+        QNetworkDatagram probe;
+        while (module.hasPendingDatagrams()) {
+            probe = module.receiveDatagram();
+        }
+        QVERIFY(probe.isValid());
+        const QHostAddress controllerAddress = probe.senderAddress();
+        const quint16 controllerPort = static_cast<quint16>(probe.senderPort());
+
+        QByteArray streaming;
+        const auto frameOf = [](SiyiAi::TargetType type, SiyiAi::TrackingStatus status) {
+            QByteArray data;
+            for (const quint16 value : { quint16(520), quint16(360), quint16(120), quint16(300) }) {
+                data.append(static_cast<char>(value & 0xFF));
+                data.append(static_cast<char>(value >> 8));
+            }
+            data.append(static_cast<char>(type));
+            data.append(static_cast<char>(status));
+            return SiyiProtocol::encodeRaw(static_cast<quint8>(SiyiAi::CommandId::TargetStream), data);
+        };
+        QTimer pusher;
+        pusher.setInterval(200);
+        (void) connect(&pusher, &QTimer::timeout, &module, [&] {
+            (void) module.writeDatagram(streaming, controllerAddress, controllerPort);
+        });
+        pusher.start();
+
+        // Full screen, as the operator sees a pick.
+        QVERIFY(dashboard->setProperty("expandedPanel", QStringLiteral("secondary")));
+
+        struct Case {
+            SiyiAi::TargetType type;
+            SiyiAi::TrackingStatus status;
+            QString word;
+            QColor box;
+            QColor text;
+            QString grab;
+        };
+        const QList<Case> cases {
+            { SiyiAi::TargetType::Person,    SiyiAi::TrackingStatus::Tracking,          QStringLiteral("person"),
+              QColor(QStringLiteral("#e0a800")), QColor(Qt::black), QStringLiteral("box_0_person") },
+            { SiyiAi::TargetType::Car,       SiyiAi::TrackingStatus::Tracking,          QStringLiteral("car"),
+              QColor(QStringLiteral("#a78bfa")), QColor(Qt::black), QStringLiteral("box_1_car") },
+            { SiyiAi::TargetType::Arbitrary, SiyiAi::TrackingStatus::TrackingArbitrary, QStringLiteral("object"),
+              QColor(QStringLiteral("#ff9500")), QColor(Qt::white), QStringLiteral("box_2_object") },
+        };
+        for (const Case &c : cases) {
+            streaming = frameOf(c.type, c.status);
+            QTRY_COMPARE_WITH_TIMEOUT(ai->targetTypeName(), c.word, 5000);
+            QTRY_VERIFY_WITH_TIMEOUT(findVisibleTextItem(panel, c.word), 5000);
+            QQuickItem *const label = findVisibleTextItem(panel, c.word);
+            QVERIFY2(label, qPrintable(QStringLiteral("No %1 label on the zoom panel").arg(c.word)));
+            QQuickItem *const chip = label->parentItem();
+            QVERIFY(chip);
+            QQuickItem *const box = chip->parentItem();
+            QVERIFY(box);
+            QCOMPARE(label->property("color").value<QColor>(), c.text);
+            QVERIFY(label->property("font").value<QFont>().bold());
+            QCOMPARE(chip->property("color").value<QColor>(), c.box);
+            QCOMPARE(evaluateOn(box, QStringLiteral("border.color")).value<QColor>(), c.box);
+            if (!qEnvironmentVariable("QGC_SCREENSHOT_DIR").isEmpty()) {
+                _grab(c.grab);
+                if (QTest::currentTestFailed()) return;
+            }
+        }
+
+        pusher.stop();
+        QVERIFY(dashboard->setProperty("expandedPanel", QString()));
+        QTest::qWait(kSettleMs);
+    });
+}
+
 void PoliceGuidedActionUITest::_testTrackCancelButton()
 {
     _ignorePreexistingQmlWarnings();

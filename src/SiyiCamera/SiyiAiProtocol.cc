@@ -1,7 +1,5 @@
 #include "SiyiAiProtocol.h"
 
-#include <QtCore/QCoreApplication>
-
 #include "SiyiProtocol.h"
 
 namespace {
@@ -194,19 +192,20 @@ std::optional<TargetStreamState> parseTargetStreamState(const QByteArray &data)
 
 QString targetTypeName(TargetType type)
 {
+    // The module's own class words, untranslated: the operator compares them with the labels the
+    // module burns into its video. A value the bench shows for boat, smoke or fire gets its own
+    // case here, e.g. case static_cast<TargetType>(N): return QStringLiteral("boat");
     switch (type) {
     case TargetType::Person:
-        return QCoreApplication::translate("SiyiAi", "Person");
+        return QStringLiteral("person");
     case TargetType::Car:
-        return QCoreApplication::translate("SiyiAi", "Car");
     case TargetType::Bus:
-        return QCoreApplication::translate("SiyiAi", "Bus");
     case TargetType::Truck:
-        return QCoreApplication::translate("SiyiAi", "Truck");
+        return QStringLiteral("car");
     case TargetType::Arbitrary:
-        return QCoreApplication::translate("SiyiAi", "Object");
+        break;
     }
-    return QCoreApplication::translate("SiyiAi", "Unknown");
+    return QStringLiteral("object");
 }
 
 } // namespace SiyiAi

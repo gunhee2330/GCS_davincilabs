@@ -28,6 +28,7 @@ private slots:
     void _aiEncodeMatchesFraming_test();
     void _aiEncodeTrackCommands_test();
     void _aiParseTargetStream_test();
+    void _aiTargetTypeName_test();
     void _aiParseRejectsShortPayloads_test();
     void _aiObjectCountRequestBytes_test();
     void _aiParseObjectCountReport_test();
