@@ -223,6 +223,10 @@ Item {
                 } else {
                     platformFontPointSize = 14;
                 }
+            } else if(ScreenToolsController.isMacOS) {
+                // PoliceDesktopScale gives the Mac the handset's logical width; the handset's
+                // base font completes the match, so the layout is the handset's, only larger.
+                platformFontPointSize = 12;
             } else {
                 platformFontPointSize = _defaultFont.font.pointSize;
             }

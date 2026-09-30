@@ -27,6 +27,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         PinGate.h
         PoliceCorePlugin.cc
         PoliceCorePlugin.h
+        PoliceDesktopScale.cc
+        PoliceDesktopScale.h
         PoliceGimbalJoystick.cc
         PoliceGimbalJoystick.h
         PoliceKcmvpBridge.cc
@@ -59,6 +61,11 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_
 # plugins happen to put it on the link line; a build without video streaming would not.
 if(ANDROID)
     target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE android)
+endif()
+
+# PoliceDesktopScale reads the main display's width before Qt starts.
+if(MACOS)
+    target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE "-framework CoreGraphics")
 endif()
 
 # On the one file that reads it, so changing the PIN does not rebuild the tree. The target is made

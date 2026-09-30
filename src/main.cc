@@ -3,6 +3,7 @@
 #include "LogManager.h"
 #include "QGCLoggingCategory.h"
 #include "Platform.h"
+#include "PoliceDesktopScale.h"
 
 #ifdef QGC_UNITTEST_BUILD
     #include "UnitTestList.h"
@@ -21,6 +22,11 @@ int main(int argc, char *argv[])
     // --- Platform initialization ---
     if (const auto exitCode = Platform::initialize(argc, argv, args)) {
         return *exitCode;
+    }
+
+    // Tests size their windows in the handset's logical pixels themselves.
+    if (!args.runningUnitTests && !args.listTests) {
+        PoliceDesktopScale::apply();
     }
 
     QGCApplication app(argc, argv, args);
