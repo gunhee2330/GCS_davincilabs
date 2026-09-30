@@ -14,6 +14,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         PoliceLinkDefaultsTest.h
         PoliceRcLinkTest.cc
         PoliceRcLinkTest.h
+        PoliceRcKeysTest.cc
+        PoliceRcKeysTest.h
         PoliceWarningsTest.cc
         PoliceWarningsTest.h
         TakeoffCounterTest.cc
@@ -26,6 +28,7 @@ add_qgc_test(FlightRecordsTest LABELS Integration Vehicle)
 add_qgc_test(PinGateTest LABELS Unit)
 add_qgc_test(PoliceLidarMonitorTest LABELS Integration Vehicle)
 add_qgc_test(PoliceLinkDefaultsTest LABELS Unit Comms)
+add_qgc_test(PoliceRcKeysTest LABELS Unit)
 add_qgc_test(PoliceRcLinkTest LABELS Unit)
 add_qgc_test(PoliceWarningsTest LABELS Integration Vehicle)
 add_qgc_test(TakeoffCounterTest LABELS Integration Vehicle)

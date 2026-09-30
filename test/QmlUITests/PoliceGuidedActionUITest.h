@@ -133,7 +133,8 @@ private slots:
     /// the top bar, under the chrome, which all stays put, and the map shows in the vacated
     /// window as 지도. A tap on the big picture keeps it; a tap on 지도 or Escape swaps back, and
     /// another window's tap swaps that one in directly. Grabs swap_zoom_big and
-    /// swap_thermal_big when QGC_SCREENSHOT_DIR is set.
+    /// swap_thermal_big when QGC_SCREENSHOT_DIR is set. The handset keys' mainPictureRequested
+    /// takes the same big picture and gives the map back on "".
     void _testMapSwap();
 
     /// The pod's whole-frame hottest and coldest, fed from a fake gimbal on loopback, read

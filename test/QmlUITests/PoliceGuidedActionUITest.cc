@@ -2484,6 +2484,18 @@ void PoliceGuidedActionUITest::_testMapSwap()
         QTest::keyClick(_window, Qt::Key_Escape);
         QTest::qWait(kSettleMs);
         QCOMPARE(expanded(), QString());
+
+        // 12. The handset keys ask for a big picture through the camera controller.
+        SiyiCameraController *const camera = SiyiCameraController::instance();
+        emit camera->mainPictureRequested(QStringLiteral("shared"));
+        QTest::qWait(kSettleMs);
+        QCOMPARE(expanded(), QStringLiteral("shared"));
+        emit camera->mainPictureRequested(QStringLiteral("primary"));
+        QTest::qWait(kSettleMs);
+        QCOMPARE(expanded(), QStringLiteral("primary"));
+        emit camera->mainPictureRequested(QString());
+        QTest::qWait(kSettleMs);
+        QCOMPARE(expanded(), QString());
     });
 }
 

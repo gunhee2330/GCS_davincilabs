@@ -73,6 +73,22 @@
                 {
                     "setting": "siyiCameraSettings.crowdDenseCount",
                     "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.aiEnabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.rcKeyFpvChannel",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.rcKeyZoomChannel",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.rcKeyWideChannel",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.rcKeyThermalChannel",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue"
                 }
             ]
         },

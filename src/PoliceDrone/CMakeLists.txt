@@ -36,6 +36,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         PoliceLinkDefaults.h
         PoliceRcLink.cc
         PoliceRcLink.h
+        PoliceRcKeys.cc
+        PoliceRcKeys.h
         PoliceSpeechTranslator.cc
         PoliceSpeechTranslator.h
         PoliceVideoDefaults.cc

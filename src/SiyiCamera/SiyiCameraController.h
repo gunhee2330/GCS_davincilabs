@@ -285,6 +285,9 @@ signals:
     void rangefinderTargetChanged();
     void laserStateChanged();
     void eoIrViewToggleRequested();
+    /// Asks the dashboard to make \a panel ("primary", "secondary", "shared") the big picture;
+    /// "" gives the map back. Raised by the handset keys (PoliceRcKeys).
+    void mainPictureRequested(QString panel);
     void thermalRangeChanged();
     void thermalGainChanged();
     void thermalCalibrationChanged();

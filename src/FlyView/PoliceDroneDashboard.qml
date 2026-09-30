@@ -860,6 +860,7 @@ Item {
     Connections {
         target: App.SiyiCameraController
         function onEoIrViewToggleRequested() { root._toggleEoIrView() }
+        function onMainPictureRequested(panel) { if (panel === "") root.expandedPanel = ""; else root._expand(panel) }
     }
 
     focus: expandedPanel.length > 0
