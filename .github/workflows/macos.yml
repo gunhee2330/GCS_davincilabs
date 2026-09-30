@@ -42,6 +42,11 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 120
 
+    # A repository without the Apple signing secrets builds the ad-hoc signed bundle PRs get,
+    # rather than failing at the certificate import.
+    env:
+      QGC_MACOS_HAS_SIGNING: ${{ secrets.MACOS_CERT_P12_BASE64 != '' }}
+
     # id-token/attestations scoped here: only the attestation upload step needs them.
     permissions:
       contents: read
@@ -88,7 +93,7 @@ jobs:
           build-type: ${{ matrix.build_type }}
           preset: ${{ matrix.build_type == 'Debug' && 'macOS-debug' || 'macOS' }}
           extra-args: >-
-            -DQGC_MACOS_SIGN_WITH_IDENTITY=${{ github.event_name != 'pull_request' && 'ON' || 'OFF' }}
+            -DQGC_MACOS_SIGN_WITH_IDENTITY=${{ github.event_name != 'pull_request' && env.QGC_MACOS_HAS_SIGNING == 'true' && 'ON' || 'OFF' }}
             -DQGC_MACOS_UNIVERSAL_BUILD=ON
 
       - name: Build
@@ -105,7 +110,7 @@ jobs:
           expect-archs: x86_64h arm64
 
       - name: Import Code Signing Certificate
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && env.QGC_MACOS_HAS_SIGNING == 'true'
         uses: apple-actions/import-codesign-certs@v7
         with:
           p12-file-base64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
