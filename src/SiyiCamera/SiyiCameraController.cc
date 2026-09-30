@@ -386,6 +386,7 @@ void SiyiCameraController::setCameraImageType(int imageType)
         return;
     }
     _sendSingleByte(SiyiProtocol::CommandId::SetCameraImageType, static_cast<quint8>(imageType));
+    _cameraImageTypeSent = true;
 
     if (_cameraImageType != imageType) {
         _cameraImageType = imageType;
@@ -679,6 +680,26 @@ void SiyiCameraController::_handleFrame(const SiyiProtocol::Frame &frame)
         break;
     }
 
+    case SiyiProtocol::CommandId::GetCameraImageType:
+    case SiyiProtocol::CommandId::SetCameraImageType: {
+        const auto imageType = SiyiProtocol::parseCameraImageType(frame.data);
+        if (!imageType) {
+            break;
+        }
+        _reportedImageType = *imageType;
+        // A lost 0x11, a pod that came back in another mode, or a hand-controller key can all
+        // leave the sub stream on zoom or wide under the thermal window. Only the 0x10 poll
+        // reply triggers the correction: an ack of a refused mode would otherwise ping-pong.
+        if ((frame.commandId == SiyiProtocol::CommandId::GetCameraImageType) && _cameraImageTypeSent
+            && (_reportedImageType != _cameraImageType) && (_imageTypeResendTick != _pollTicks)) {
+            _imageTypeResendTick = _pollTicks;
+            qCInfo(SiyiCameraControllerLog) << "pod image type" << _reportedImageType << "differs from wanted"
+                                            << _cameraImageType << "- re-sending";
+            _sendSingleByte(SiyiProtocol::CommandId::SetCameraImageType, static_cast<quint8>(_cameraImageType));
+        }
+        break;
+    }
+
     case SiyiProtocol::CommandId::SetLaserState:
         // The reply only says the pod took the command; the next 0x31 says what it did with it.
         _sendCommand(SiyiProtocol::CommandId::ReadLaserState);
@@ -938,6 +959,7 @@ void SiyiCameraController::_poll()
         }
         if ((_pollTicks % kConfigInterval) == 0) {
             _sendCommand(SiyiProtocol::CommandId::ReadLaserState);
+            _sendCommand(SiyiProtocol::CommandId::GetCameraImageType);
         }
         if ((_pollTicks % kThermalInterval) == 0) {
             _send(SiyiProtocol::encodeThermalRangeRequest(_sequence++));
@@ -1072,6 +1094,7 @@ void SiyiCameraController::_sendThermalCalibrationIfChanged()
 
 void SiyiCameraController::_resetCameraState()
 {
+    _reportedImageType = -1;
     if (_thermalGain != -1) {
         _thermalGain = -1;
         emit thermalGainChanged();

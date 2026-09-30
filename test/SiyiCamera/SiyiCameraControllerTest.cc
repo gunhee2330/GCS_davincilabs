@@ -579,3 +579,73 @@ void SiyiCameraControllerTest::_laserSwitchIsTheOperatorsChoice_test()
     QTRY_VERIFY_WITH_TIMEOUT(collectLaserPayloads() >= 1, TestTimeout::shortMs());
     QCOMPARE(laserPayloads.at(0), QByteArray(1, '\1'));
 }
+
+/// The 0x11 that puts thermal on the sub stream goes out once, unacknowledged. A lost datagram, a
+/// pod back from a power cycle in another mode, or a hand-controller key all leave zoom or wide in
+/// the thermal window, so the 0x10 readback on the poll has to pull the pod back to what was asked.
+void SiyiCameraControllerTest::_podImageTypeIsPulledBackToWanted_test()
+{
+    QUdpSocket gimbal;
+    QHostAddress address;
+    quint16 port = 0;
+
+    SiyiCameraController controller(nullptr);
+    openFakeGimbal(gimbal, controller, address, port);
+
+    const QByteArray zt30 = SiyiProtocol::encodeRaw(static_cast<quint8>(SiyiProtocol::CommandId::AcquireHardwareId), QByteArray("7A"));
+    QCOMPARE(gimbal.writeDatagram(zt30, address, port), zt30.size());
+    QTRY_VERIFY_WITH_TIMEOUT(controller.isZT30(), TestTimeout::shortMs());
+    QCOMPARE(controller._reportedImageType, -1);
+
+    QList<QByteArray> imageTypeSends;
+    int imageTypeReads = 0;
+    const auto collect = [&]() {
+        for (const SiyiProtocol::Frame &frame : drainFrames(gimbal)) {
+            if (frame.commandId == SiyiProtocol::CommandId::SetCameraImageType) {
+                imageTypeSends.append(frame.data);
+            } else if (frame.commandId == SiyiProtocol::CommandId::GetCameraImageType) {
+                ++imageTypeReads;
+            }
+        }
+        return imageTypeSends.size();
+    };
+
+    // (a) What the dashboard does on the model announcement: the wanted routing goes out.
+    const int wanted = static_cast<int>(SiyiProtocol::CameraImageType::MainZoomSubThermal);
+    (void) collect();
+    imageTypeSends.clear();
+    controller.setCameraImageType(wanted);
+    QTRY_VERIFY_WITH_TIMEOUT(collect() >= 1, TestTimeout::shortMs());
+    QCOMPARE(imageTypeSends.at(0), QByteArray(1, static_cast<char>(wanted)));
+
+    // The poll reads the routing back.
+    QTRY_VERIFY_WITH_TIMEOUT((collect(), imageTypeReads >= 1), TestTimeout::mediumMs());
+
+    const auto readReply = [](int imageType) {
+        return SiyiProtocol::encodeRaw(static_cast<quint8>(SiyiProtocol::CommandId::GetCameraImageType),
+                                       QByteArray(1, static_cast<char>(imageType)));
+    };
+
+    // (b) The pod says it is on zoom-under-thermal (7): wanted goes out again.
+    imageTypeSends.clear();
+    const QByteArray wrong = readReply(static_cast<int>(SiyiProtocol::CameraImageType::MainThermalSubZoom));
+    QCOMPARE(gimbal.writeDatagram(wrong, address, port), wrong.size());
+    QTRY_VERIFY_WITH_TIMEOUT(collect() >= 1, TestTimeout::shortMs());
+    QCOMPARE(imageTypeSends.at(0), QByteArray(1, static_cast<char>(wanted)));
+    QCOMPARE(controller._reportedImageType, static_cast<int>(SiyiProtocol::CameraImageType::MainThermalSubZoom));
+
+    // (c) The pod agrees: nothing more goes out.
+    const QByteArray right = readReply(wanted);
+    QCOMPARE(gimbal.writeDatagram(right, address, port), right.size());
+    QTRY_COMPARE_WITH_TIMEOUT(controller._reportedImageType, wanted, TestTimeout::shortMs());
+    QTest::qWait(300);
+    (void) collect();
+    imageTypeSends.clear();
+    QCOMPARE(gimbal.writeDatagram(right, address, port), right.size());
+    QTest::qWait(300);
+    QCOMPARE(collect(), 0);
+
+    // (d) The link drops: what the pod reported is no longer known.
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.connected(), TestTimeout::mediumMs());
+    QCOMPARE(controller._reportedImageType, -1);
+}

@@ -23,6 +23,7 @@ private slots:
     void _parseRangefinderTarget_test();
     void _parseRangefinderDistance_test();
     void _laserStateCodec_test();
+    void _parseCameraImageType_test();
     void _aiFollowCodec_test();
     void _parseRejectsShortPayloads_test();
     void _aiEncodeMatchesFraming_test();

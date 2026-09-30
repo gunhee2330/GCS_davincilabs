@@ -349,6 +349,13 @@ private:
     double _zoomMultiple = 1.0;
     /// Sensor routing as last commanded; the pod sends no readback.
     int _cameraImageType = static_cast<int>(SiyiProtocol::CameraImageType::MainZoomSubThermal);
+    /// True once setCameraImageType has sent a routing; until then _cameraImageType is only a
+    /// default and the pod is not pulled towards it.
+    bool _cameraImageTypeSent = false;
+    /// Routing the pod last reported in a 0x10 reply or 0x11 ack, -1 while unknown.
+    int _reportedImageType = -1;
+    /// Poll tick of the last corrective 0x11, so a mismatch is re-sent at most once per tick.
+    int _imageTypeResendTick = -1;
     double _rangefinderDistance = std::numeric_limits<double>::quiet_NaN();
     QGeoCoordinate _rangefinderTarget;
     bool _laserOn = false;

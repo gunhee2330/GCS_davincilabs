@@ -243,6 +243,14 @@ void SiyiProtocolTest::_laserStateCodec_test()
     QVERIFY(!parseLaserState(QByteArray()).has_value());
 }
 
+void SiyiProtocolTest::_parseCameraImageType_test()
+{
+    QCOMPARE(static_cast<int>(CommandId::GetCameraImageType), 0x10);
+    QCOMPARE(parseCameraImageType(QByteArray(1, '\3')), std::optional<int>(3));
+    QCOMPARE(parseCameraImageType(QByteArray(1, '\x08')), std::optional<int>(8));
+    QVERIFY(!parseCameraImageType(QByteArray()).has_value());
+}
+
 /// 0xC3 is in no SIYI manual. These bytes are built from the documented framing and the command
 /// number UniGCS 3.1.6 sends (biz/siyi/protocol/bu/camera/siyi/{o,h}.java O0(boolean)), computed
 /// away from the encoder so a change to either side shows up here.
