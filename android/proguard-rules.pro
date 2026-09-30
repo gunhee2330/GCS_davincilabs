@@ -27,6 +27,8 @@
 -keep class org.mavlink.qgroundcontrol.QGCSDLManager { *; }
 # Reached only from C++ (PoliceRcLink: start() and the natives); nothing in Java names it.
 -keep class org.mavlink.qgroundcontrol.PoliceRcLinkMonitor { *; }
+# Reached only from C++ (PoliceRcButtons: start(), setTalkHeld() and the natives).
+-keep class org.mavlink.qgroundcontrol.PoliceRcChannelMonitor { *; }
 
 # SDL - native method stubs required for JNI registration
 -keep class org.libsdl.app.** { *; }

@@ -283,6 +283,42 @@
             "decimalPlaces": 0,
             "label": "열상 키 채널",
             "keywords": "rc,key,channel,handset,조종기,키,채널"
+        },
+        {
+            "name": "rcKeyCenterChannel",
+            "shortDesc": "누르면 짐벌이 정면으로 돌아옵니다. 기본 12 (L1).",
+            "longDesc": "Handset key RC channel (1-16, 0 = off). A press centres the gimbal.",
+            "type": "uint32",
+            "default": 12,
+            "min": 0,
+            "max": 16,
+            "decimalPlaces": 0,
+            "label": "짐벌 정면 키 채널",
+            "keywords": "rc,key,channel,handset,gimbal,center,조종기,키,채널,짐벌"
+        },
+        {
+            "name": "rcKeyTalkChannel",
+            "shortDesc": "누르고 있는 동안 실시간 음성을 보냅니다. UniGCS에서 S1을 빈 채널(예: 6)에 붙이고 초기화 방식으로 둔 뒤 그 번호를 넣으세요. 0이면 꺼짐.",
+            "longDesc": "Handset key RC channel (1-16, 0 = off) for push-to-talk to the loudspeaker. Off by default: every channel is mapped to some control until S1 is moved onto one in UniGCS, and a dial or switch there would open the microphone. The button must be momentary.",
+            "type": "uint32",
+            "default": 0,
+            "min": 0,
+            "max": 16,
+            "decimalPlaces": 0,
+            "label": "실시간 음성 키 채널",
+            "keywords": "rc,key,channel,handset,talk,voice,조종기,키,채널,음성"
+        },
+        {
+            "name": "rcKeyCameraChannel",
+            "shortDesc": "짧게 누르면 사진, 2초 누르면 녹화 시작이나 정지입니다. UniGCS에서 S2를 빈 채널(예: 10)에 붙이고 초기화 방식으로 둔 뒤 그 번호를 넣으세요. 0이면 꺼짐.",
+            "longDesc": "Handset key RC channel (1-16, 0 = off). A short press takes a photo; holding it for two seconds starts or stops recording. Off by default for the same reason as the talk key. The button must be momentary.",
+            "type": "uint32",
+            "default": 0,
+            "min": 0,
+            "max": 16,
+            "decimalPlaces": 0,
+            "label": "촬영 키 채널",
+            "keywords": "rc,key,channel,handset,photo,record,조종기,키,채널,촬영,녹화"
         }
     ]
 }

@@ -39,4 +39,7 @@ public:
     DEFINE_SETTINGFACT(rcKeyZoomChannel)
     DEFINE_SETTINGFACT(rcKeyWideChannel)
     DEFINE_SETTINGFACT(rcKeyThermalChannel)
+    DEFINE_SETTINGFACT(rcKeyCenterChannel)
+    DEFINE_SETTINGFACT(rcKeyTalkChannel)
+    DEFINE_SETTINGFACT(rcKeyCameraChannel)
 };

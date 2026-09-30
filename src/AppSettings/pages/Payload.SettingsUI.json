@@ -89,6 +89,17 @@
                 {
                     "setting": "siyiCameraSettings.rcKeyThermalChannel",
                     "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.rcKeyCenterChannel",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue"
+                },
+                {
+                    "setting": "siyiCameraSettings.rcKeyTalkChannel"
+                },
+                {
+                    "setting": "siyiCameraSettings.rcKeyCameraChannel",
+                    "enableWhen": "QGroundControl.settingsManager.siyiCameraSettings.enabled.rawValue"
                 }
             ]
         },
