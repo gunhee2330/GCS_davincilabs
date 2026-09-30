@@ -258,6 +258,7 @@ void SiyiCameraController::stop()
     _yawRate = 0;
     _pitchRate = 0;
     _rxBuffer.clear();
+    _linkLost = false;
     _setConnected(false);
     _resetCameraState();
 
@@ -882,6 +883,7 @@ void SiyiCameraController::_poll()
         _yawRate = 0;
         _pitchRate = 0;
         _setConnected(false);
+        _linkLost = true;
         // Identity goes with the link. A pod that comes back may have power-cycled into a
         // different image mode, and the dashboard only re-applies its sensor routing when the
         // model is announced again.
@@ -1196,4 +1198,8 @@ void SiyiCameraController::_setConnected(bool connected)
     _connected = connected;
     qCDebug(SiyiCameraControllerLog) << "connected:" << _connected;
     emit connectedChanged();
+    if (_connected && _linkLost) {
+        _linkLost = false;
+        emit podReconnected();
+    }
 }

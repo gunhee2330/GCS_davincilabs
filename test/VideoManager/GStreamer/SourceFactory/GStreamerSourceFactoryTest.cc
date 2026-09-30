@@ -132,6 +132,36 @@ void GStreamerTest::_testSourceFactoryRtspExcludesStaticJitterBuffer()
              "rtspsrc owns its internal jitterbuffer; the factory must not add a second one");
 }
 
+// The police payload streams pin rtspsrc to their own UDP port block; every other source keeps
+// rtspsrc's default (random ports).
+void GStreamerTest::_testSourceFactoryRtspPortRange()
+{
+    if (!gst_element_factory_find("rtspsrc")) {
+        QSKIP("rtspsrc plugin unavailable");
+    }
+
+    const auto portRangeFor = [](const QString& range) -> QString {
+        GStreamer::SourceFactory::Config config;
+        config.rtpPortRange = range;
+        GstElement* bin = GStreamer::SourceFactory::create(QStringLiteral("rtsp://127.0.0.1:8554/video1"), config);
+        if (!bin) {
+            return QStringLiteral("<no bin>");
+        }
+        GstElement* source = findChildByFactoryName(bin, "rtspsrc");
+        gchar* value = nullptr;
+        if (source) {
+            g_object_get(source, "port-range", &value, nullptr);
+        }
+        const QString result = value ? QString::fromUtf8(value) : QString();
+        g_free(value);
+        gst_object_unref(bin);
+        return result;
+    };
+
+    QCOMPARE(portRangeFor(QStringLiteral("25000-25009")), QStringLiteral("25000-25009"));
+    QCOMPARE(portRangeFor(QString()), QString());
+}
+
 void GStreamerTest::_testSourceFactoryRejectsBadUri()
 {
     ignoreLogMessage("Video.GStreamer.GstSourceFactory", QtCriticalMsg,

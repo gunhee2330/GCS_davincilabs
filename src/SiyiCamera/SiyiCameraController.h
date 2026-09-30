@@ -272,6 +272,9 @@ public:
 
 signals:
     void connectedChanged();
+    /// The pod answered again after the link timed out. Once per return, never on first contact
+    /// and never after stop() (a settings edit restarting the link is not a loss).
+    void podReconnected();
     void modelChanged();
     void firmwareVersionChanged();
     void attitudeChanged();
@@ -335,6 +338,7 @@ private:
     QElapsedTimer _lastRangefinderTargetTimer;
     QElapsedTimer _lastThermalRangeTimer;
     bool _connected = false;
+    bool _linkLost = false;
     bool _initialized = false;
     MissionAutoRecord *_autoRecord = nullptr;
     int _pollTicks = 0;

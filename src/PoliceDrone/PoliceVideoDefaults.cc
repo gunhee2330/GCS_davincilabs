@@ -99,3 +99,9 @@ void PoliceVideoDefaults::ensurePodStream()
     sourceFact->setRawValue(QLatin1String(VideoSettings::videoSourceRTSP));
     qCDebug(PoliceVideoDefaultsLog) << "primary stream set to" << stream;
 }
+
+bool PoliceVideoDefaults::isPodMainStream(const QString& uri)
+{
+    const QString trimmed = uri.trimmed();
+    return (trimmed == QLatin1String(kPodMainStream)) || (trimmed == podMainStream());
+}

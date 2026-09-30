@@ -12,6 +12,7 @@ private slots:
     void _aiFollowAcceptsAWiderReply_test();
     void _lateFollowAcceptanceAfterStopIsIgnored_test();
     void _linkLossLeavesFollowUnconfirmedNotOff_test();
+    void _podReconnectedFiresOncePerReturn_test();
     void _stopFollowFreesTheSwitchAndIsRepeated_test();
     void _followStartsUnconfirmedNotOff_test();
     void _closingTheLinkStopsFollowAndSaysWhatItCouldNotSend_test();

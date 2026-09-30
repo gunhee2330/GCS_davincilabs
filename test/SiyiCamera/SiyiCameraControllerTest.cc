@@ -276,6 +276,36 @@ void SiyiCameraControllerTest::_linkLossLeavesFollowUnconfirmedNotOff_test()
     QVERIFY(controller.aiFollowEnabled());
 }
 
+/// VideoManager restarts the payload receivers on podReconnected, so it must fire once per return
+/// of a lost link: not on first contact at startup, and not on every frame that follows.
+void SiyiCameraControllerTest::_podReconnectedFiresOncePerReturn_test()
+{
+    QUdpSocket gimbal;
+    QHostAddress address;
+    quint16 port = 0;
+
+    SiyiCameraController controller(nullptr);
+    QSignalSpy restoredSpy(&controller, &SiyiCameraController::podReconnected);
+    openFakeGimbal(gimbal, controller, address, port);
+
+    const QByteArray barrier = hardwareIdReply();
+    QCOMPARE(gimbal.writeDatagram(barrier, address, port), barrier.size());
+    QTRY_VERIFY_WITH_TIMEOUT(controller.connected(), TestTimeout::shortMs());
+    QCOMPARE(gimbal.writeDatagram(barrier, address, port), barrier.size());
+    QTest::qWait(100);
+    QCOMPARE(restoredSpy.count(), 0);
+
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.connected(), TestTimeout::mediumMs());
+    QCOMPARE(restoredSpy.count(), 0);
+
+    for (int i = 0; i < 3; ++i) {
+        QCOMPARE(gimbal.writeDatagram(barrier, address, port), barrier.size());
+    }
+    QTRY_VERIFY_WITH_TIMEOUT(controller.connected(), TestTimeout::shortMs());
+    QTest::qWait(100);
+    QCOMPARE(restoredSpy.count(), 1);
+}
+
 /// Stop is the only way back to the sticks, and it is one datagram on a link with no
 /// retransmission. Two things have to hold. It has to free the start slider, whose visible is
 /// driven by aiFollowEnabled - waiting for a reply that a silent gimbal never sends, or answers
