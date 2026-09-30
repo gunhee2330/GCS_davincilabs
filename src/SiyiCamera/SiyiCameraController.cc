@@ -21,6 +21,8 @@ QGC_LOGGING_CATEGORY(SiyiCameraControllerLog, "SiyiCamera.SiyiCameraController")
 namespace {
 
 constexpr int kPollIntervalMs = 100;
+/// Zoom feedback comes in tenths, so anything this close to 1.0 is 1x.
+constexpr double kZoomOneEpsilon = 0.05;
 
 /// The camera is declared offline once this long passes with no valid frame.
 constexpr qint64 kConnectionTimeoutMs = 2000;
@@ -367,12 +369,55 @@ void SiyiCameraController::setMotionMode(int mode)
 
 void SiyiCameraController::zoom(int direction)
 {
+    if (_switchCameraForZoom(direction)) {
+        return;
+    }
+    _zoomingOut = (direction < 0);
     _send(SiyiProtocol::encodeManualZoom(direction, _sequence++));
 }
 
 void SiyiCameraController::setZoom(double multiple)
 {
+    if (_switchCameraForZoom(multiple > 1.0 ? 1 : (multiple < 1.0 ? -1 : 0))) {
+        return;
+    }
+    _zoomingOut = false;
     _send(SiyiProtocol::encodeAbsoluteZoom(static_cast<float>(multiple), _sequence++));
+}
+
+bool SiyiCameraController::_switchCameraForZoom(int direction)
+{
+    // Zooming out past 1x on the zoom camera hands the main stream to the wide camera, and
+    // zooming in on the wide camera hands it back at 1x, so one zoom control covers both lenses.
+    if (!isZT30() || (direction == 0)) {
+        return false;
+    }
+    constexpr int kZoom = static_cast<int>(SiyiProtocol::CameraImageType::MainZoomSubThermal);
+    constexpr int kWide = static_cast<int>(SiyiProtocol::CameraImageType::MainWideAngleSubThermal);
+    if ((_cameraImageType == kWide) && (direction > 0)) {
+        setCameraImageType(kZoom);
+        _send(SiyiProtocol::encodeAbsoluteZoom(1.0F, _sequence++));
+        // The 0x0F reply is not parsed, so take the 1x just asked for as the zoom.
+        _zoomMultipleKnown = true;
+        if (_zoomMultiple != 1.0) {
+            _zoomMultiple = 1.0;
+            emit zoomMultipleChanged();
+        }
+        return true;
+    }
+    if ((_cameraImageType == kZoom) && (direction < 0) && _zoomMultipleKnown
+        && (_zoomMultiple <= 1.0 + kZoomOneEpsilon)) {
+        SiyiCameraSettings *const settings = SettingsManager::instance()->siyiCameraSettings();
+        if (settings && settings->aiEnabled()->rawValue().toBool()) {
+            // The AI module infers on the main stream and needs the zoom camera there.
+            qCInfo(SiyiCameraControllerLog) << "zoom out at 1x: AI module on, main stream stays on the zoom camera";
+            return false;
+        }
+        _zoomingOut = false;
+        setCameraImageType(kWide);
+        return true;
+    }
+    return false;
 }
 
 void SiyiCameraController::autoFocus()
@@ -660,7 +705,12 @@ void SiyiCameraController::_handleFrame(const SiyiProtocol::Frame &frame)
         const auto multiple = SiyiProtocol::parseZoomMultiple(frame.data);
         if (multiple) {
             _zoomMultiple = *multiple;
+            _zoomMultipleKnown = true;
             emit zoomMultipleChanged();
+            // Reached 1x while still zooming out: stop and carry on with the wide camera.
+            if (_zoomingOut && (_zoomMultiple <= 1.0 + kZoomOneEpsilon) && _switchCameraForZoom(-1)) {
+                _send(SiyiProtocol::encodeManualZoom(0, _sequence++));
+            }
         }
         break;
     }
@@ -1127,6 +1177,8 @@ void SiyiCameraController::_resetCameraState()
         emit attitudeChanged();
     }
 
+    _zoomMultipleKnown = false;
+    _zoomingOut = false;
     if (_zoomMultiple != 1.0) {
         _zoomMultiple = 1.0;
         emit zoomMultipleChanged();

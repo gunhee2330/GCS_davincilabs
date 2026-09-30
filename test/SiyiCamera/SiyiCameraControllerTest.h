@@ -20,4 +20,5 @@ private slots:
     void _newFollowRequestIsUnconfirmedNotOff_test();
     void _laserSwitchIsTheOperatorsChoice_test();
     void _podImageTypeIsPulledBackToWanted_test();
+    void _zoomCrossesBetweenZoomAndWideAtOneX_test();
 };

@@ -300,6 +300,9 @@ signals:
 private slots:
     void _readPendingDatagrams();
     void _poll();
+    /// Switches between the zoom and wide cameras when a zoom in `direction` crosses 1x; true
+    /// when it did, and the zoom itself must not be sent.
+    bool _switchCameraForZoom(int direction);
     void _activeVehicleChanged(Vehicle *vehicle);
 
 private:
@@ -354,6 +357,10 @@ private:
     SiyiProtocol::Attitude _attitude;
     SiyiProtocol::ConfigInfo _config;
     double _zoomMultiple = 1.0;
+    /// A manual zoom-out (0x05 -1) is running; cleared by any other zoom command.
+    bool _zoomingOut = false;
+    /// False until a 0x05 reply reports the zoom; the 1.0 default must not trigger the wide switch.
+    bool _zoomMultipleKnown = false;
     /// Sensor routing as last commanded; the pod sends no readback.
     int _cameraImageType = static_cast<int>(SiyiProtocol::CameraImageType::MainZoomSubThermal);
     /// True once setCameraImageType has sent a routing; until then _cameraImageType is only a
