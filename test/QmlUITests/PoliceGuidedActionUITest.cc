@@ -2370,6 +2370,17 @@ void PoliceGuidedActionUITest::_testMapSwap()
         // 1. Windowed: the zoom window names itself, and there is no map copy anywhere.
         QVERIFY2(chipReads(zoomWindow, QStringLiteral("줌")), "The zoom window chip does not read 줌");
         QVERIFY2(!findVisibleItem(_rootItem, QStringLiteral("policeMapPip"), 0), "The map copy is up with no camera big");
+        // Windowed, the state chips sit in the zoom window's top right corner.
+        QQuickItem *const stateChips = findVisibleItem(panel, kStateChips, 3000);
+        QVERIFY2(stateChips, "Zoom state chips are not on screen");
+        {
+            const QRectF chips = sceneRect(stateChips);
+            const QRectF window = sceneRect(zoomWindow);
+            QVERIFY2(window.contains(chips) && chips.center().x() > window.center().x() &&
+                         chips.center().y() < window.center().y(),
+                     qPrintable(QStringLiteral("Windowed state chips %1 are not in the top right of %2")
+                                    .arg(QDebug::toString(chips), QDebug::toString(window))));
+        }
 
         // 2. A tap on the zoom window makes it the big picture.
         clickAt(sceneRect(zoomWindow).center());
@@ -2413,6 +2424,21 @@ void PoliceGuidedActionUITest::_testMapSwap()
         QVERIFY2(sceneRect(bigName).left() > sceneRect(guided).right(),
                  qPrintable(QStringLiteral("줌 chip %1 is under the guided strip %2")
                                 .arg(QDebug::toString(sceneRect(bigName)), QDebug::toString(sceneRect(guided)))));
+
+        // 7b. Big, the state chips sit side by side just under the camera rail's handle, right
+        // edges flush, instead of on the top row beside it.
+        {
+            QQuickItem *const handle = findVisibleItem(_rootItem, QStringLiteral("policeCameraStripHandle"), 3000);
+            QVERIFY2(handle, "Camera rail handle not found");
+            const QRectF chips = sceneRect(stateChips);
+            const QRectF grip = sceneRect(handle);
+            QVERIFY2(qAbs(chips.right() - grip.right()) <= 2 && chips.top() >= grip.bottom(),
+                     qPrintable(QStringLiteral("Big state chips %1 are not under the rail handle %2")
+                                    .arg(QDebug::toString(chips), QDebug::toString(grip))));
+            const QList<QQuickItem *> row = stateChips->childItems();
+            QVERIFY2(row.size() == 2 && qAbs(sceneRect(row.at(0)).top() - sceneRect(row.at(1)).top()) <= 1,
+                     "The big state chips are not side by side");
+        }
 
         if (capture) {
             SiyiCameraController *const camera = SiyiCameraController::instance();

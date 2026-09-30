@@ -21,6 +21,10 @@ Item {
     property real   chromeLeftInset: 0
     property real   chromeRightInset: 0
     property real   chromeTopInset: 0
+    /// Big picture only: how far down the camera rail's handle reaches, and how far in its right
+    /// edge sits, so the state chips line up under it instead of beside it on the top row.
+    property real   stateChipsTopInset: 0
+    property real   stateChipsRightInset: chromeRightInset
     property string streamObjectName
 
     /// Draws the on-device detector's face mosaics.
@@ -297,8 +301,8 @@ Item {
         anchors.right:   parent.right
         anchors.top:     parent.top
         anchors.margins: 8
-        anchors.rightMargin: 8 + root.chromeRightInset
-        anchors.topMargin: 8 + root.chromeTopInset
+        anchors.rightMargin: 8 + root.stateChipsRightInset
+        anchors.topMargin: 8 + Math.max(root.chromeTopInset, root.stateChipsTopInset)
         spacing:         6
         visible:         (root.followActive !== null) || (root.trackingActive !== null)
 

@@ -2512,6 +2512,8 @@ Item {
                                                 guidedConfirmHost.contentBottom > 0
                                                     ? guidedConfirmHost.y + guidedConfirmHost.contentBottom - bigPictureLayer.y : 0)
                                          : 0
+        stateChipsTopInset:   showChrome ? cameraStripHandle.y + cameraStripHandle.height - bigPictureLayer.y : 0
+        stateChipsRightInset: showChrome ? root.width - (cameraStripHandle.x + cameraStripHandle.width) - 8 : 0
         streamObjectName:     "fpvVideo"
         proximityRingEnabled: true
         onActivated:          root._expand("primary")
@@ -2535,6 +2537,8 @@ Item {
                                                 guidedConfirmHost.contentBottom > 0
                                                     ? guidedConfirmHost.y + guidedConfirmHost.contentBottom - bigPictureLayer.y : 0)
                                          : 0
+        stateChipsTopInset:   showChrome ? cameraStripHandle.y + cameraStripHandle.height - bigPictureLayer.y : 0
+        stateChipsRightInset: showChrome ? root.width - (cameraStripHandle.x + cameraStripHandle.width) - 8 : 0
         streamObjectName:     "videoContent"
         personDetectionEnabled: true
         aiTargetVisible:      root.aiTargetVisible
@@ -2589,6 +2593,8 @@ Item {
                                                 guidedConfirmHost.contentBottom > 0
                                                     ? guidedConfirmHost.y + guidedConfirmHost.contentBottom - bigPictureLayer.y : 0)
                                          : 0
+        stateChipsTopInset:   showChrome ? cameraStripHandle.y + cameraStripHandle.height - bigPictureLayer.y : 0
+        stateChipsRightInset: showChrome ? root.width - (cameraStripHandle.x + cameraStripHandle.width) - 8 : 0
         streamObjectName:     "thermalVideo"
         // No target picking here any more: this window is always thermal now, and a tap on
         // the thermal frame would hand the module coordinates from a different sensor's view.
