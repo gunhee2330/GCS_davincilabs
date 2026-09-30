@@ -395,6 +395,7 @@ bool SiyiCameraController::_switchCameraForZoom(int direction)
     constexpr int kZoom = static_cast<int>(SiyiProtocol::CameraImageType::MainZoomSubThermal);
     constexpr int kWide = static_cast<int>(SiyiProtocol::CameraImageType::MainWideAngleSubThermal);
     if ((_cameraImageType == kWide) && (direction > 0)) {
+        _zoomingOut = false;
         setCameraImageType(kZoom);
         _send(SiyiProtocol::encodeAbsoluteZoom(1.0F, _sequence++));
         // The 0x0F reply is not parsed, so take the 1x just asked for as the zoom.

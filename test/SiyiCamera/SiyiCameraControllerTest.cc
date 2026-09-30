@@ -747,6 +747,12 @@ void SiyiCameraControllerTest::_zoomCrossesBetweenZoomAndWideAtOneX_test()
     QCOMPARE(imageTypeSends, QList<QByteArray>{QByteArray(1, static_cast<char>(wideType))});
     QCOMPARE(controller.cameraImageType(), wideType);
 
+    // The same 1x feedback again: no second switch and no second stop.
+    feedback(10);
+    settle();
+    QVERIFY(imageTypeSends.isEmpty());
+    QVERIFY(manualZooms.isEmpty());
+
     // (f) Wide camera, zoom-out: no switch, the zoom-out goes to the pod as it always did.
     controller.zoom(-1);
     settle();
@@ -760,6 +766,13 @@ void SiyiCameraControllerTest::_zoomCrossesBetweenZoomAndWideAtOneX_test()
     QCOMPARE(imageTypeSends, QList<QByteArray>{QByteArray(1, static_cast<char>(zoomType))});
     QCOMPARE(absoluteZooms, QList<QByteArray>{QByteArray("\x01\x00", 2)});
     QVERIFY(manualZooms.isEmpty());
+    QCOMPARE(controller.cameraImageType(), zoomType);
+
+    // (g) A late 0x05 reply at 1x from the wide zoom-out in (f), which was never stopped with
+    // zoom(0): the operator zoomed in, so the camera stays on the zoom camera.
+    feedback(10);
+    settle();
+    QVERIFY(!imageTypeSends.contains(QByteArray(1, static_cast<char>(wideType))));
     QCOMPARE(controller.cameraImageType(), zoomType);
 
     // (a) Zoom camera already at 1x: the zoom-out becomes the switch to wide.

@@ -300,12 +300,12 @@ signals:
 private slots:
     void _readPendingDatagrams();
     void _poll();
-    /// Switches between the zoom and wide cameras when a zoom in `direction` crosses 1x; true
-    /// when it did, and the zoom itself must not be sent.
-    bool _switchCameraForZoom(int direction);
     void _activeVehicleChanged(Vehicle *vehicle);
 
 private:
+    /// Switches between the zoom and wide cameras when a zoom in `direction` crosses 1x; true
+    /// when it did, and the zoom itself must not be sent.
+    bool _switchCameraForZoom(int direction);
     /// False when nothing left this process - no socket, or the write failed. The stop path needs
     /// the difference: a stop that was never sent is not a stop that is waiting for an answer.
     bool _send(const QByteArray &packet);
