@@ -3,7 +3,8 @@
 # Ground-station bookkeeping the procurement spec asks for and no autopilot
 # reports: the per-airframe takeoff count, the payload streams a fresh
 # install starts with, the handheld's buttons wired to the SIYI pod, the
-# developer PIN, and the loopback bridge to the KCMVP encryption modules.
+# developer PIN, the loopback bridge to the KCMVP encryption modules, and push-to-talk
+# from the handset's microphone to the loudspeaker payload.
 # ============================================================================
 
 # The developer PIN a fresh install accepts, kept as a hash and replaceable from the developer
@@ -34,6 +35,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         PoliceLidarMonitor.h
         PoliceLinkDefaults.cc
         PoliceLinkDefaults.h
+        PoliceLiveVoice.cc
+        PoliceLiveVoice.h
         PoliceRcLink.cc
         PoliceRcLink.h
         PoliceRcKeys.cc

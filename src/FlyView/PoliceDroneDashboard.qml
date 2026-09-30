@@ -1385,7 +1385,9 @@ Item {
             ToolStripAction {
                 text:        App.SpeakerController.playing ? qsTr("방송정지") : qsTr("경고방송")
                 iconSource:  "/qmlimages/Megaphone.svg"
-                enabled:     App.SpeakerController.connected
+                // Either path is enough to open the panel: the datalink for the stored messages,
+                // LTE for live voice.
+                enabled:     App.SpeakerController.connected || App.PoliceLiveVoice.reachable
                 onTriggered: (source) => {
                     if (App.SpeakerController.playing) {
                         App.SpeakerController.stopPlayback()
@@ -1526,6 +1528,18 @@ Item {
                         text:             qsTr("방송 메시지")
                     }
 
+                    // The panel also opens on the LTE voice path alone, but the stored messages
+                    // and the volume still go over the datalink: say so rather than let them do nothing.
+                    Text {
+                        Layout.fillWidth:    true
+                        horizontalAlignment: Text.AlignHCenter
+                        visible:             !App.SpeakerController.connected
+                        color:               "#9fb0bd"
+                        font.pixelSize:      Math.max(10, ScreenTools.defaultFontPixelHeight * 0.6)
+                        wrapMode:            Text.WordWrap
+                        text:                qsTr("저장 방송과 음량은 기체 데이터링크가 연결돼야 동작합니다")
+                    }
+
                     // Four messages stack in one column; more go into a grid, three across once
                     // there are seven or more, so the payload's nine still fit under the top bar
                     // on the handset instead of running off the bottom of the screen.
@@ -1552,6 +1566,7 @@ Item {
                                 Layout.preferredHeight: root._touchHeight
                                 // Track numbers are 1 based on the payload.
                                 text:                   qsTr("%1. %2").arg(index + 1).arg(modelData)
+                                enabled:                App.SpeakerController.connected
                                 onClicked: {
                                     broadcastDropPanel.close()
                                     App.SpeakerController.play(index + 1)
@@ -1580,10 +1595,77 @@ Item {
                         to:                     100
                         stepSize:               5
                         value:                  App.SpeakerController.volume
+                        enabled:                App.SpeakerController.connected
                         onPressedChanged: {
                             if (!pressed) {
                                 App.SpeakerController.setVolume(Math.round(value))
                             }
+                        }
+                    }
+
+                    // Live voice goes over the aircraft's LTE link, not the datalink the messages
+                    // above use, so it reports its own path. Held, not toggled: letting go is the
+                    // only way a live microphone should end.
+                    Text {
+                        Layout.alignment: Qt.AlignHCenter
+                        color:            "white"
+                        font.bold:        true
+                        font.pixelSize:   Math.max(12, ScreenTools.defaultFontPixelHeight * 0.7)
+                        text:             qsTr("실시간 음성 (LTE)")
+                    }
+
+                    Button {
+                        Layout.fillWidth:       true
+                        Layout.preferredHeight: root._touchHeight * 1.3
+                        highlighted:            App.PoliceLiveVoice.talking
+                        text:                   App.PoliceLiveVoice.talking ? qsTr("송신 중, 손을 떼면 끝납니다")
+                                                                            : qsTr("누르고 말하기")
+                        onPressed:              App.PoliceLiveVoice.startTalking()
+                        onReleased:             App.PoliceLiveVoice.stopTalking()
+                        onCanceled:             App.PoliceLiveVoice.stopTalking()
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth:       true
+                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 0.3
+                        radius:                 height / 2
+                        color:                  qgcPal.windowShade
+                        visible:                App.PoliceLiveVoice.talking
+
+                        Rectangle {
+                            width:  parent.width * App.PoliceLiveVoice.level
+                            height: parent.height
+                            radius: parent.radius
+                            color:  qgcPal.colorGreen
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth:    true
+                        horizontalAlignment: Text.AlignHCenter
+                        color:               App.PoliceLiveVoice.reachable ? qgcPal.colorGreen : "#9fb0bd"
+                        font.pixelSize:      Math.max(10, ScreenTools.defaultFontPixelHeight * 0.6)
+                        wrapMode:            Text.WordWrap
+                        text:                App.PoliceLiveVoice.status
+                    }
+
+                    // The voice relay app on this handset by default; it holds the payload's own
+                    // Tailscale address, since this station stays out of Tailscale for the KCMVP bridge.
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing:          6
+
+                        Text {
+                            color:          "#9fb0bd"
+                            font.pixelSize: Math.max(10, ScreenTools.defaultFontPixelHeight * 0.6)
+                            text:           qsTr("음성 중계 주소")
+                        }
+
+                        QGCTextField {
+                            Layout.fillWidth:  true
+                            text:              App.PoliceLiveVoice.host
+                            inputMethodHints:  Qt.ImhPreferNumbers | Qt.ImhNoPredictiveText
+                            onEditingFinished: App.PoliceLiveVoice.host = text
                         }
                     }
 
