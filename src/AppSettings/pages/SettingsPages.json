@@ -34,6 +34,12 @@
             "visible": "QGroundControl.settingsManager.videoSettings.userVisible"
         },
         {
+            "name": "Payload",
+            "qml": "PayloadSettings.qml",
+            "icon": "qrc:/InstrumentValueIcons/plugin.svg",
+            "pageDefinition": "Payload.SettingsUI.json"
+        },
+        {
             "name": "Telemetry",
             "qml": "TelemetrySettings.qml",
             "icon": "qrc:/InstrumentValueIcons/radio.svg",

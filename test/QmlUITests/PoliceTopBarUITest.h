@@ -23,6 +23,14 @@ private slots:
     /// Every item on the bar, by the objectName the layout and these tests know it by.
     void _testBarItemsExist();
 
+    /// The handset battery pictogram follows the reading: full at 60 % and up, half from 30 %,
+    /// low below.
+    void _testControllerBatteryIconFollowsPercent();
+
+    /// The RC bars follow the handset's own link while it reports one, empty with "연결 안 됨"
+    /// when it says the air unit is gone, and back on the FC rssi once it goes quiet.
+    void _testRfGaugeFollowsHandsetLink();
+
     /// Each tappable item opens its drawer under itself: the drawer hangs from the bar's bottom
     /// edge and its span covers the item that was tapped.
     void _testDrawersOpenUnderTheirItem();

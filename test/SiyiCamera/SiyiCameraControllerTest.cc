@@ -276,6 +276,36 @@ void SiyiCameraControllerTest::_linkLossLeavesFollowUnconfirmedNotOff_test()
     QVERIFY(controller.aiFollowEnabled());
 }
 
+/// VideoManager restarts the payload receivers on podReconnected, so it must fire once per return
+/// of a lost link: not on first contact at startup, and not on every frame that follows.
+void SiyiCameraControllerTest::_podReconnectedFiresOncePerReturn_test()
+{
+    QUdpSocket gimbal;
+    QHostAddress address;
+    quint16 port = 0;
+
+    SiyiCameraController controller(nullptr);
+    QSignalSpy restoredSpy(&controller, &SiyiCameraController::podReconnected);
+    openFakeGimbal(gimbal, controller, address, port);
+
+    const QByteArray barrier = hardwareIdReply();
+    QCOMPARE(gimbal.writeDatagram(barrier, address, port), barrier.size());
+    QTRY_VERIFY_WITH_TIMEOUT(controller.connected(), TestTimeout::shortMs());
+    QCOMPARE(gimbal.writeDatagram(barrier, address, port), barrier.size());
+    QTest::qWait(100);
+    QCOMPARE(restoredSpy.count(), 0);
+
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.connected(), TestTimeout::mediumMs());
+    QCOMPARE(restoredSpy.count(), 0);
+
+    for (int i = 0; i < 3; ++i) {
+        QCOMPARE(gimbal.writeDatagram(barrier, address, port), barrier.size());
+    }
+    QTRY_VERIFY_WITH_TIMEOUT(controller.connected(), TestTimeout::shortMs());
+    QTest::qWait(100);
+    QCOMPARE(restoredSpy.count(), 1);
+}
+
 /// Stop is the only way back to the sticks, and it is one datagram on a link with no
 /// retransmission. Two things have to hold. It has to free the start slider, whose visible is
 /// driven by aiFollowEnabled - waiting for a reply that a silent gimbal never sends, or answers
@@ -578,4 +608,188 @@ void SiyiCameraControllerTest::_laserSwitchIsTheOperatorsChoice_test()
     QVERIFY(controller.laserEnabled());
     QTRY_VERIFY_WITH_TIMEOUT(collectLaserPayloads() >= 1, TestTimeout::shortMs());
     QCOMPARE(laserPayloads.at(0), QByteArray(1, '\1'));
+}
+
+/// The 0x11 that puts thermal on the sub stream goes out once, unacknowledged. A lost datagram, a
+/// pod back from a power cycle in another mode, or a hand-controller key all leave zoom or wide in
+/// the thermal window, so the 0x10 readback on the poll has to pull the pod back to what was asked.
+void SiyiCameraControllerTest::_podImageTypeIsPulledBackToWanted_test()
+{
+    QUdpSocket gimbal;
+    QHostAddress address;
+    quint16 port = 0;
+
+    SiyiCameraController controller(nullptr);
+    openFakeGimbal(gimbal, controller, address, port);
+
+    const QByteArray zt30 = SiyiProtocol::encodeRaw(static_cast<quint8>(SiyiProtocol::CommandId::AcquireHardwareId), QByteArray("7A"));
+    QCOMPARE(gimbal.writeDatagram(zt30, address, port), zt30.size());
+    QTRY_VERIFY_WITH_TIMEOUT(controller.isZT30(), TestTimeout::shortMs());
+    QCOMPARE(controller._reportedImageType, -1);
+
+    QList<QByteArray> imageTypeSends;
+    int imageTypeReads = 0;
+    const auto collect = [&]() {
+        for (const SiyiProtocol::Frame &frame : drainFrames(gimbal)) {
+            if (frame.commandId == SiyiProtocol::CommandId::SetCameraImageType) {
+                imageTypeSends.append(frame.data);
+            } else if (frame.commandId == SiyiProtocol::CommandId::GetCameraImageType) {
+                ++imageTypeReads;
+            }
+        }
+        return imageTypeSends.size();
+    };
+
+    // (a) What the dashboard does on the model announcement: the wanted routing goes out.
+    const int wanted = static_cast<int>(SiyiProtocol::CameraImageType::MainZoomSubThermal);
+    (void) collect();
+    imageTypeSends.clear();
+    controller.setCameraImageType(wanted);
+    QTRY_VERIFY_WITH_TIMEOUT(collect() >= 1, TestTimeout::shortMs());
+    QCOMPARE(imageTypeSends.at(0), QByteArray(1, static_cast<char>(wanted)));
+
+    // The poll reads the routing back.
+    QTRY_VERIFY_WITH_TIMEOUT((collect(), imageTypeReads >= 1), TestTimeout::mediumMs());
+
+    const auto readReply = [](int imageType) {
+        return SiyiProtocol::encodeRaw(static_cast<quint8>(SiyiProtocol::CommandId::GetCameraImageType),
+                                       QByteArray(1, static_cast<char>(imageType)));
+    };
+
+    // (b) The pod says it is on zoom-under-thermal (7): wanted goes out again.
+    imageTypeSends.clear();
+    const QByteArray wrong = readReply(static_cast<int>(SiyiProtocol::CameraImageType::MainThermalSubZoom));
+    QCOMPARE(gimbal.writeDatagram(wrong, address, port), wrong.size());
+    QTRY_VERIFY_WITH_TIMEOUT(collect() >= 1, TestTimeout::shortMs());
+    QCOMPARE(imageTypeSends.at(0), QByteArray(1, static_cast<char>(wanted)));
+    QCOMPARE(controller._reportedImageType, static_cast<int>(SiyiProtocol::CameraImageType::MainThermalSubZoom));
+
+    // (c) The pod agrees: nothing more goes out.
+    const QByteArray right = readReply(wanted);
+    QCOMPARE(gimbal.writeDatagram(right, address, port), right.size());
+    QTRY_COMPARE_WITH_TIMEOUT(controller._reportedImageType, wanted, TestTimeout::shortMs());
+    QTest::qWait(300);
+    (void) collect();
+    imageTypeSends.clear();
+    QCOMPARE(gimbal.writeDatagram(right, address, port), right.size());
+    QTest::qWait(300);
+    QCOMPARE(collect(), 0);
+
+    // (d) The link drops: what the pod reported is no longer known.
+    QTRY_VERIFY_WITH_TIMEOUT(!controller.connected(), TestTimeout::mediumMs());
+    QCOMPARE(controller._reportedImageType, -1);
+}
+
+/// One zoom control covers both lenses: zooming out past 1x on the zoom camera moves the main
+/// stream to the wide camera, and zooming in on the wide camera comes back to the zoom one at 1x.
+void SiyiCameraControllerTest::_zoomCrossesBetweenZoomAndWideAtOneX_test()
+{
+    QUdpSocket gimbal;
+    QHostAddress address;
+    quint16 port = 0;
+
+    SiyiCameraSettings *const settings = SettingsManager::instance()->siyiCameraSettings();
+    settings->aiEnabled()->setRawValue(false);
+
+    SiyiCameraController controller(nullptr);
+    openFakeGimbal(gimbal, controller, address, port);
+
+    const QByteArray zt30 = SiyiProtocol::encodeRaw(static_cast<quint8>(SiyiProtocol::CommandId::AcquireHardwareId), QByteArray("7A"));
+    QCOMPARE(gimbal.writeDatagram(zt30, address, port), zt30.size());
+    QTRY_VERIFY_WITH_TIMEOUT(controller.isZT30(), TestTimeout::shortMs());
+
+    const int zoomType = static_cast<int>(SiyiProtocol::CameraImageType::MainZoomSubThermal);
+    const int wideType = static_cast<int>(SiyiProtocol::CameraImageType::MainWideAngleSubThermal);
+    const QByteArray zoomOut(1, static_cast<char>(0xFF));
+    const QByteArray zoomStop(1, static_cast<char>(0x00));
+
+    QList<QByteArray> imageTypeSends;
+    QList<QByteArray> manualZooms;
+    QList<QByteArray> absoluteZooms;
+    const auto settle = [&]() {
+        QTest::qWait(300);
+        imageTypeSends.clear();
+        manualZooms.clear();
+        absoluteZooms.clear();
+        for (const SiyiProtocol::Frame &frame : drainFrames(gimbal)) {
+            if (frame.commandId == SiyiProtocol::CommandId::SetCameraImageType) {
+                imageTypeSends.append(frame.data);
+            } else if (frame.commandId == SiyiProtocol::CommandId::ManualZoom) {
+                manualZooms.append(frame.data);
+            } else if (frame.commandId == SiyiProtocol::CommandId::AbsoluteZoom) {
+                absoluteZooms.append(frame.data);
+            }
+        }
+    };
+    const auto feedback = [&](int tenths) {
+        QByteArray data;
+        data.append(static_cast<char>(tenths & 0xFF));
+        data.append(static_cast<char>(tenths >> 8));
+        const QByteArray reply = SiyiProtocol::encodeRaw(static_cast<quint8>(SiyiProtocol::CommandId::ManualZoom), data);
+        QCOMPARE(gimbal.writeDatagram(reply, address, port), reply.size());
+        QTRY_COMPARE_WITH_TIMEOUT(controller.zoomMultiple(), tenths / 10.0, TestTimeout::shortMs());
+    };
+
+    controller.setCameraImageType(zoomType);
+    settle();
+
+    // (b) Zoom camera at 3x: a zoom-out is an ordinary zoom-out.
+    feedback(30);
+    controller.zoom(-1);
+    settle();
+    QCOMPARE(manualZooms, QList<QByteArray>{zoomOut});
+    QVERIFY(imageTypeSends.isEmpty());
+
+    // (c) Still zooming out, the pod reaches 1x: stop, and the wide camera takes over.
+    feedback(10);
+    settle();
+    QCOMPARE(manualZooms, QList<QByteArray>{zoomStop});
+    QCOMPARE(imageTypeSends, QList<QByteArray>{QByteArray(1, static_cast<char>(wideType))});
+    QCOMPARE(controller.cameraImageType(), wideType);
+
+    // The same 1x feedback again: no second switch and no second stop.
+    feedback(10);
+    settle();
+    QVERIFY(imageTypeSends.isEmpty());
+    QVERIFY(manualZooms.isEmpty());
+
+    // (f) Wide camera, zoom-out: no switch, the zoom-out goes to the pod as it always did.
+    controller.zoom(-1);
+    settle();
+    QCOMPARE(manualZooms, QList<QByteArray>{zoomOut});
+    QVERIFY(imageTypeSends.isEmpty());
+    QVERIFY(absoluteZooms.isEmpty());
+
+    // (d) Wide camera, zoom-in: back to the zoom camera at 1x, no zoom-in on that press.
+    controller.zoom(1);
+    settle();
+    QCOMPARE(imageTypeSends, QList<QByteArray>{QByteArray(1, static_cast<char>(zoomType))});
+    QCOMPARE(absoluteZooms, QList<QByteArray>{QByteArray("\x01\x00", 2)});
+    QVERIFY(manualZooms.isEmpty());
+    QCOMPARE(controller.cameraImageType(), zoomType);
+
+    // (g) A late 0x05 reply at 1x from the wide zoom-out in (f), which was never stopped with
+    // zoom(0): the operator zoomed in, so the camera stays on the zoom camera.
+    feedback(10);
+    settle();
+    QVERIFY(!imageTypeSends.contains(QByteArray(1, static_cast<char>(wideType))));
+    QCOMPARE(controller.cameraImageType(), zoomType);
+
+    // (a) Zoom camera already at 1x: the zoom-out becomes the switch to wide.
+    feedback(10);
+    controller.zoom(-1);
+    settle();
+    QCOMPARE(imageTypeSends, QList<QByteArray>{QByteArray(1, static_cast<char>(wideType))});
+    QVERIFY(manualZooms.isEmpty());
+
+    // (e) AI on: the main stream stays on the zoom camera and the zoom-out goes out as today.
+    controller.setCameraImageType(zoomType);
+    settle();
+    settings->aiEnabled()->setRawValue(true);
+    controller.zoom(-1);
+    settle();
+    settings->aiEnabled()->setRawValue(false);
+    QCOMPARE(manualZooms, QList<QByteArray>{zoomOut});
+    QVERIFY(imageTypeSends.isEmpty());
+    QCOMPARE(controller.cameraImageType(), zoomType);
 }

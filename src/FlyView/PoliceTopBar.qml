@@ -40,6 +40,10 @@ Rectangle {
     property int    controllerBatteryPercent: -1
     property bool   rcAvailable:   false
     property int    rcLevel:       0
+    /// rcLevel comes from the handset's own radio, not the FC; live even with no aircraft.
+    property bool   rcHandset:     false
+    /// The handset says its air unit is not connected.
+    property bool   rcLinkDown:    false
     property bool   linkUp:        false
     property bool   gpsFixed:      false
     property string gpsFixText:    ""
@@ -495,10 +499,10 @@ Rectangle {
                     objectName: "policeRfItem"
 
                     readonly property bool _lost: bar.vehicle && !bar.linkUp
-                    readonly property color _tint: _lost ? bar.alarmColor
+                    readonly property color _tint: (_lost || (bar.vehicle && bar.rcLinkDown)) ? bar.alarmColor
                                                    : (bar.rcAvailable && (bar.rcLevel <= 1)) ? bar.alarmColor
                                                                                              : "white"
-                    readonly property string _text: !bar.vehicle ? qsTr("연결 안 됨")
+                    readonly property string _text: (!bar.vehicle || bar.rcLinkDown) ? qsTr("연결 안 됨")
                                                     : _lost      ? qsTr("신호 끊김")
                                                                  : ""
 
@@ -517,14 +521,18 @@ Rectangle {
                         }
 
                         BarGauge {
+                            objectName:             "policeRfGauge"
                             anchors.verticalCenter: parent.verticalCenter
                             // Empty with no aircraft and on a lost link: whatever was last heard
-                            // is not what the radio is doing now.
-                            level:                  (bar.vehicle && bar.linkUp && bar.rcAvailable) ? bar.rcLevel : 0
+                            // is not what the radio is doing now. The handset's own radio is live
+                            // even with no aircraft, so its level shows regardless.
+                            level:                  bar.rcHandset ? (bar.rcLinkDown ? 0 : bar.rcLevel)
+                                                                  : ((bar.vehicle && bar.linkUp && bar.rcAvailable) ? bar.rcLevel : 0)
                             tint:                   rfItem._tint
                         }
 
                         BarText {
+                            objectName:             "policeRfText"
                             anchors.verticalCenter: parent.verticalCenter
                             color:                  rfItem._tint
                             font.weight:            Font.DemiBold
@@ -584,9 +592,10 @@ Rectangle {
                     }
                 }
 
-                // The controller's own battery. Drawn as the three-cell pictogram, deliberately
-                // not the aircraft's fill-level glyph beside it: two identical glyphs a few
-                // centimetres apart is how 58% and 38% get read the wrong way round. Absent
+                // The controller's own battery. Drawn as the three-cell pictogram, full, half or
+                // low with the reading, deliberately not the aircraft's fill-level glyph beside it:
+                // two identical glyphs a few centimetres apart is how 58% and 38% get read the
+                // wrong way round. Absent
                 // rather than zero where there is no reading, because a controller showing 0% is
                 // a controller about to go dark, and that is a different thing to say.
                 Row {
@@ -602,8 +611,11 @@ Rectangle {
                                                              : "white"
 
                     BarIcon {
-                        source: "qrc:/InstrumentValueIcons/battery-full.svg"
-                        tint:   controllerBatteryGroup.tint
+                        objectName: "policeControllerBatteryIcon"
+                        source:     bar.controllerBatteryPercent >= 60 ? "qrc:/InstrumentValueIcons/battery-full.svg"
+                                    : bar.controllerBatteryPercent >= 30 ? "qrc:/InstrumentValueIcons/battery-half.svg"
+                                                                         : "qrc:/InstrumentValueIcons/battery-low.svg"
+                        tint:       controllerBatteryGroup.tint
                     }
 
                     BarText {

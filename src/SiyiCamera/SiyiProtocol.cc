@@ -371,6 +371,14 @@ std::optional<bool> parseLaserState(const QByteArray &data)
     return static_cast<quint8>(data.at(0)) != 0;
 }
 
+std::optional<int> parseCameraImageType(const QByteArray &data)
+{
+    if (data.isEmpty()) {
+        return std::nullopt;
+    }
+    return static_cast<quint8>(data.at(0));
+}
+
 std::optional<ThermalGain> parseThermalGain(const QByteArray &data)
 {
     if (data.isEmpty()) {

@@ -321,6 +321,9 @@ GstElement* buildRtspSource(const QString& uri, const QUrl& sourceUrl, const Con
                  "do-retransmission", config.doRetransmission ? TRUE : FALSE, "tcp-timeout", kRtspTcpTimeoutUs,
                  "udp-reconnect", TRUE, "drop-on-latency", dropOnLatency, "retry", kRtspRetry, "protocols",
                  kRtspProtocols, nullptr);
+    if (!config.rtpPortRange.isEmpty()) {
+        g_object_set(source, "port-range", config.rtpPortRange.toUtf8().constData(), nullptr);
+    }
 
     const QString rtspUser = sourceUrl.userName(QUrl::FullyDecoded);
     const QString rtspPassword = sourceUrl.password(QUrl::FullyDecoded);

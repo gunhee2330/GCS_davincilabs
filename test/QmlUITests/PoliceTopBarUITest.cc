@@ -30,6 +30,7 @@
 #include "MultiVehicleManager.h"
 #include "ParameterManager.h"
 #include "PoliceCorePlugin.h"
+#include "PoliceRcLink.h"
 #include "QmlObjectListModel.h"
 #include "SettingsManager.h"
 #include "SimpleMissionItem.h"
@@ -370,6 +371,72 @@ void PoliceTopBarUITest::_testBarItemsExist()
             QVERIFY2((item->width() > 0) && (item->height() > 0),
                      qPrintable(QStringLiteral("%1 is on the bar with no area").arg(name)));
         }
+    });
+}
+
+void PoliceTopBarUITest::_testControllerBatteryIconFollowsPercent()
+{
+    _ignorePreexistingQmlWarnings();
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const topBar = findVisibleItem(_rootItem, kTopBar, 5000);
+        QVERIFY2(topBar, "The top bar is not on screen");
+        const struct { int percent; const char *file; } cases[] = {
+            { 85, "battery-full.svg" }, { 45, "battery-half.svg" }, { 20, "battery-low.svg" },
+        };
+        for (const auto &c : cases) {
+            QVERIFY(topBar->setProperty("controllerBatteryPercent", c.percent));
+            QQuickItem *const icon = findVisibleItem(topBar, QStringLiteral("policeControllerBatteryIcon"), 3000);
+            QVERIFY2(icon, qPrintable(QStringLiteral("No handset battery icon at %1 %").arg(c.percent)));
+            const QString source = icon->property("source").toUrl().toString();
+            QVERIFY2(source.endsWith(QLatin1String(c.file)),
+                     qPrintable(QStringLiteral("At %1 % the handset icon is %2, not %3").arg(c.percent).arg(source, QLatin1String(c.file))));
+        }
+    });
+}
+
+void PoliceTopBarUITest::_testRfGaugeFollowsHandsetLink()
+{
+    _ignorePreexistingQmlWarnings();
+
+    PoliceRcLink *const link = PoliceRcLink::instance();
+    // The singleton outlives the test.
+    const auto reset = qScopeGuard([link] { link->handleConnected(true); });
+
+    runWithMockLink([] { return MockLink::startPX4MockLink(); },
+                    [this, link](QPointer<MockLink> /*mockLink*/, Vehicle * /*vehicle*/) {
+        _window->resize(kLayoutWidth, kLayoutHeight);
+        QTest::qWait(kSettleMs);
+
+        QQuickItem *const rfItem = findVisibleItem(_rootItem, kRfItem, 5000);
+        QVERIFY2(rfItem, "The RF item is not on the bar");
+        QQuickItem *const gauge = findVisibleItem(rfItem, QStringLiteral("policeRfGauge"), 3000);
+        QVERIFY2(gauge, "The RF gauge is not on the bar");
+        QQuickItem *const text = rfItem->findChild<QQuickItem *>(QStringLiteral("policeRfText"));
+        QVERIFY2(text, "The RF text is not in the RF item");
+
+        QVERIFY(!link->available());
+        const int fcLevel = gauge->property("level").toInt();
+
+        link->handleLinkInfo(80, 12, 99);
+        QTRY_COMPARE(gauge->property("level").toInt(), 4);
+        QVERIFY(!text->isVisible());
+
+        link->handleLinkInfo(10, 3, 50);
+        QTRY_COMPARE(gauge->property("level").toInt(), 1);
+
+        link->handleConnected(false);
+        QTRY_COMPARE(gauge->property("level").toInt(), 0);
+        QTRY_VERIFY(text->isVisible());
+        QCOMPARE(text->property("text").toString(), QStringLiteral("연결 안 됨"));
+
+        link->handleConnected(true);
+        QTRY_VERIFY_WITH_TIMEOUT(!link->available(), 5000);
+        QTRY_COMPARE(gauge->property("level").toInt(), fcLevel);
     });
 }
 
@@ -1657,6 +1724,7 @@ void PoliceTopBarUITest::_captureSettingsDark()
 
         for (const auto &shot : { std::pair<QString, QString>{ QStringLiteral("Comm Links"), QStringLiteral("u_3_links") },
                                   std::pair<QString, QString>{ QStringLiteral("Video"),      QStringLiteral("u_4_video") },
+                                  std::pair<QString, QString>{ QStringLiteral("Payload"),    QStringLiteral("u_4b_payload") },
                                   std::pair<QString, QString>{ QStringLiteral("Maps"),       QStringLiteral("u_5_maps") },
                                   std::pair<QString, QString>{ QStringLiteral("Developer"),  QStringLiteral("u_6_developer") } }) {
             QVERIFY2(showSettings(shot.first), "showSettingsTool is not invokable");
@@ -1766,19 +1834,19 @@ void PoliceTopBarUITest::_captureCameraNaming()
         if (QTest::currentTestFailed()) return;
         QTest::keyClick(_window, Qt::Key_Escape);
 
-        // The 영상 page scrolled to the pod's section. The heading's source string names the
-        // group's objectName, so it reads 카메라 설정 through the Korean catalogue
-        QVERIFY2(QMetaObject::invokeMethod(_window, "showSettingsTool", Q_ARG(QVariant, QVariant(QStringLiteral("Video")))),
+        // The 임무장치 page scrolled to the pod's section. The heading's source string names the
+        // group's objectName, so it reads 포드 제어 through the Korean catalogue
+        QVERIFY2(QMetaObject::invokeMethod(_window, "showSettingsTool", Q_ARG(QVariant, QVariant(QStringLiteral("Payload")))),
                  "showSettingsTool is not invokable");
         QQuickItem *const pageFlick = findVisibleItem(_rootItem, QStringLiteral("settingsPageFlickable"), 5000);
-        QVERIFY2(pageFlick, "The Video page has no flickable");
+        QVERIFY2(pageFlick, "The Payload page has no flickable");
         // The groups hidden by the page's own bindings drop out only once it settles
         QTest::qWait(kSettleMs);
         QQuickItem *const group = findVisibleItem(pageFlick, QStringLiteral("settingsGroup_SIYICameraControl"), 5000);
-        QVERIFY2(group, "The Video page has no camera section");
+        QVERIFY2(group, "The Payload page has no camera section");
         if (QLocale().language() == QLocale::Korean) {
-            QVERIFY2(findVisibleItemWithExactText(group, QStringLiteral("카메라 설정")), "The camera section is not headed 카메라 설정");
-            QVERIFY2(!subtreeHasText(pageFlick, QStringLiteral("SIYI")), "The Video page still shows SIYI");
+            QVERIFY2(findVisibleItemWithExactText(group, QStringLiteral("포드 제어")), "The camera section is not headed 포드 제어");
+            QVERIFY2(!subtreeHasText(pageFlick, QStringLiteral("SIYI")), "The Payload page still shows SIYI");
         }
         QQuickItem *const content = pageFlick->property("contentItem").value<QQuickItem *>();
         const qreal maxY = qMax(0.0, pageFlick->property("contentHeight").toReal() - pageFlick->height());
@@ -1801,16 +1869,16 @@ void PoliceTopBarUITest::_captureSpeakerNaming()
     _window->resize(kLayoutWidth, kLayoutHeight);
     QTest::qWait(kSettleMs);
 
-    // The heading's English source stays; the Korean catalogue reads it 스피커 설정
-    QVERIFY2(QMetaObject::invokeMethod(_window, "showSettingsTool", Q_ARG(QVariant, QVariant(QStringLiteral("Video")))),
+    // The heading's English source stays; the Korean catalogue reads it 스피커
+    QVERIFY2(QMetaObject::invokeMethod(_window, "showSettingsTool", Q_ARG(QVariant, QVariant(QStringLiteral("Payload")))),
              "showSettingsTool is not invokable");
     QQuickItem *const pageFlick = findVisibleItem(_rootItem, QStringLiteral("settingsPageFlickable"), 5000);
-    QVERIFY2(pageFlick, "The Video page has no flickable");
+    QVERIFY2(pageFlick, "The Payload page has no flickable");
     QTest::qWait(kSettleMs);
     QQuickItem *const group = findVisibleItem(pageFlick, QStringLiteral("settingsGroup_LoudspeakerPayload"), 5000);
-    QVERIFY2(group, "The Video page has no speaker section");
+    QVERIFY2(group, "The Payload page has no speaker section");
     if (QLocale().language() == QLocale::Korean) {
-        QVERIFY2(findVisibleItemWithExactText(group, QStringLiteral("스피커 설정")), "The speaker section is not headed 스피커 설정");
+        QVERIFY2(findVisibleItemWithExactText(group, QStringLiteral("스피커")), "The speaker section is not headed 스피커");
     }
     QQuickItem *const content = pageFlick->property("contentItem").value<QQuickItem *>();
     const qreal maxY = qMax(0.0, pageFlick->property("contentHeight").toReal() - pageFlick->height());
@@ -1918,13 +1986,13 @@ void PoliceTopBarUITest::_testPlanAutoRecordSwitch()
         QVERIFY2(findVisibleItem(planTree, switchName, 5000), "The open mission start lost the switch under it");
         _grab(QStringLiteral("autorecord_2_plan_open"));
 
-        // The same setting on the 영상 page's camera section
-        QVERIFY2(QMetaObject::invokeMethod(_window, "showSettingsTool", Q_ARG(QVariant, QVariant(QStringLiteral("Video")))),
+        // The same setting on the 임무장치 page's camera section
+        QVERIFY2(QMetaObject::invokeMethod(_window, "showSettingsTool", Q_ARG(QVariant, QVariant(QStringLiteral("Payload")))),
                  "showSettingsTool is not invokable");
         QTest::qWait(kSettleMs);
         QQuickItem *const settingsSwitch = findVisibleItemScrolled(QStringLiteral("settingsCheckBox_autoRecordMission"),
                                                                    QStringLiteral("settingsPageFlickable"));
-        QVERIFY2(settingsSwitch, "The Video page shows no 임무 중 자동 녹화 switch");
+        QVERIFY2(settingsSwitch, "The Payload page shows no 임무 중 자동 녹화 switch");
         QVERIFY(settingsSwitch->property("checked").toBool());
         _grab(QStringLiteral("autorecord_1_settings"));
     }

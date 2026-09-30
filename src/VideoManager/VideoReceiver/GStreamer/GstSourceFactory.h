@@ -22,6 +22,7 @@ struct Config
     JitterBuffer jitterBuffer = JitterBuffer::DropOnLatency;
     int latencyMs = 80;
     bool doRetransmission = true;
+    QString rtpPortRange;  ///< rtspsrc "port-range" ("min-max"); empty keeps rtspsrc's random ports.
 };
 
 /// Build a source bin (`source` [+ `tsdemux`] [+ `rtpjitterbuffer`] + `parsebin`)

@@ -2370,6 +2370,17 @@ void PoliceGuidedActionUITest::_testMapSwap()
         // 1. Windowed: the zoom window names itself, and there is no map copy anywhere.
         QVERIFY2(chipReads(zoomWindow, QStringLiteral("줌")), "The zoom window chip does not read 줌");
         QVERIFY2(!findVisibleItem(_rootItem, QStringLiteral("policeMapPip"), 0), "The map copy is up with no camera big");
+        // Windowed, the state chips sit in the zoom window's top right corner.
+        QQuickItem *const stateChips = findVisibleItem(panel, kStateChips, 3000);
+        QVERIFY2(stateChips, "Zoom state chips are not on screen");
+        {
+            const QRectF chips = sceneRect(stateChips);
+            const QRectF window = sceneRect(zoomWindow);
+            QVERIFY2(window.contains(chips) && chips.center().x() > window.center().x() &&
+                         chips.center().y() < window.center().y(),
+                     qPrintable(QStringLiteral("Windowed state chips %1 are not in the top right of %2")
+                                    .arg(QDebug::toString(chips), QDebug::toString(window))));
+        }
 
         // 2. A tap on the zoom window makes it the big picture.
         clickAt(sceneRect(zoomWindow).center());
@@ -2413,6 +2424,21 @@ void PoliceGuidedActionUITest::_testMapSwap()
         QVERIFY2(sceneRect(bigName).left() > sceneRect(guided).right(),
                  qPrintable(QStringLiteral("줌 chip %1 is under the guided strip %2")
                                 .arg(QDebug::toString(sceneRect(bigName)), QDebug::toString(sceneRect(guided)))));
+
+        // 7b. Big, the state chips sit side by side just under the camera rail's handle, right
+        // edges flush, instead of on the top row beside it.
+        {
+            QQuickItem *const handle = findVisibleItem(_rootItem, QStringLiteral("policeCameraStripHandle"), 3000);
+            QVERIFY2(handle, "Camera rail handle not found");
+            const QRectF chips = sceneRect(stateChips);
+            const QRectF grip = sceneRect(handle);
+            QVERIFY2(qAbs(chips.right() - grip.right()) <= 2 && chips.top() >= grip.bottom(),
+                     qPrintable(QStringLiteral("Big state chips %1 are not under the rail handle %2")
+                                    .arg(QDebug::toString(chips), QDebug::toString(grip))));
+            const QList<QQuickItem *> row = stateChips->childItems();
+            QVERIFY2(row.size() == 2 && qAbs(sceneRect(row.at(0)).top() - sceneRect(row.at(1)).top()) <= 1,
+                     "The big state chips are not side by side");
+        }
 
         if (capture) {
             SiyiCameraController *const camera = SiyiCameraController::instance();
@@ -2458,6 +2484,18 @@ void PoliceGuidedActionUITest::_testMapSwap()
         QTest::keyClick(_window, Qt::Key_Escape);
         QTest::qWait(kSettleMs);
         QCOMPARE(expanded(), QString());
+
+        // 12. The handset keys ask for a big picture through the camera controller.
+        SiyiCameraController *const camera = SiyiCameraController::instance();
+        emit camera->mainPictureRequested(QStringLiteral("shared"));
+        QTest::qWait(kSettleMs);
+        QCOMPARE(expanded(), QStringLiteral("shared"));
+        emit camera->mainPictureRequested(QStringLiteral("primary"));
+        QTest::qWait(kSettleMs);
+        QCOMPARE(expanded(), QStringLiteral("primary"));
+        emit camera->mainPictureRequested(QString());
+        QTest::qWait(kSettleMs);
+        QCOMPARE(expanded(), QString());
     });
 }
 
@@ -2478,7 +2516,7 @@ void PoliceGuidedActionUITest::_testThermalTemperatureReadout()
         QQuickItem *const chip = window->findChild<QQuickItem *>(kTitleChip);
         QVERIFY2(chip, "Thermal window has no name chip");
         QQuickItem *const temps = chip->findChild<QQuickItem *>(QStringLiteral("cameraWindowExtraDetail"));
-        QVERIFY2(temps, "Thermal name chip has no reading after the LRF");
+        QVERIFY2(temps, "Thermal name chip has no temperature reading");
         QVERIFY2(!temps->isVisible(), "Temperatures are up with no pod answering");
 
         // A fake pod on loopback, the controller pointed at it the way the controller test does.
@@ -2557,23 +2595,31 @@ void PoliceGuidedActionUITest::_testThermalTemperatureReadout()
             if (QTest::currentTestFailed()) return;
         }
 
-        // The laser reads out as well: LRF first, then the temperatures, one chip gap apart - beside
-        // it where the window is wide enough, under it where it is not, and inside the window
-        // either way.
+        // The laser reads out on neither window bar: only the big zoom picture's pill carries it.
+        const std::function<QQuickItem *(QQuickItem *)> findLrfText = [&findLrfText](QQuickItem *item) -> QQuickItem * {
+            if (item->isVisible() && item->property("text").toString().startsWith(QStringLiteral("LRF"))) {
+                return item;
+            }
+            for (QQuickItem *const child : item->childItems()) {
+                if (QQuickItem *const found = findLrfText(child)) {
+                    return found;
+                }
+            }
+            return nullptr;
+        };
+        QQuickItem *const zoomWindow = findVisibleItem(_rootItem, kZoomWindow, 5000);
+        QVERIFY2(zoomWindow, "Zoom window not found");
+        QQuickItem *const zoomChip = zoomWindow->findChild<QQuickItem *>(kTitleChip);
+        QVERIFY2(zoomChip, "Zoom window has no name chip");
         QByteArray range;
         le16(range, 1234);
         laserReply = SiyiProtocol::encodeRaw(static_cast<quint8>(SiyiProtocol::CommandId::ReadRangefinder), range);
-        QTRY_VERIFY_WITH_TIMEOUT(findVisibleTextItem(chip, QStringLiteral("LRF 123.4 m")), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(camera->rangefinderAvailable(), 5000);
         QTest::qWait(kSettleMs);
-        QQuickItem *const laser = findVisibleTextItem(chip, QStringLiteral("LRF 123.4 m"));
-        const QRectF laserRect = sceneRect(laser);
-        const QRectF tempsRect = sceneRect(temps);
-        const qreal spacing = temps->parentItem()->property("spacing").toReal();
-        const bool beside = qAbs(tempsRect.top() - laserRect.top()) < 1.0;
-        const qreal gap = beside ? (tempsRect.left() - laserRect.right()) : (tempsRect.top() - laserRect.bottom());
-        QVERIFY2((beside || qAbs(tempsRect.left() - laserRect.left()) < 1.0) && qAbs(gap - spacing) < 1.0,
-                 qPrintable(QStringLiteral("LRF %1 and temperatures %2 are not one chip gap (%3) apart")
-                                .arg(QDebug::toString(laserRect), QDebug::toString(tempsRect)).arg(spacing)));
+        QVERIFY2(!findLrfText(chip), "The thermal window bar shows the laser range");
+        QVERIFY2(!findLrfText(zoomChip), "The zoom window bar shows the laser range");
+        QCOMPARE(temps->property("text").toString(), kFirst);
+        QVERIFY2(temps->isVisible(), "Temperatures went with the laser reading in");
         checkInside();
         if (QTest::currentTestFailed()) return;
 
@@ -2596,6 +2642,12 @@ void PoliceGuidedActionUITest::_testThermalTemperatureReadout()
         QQuickItem *const fullTitle = findVisibleTextItem(fullTemps->parentItem(), QStringLiteral("열상"));
         QVERIFY2(fullTitle, "Full screen name chip does not carry the window name next to the temperatures");
         QVERIFY2(sceneRect(fullTitle).right() < sceneRect(fullTemps).left(), "Temperatures are not after the name");
+        QQuickItem *thermalPanel = fullTemps;
+        while (thermalPanel && !thermalPanel->property("panelTitle").isValid()) {
+            thermalPanel = thermalPanel->parentItem();
+        }
+        QVERIFY2(thermalPanel, "The full screen name chip is not inside a camera panel");
+        QVERIFY2(!findLrfText(thermalPanel), "The big thermal picture shows the laser range");
         if (capture) {
             _grab(QStringLiteral("thermal_temp_2_fullscreen"));
             if (QTest::currentTestFailed()) return;

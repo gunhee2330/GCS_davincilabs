@@ -9,6 +9,8 @@
 #include "QGCLoggingCategory.h"
 #include "QGCVideoStreamInfo.h"
 #include "SettingsManager.h"
+#include "PoliceVideoDefaults.h"
+#include "SiyiCameraController.h"
 #include "SiyiCameraSettings.h"
 #include "SubtitleWriter.h"
 #include "Vehicle.h"
@@ -191,6 +193,17 @@ void VideoManager::init(QQuickWindow *mainWindow)
     // happens to restart the pipeline - and stays on the AI feed after switching it off.
     (void) connect(SettingsManager::instance()->siyiCameraSettings()->aiEnabled(), &Fact::rawValueChanged,
                    this, &VideoManager::_videoSourceChanged);
+    // The pod answering again after a lost link means the air link is back (FPV rides the same
+    // air unit). The payload receivers may sit in up to 30 s of reconnect backoff by then, so
+    // open fresh sessions now. A payload receiver is one given a port range in _updateSettings.
+    (void) connect(SiyiCameraController::instance(), &SiyiCameraController::podReconnected, this, [this]() {
+        for (VideoReceiver *receiver : std::as_const(_videoReceivers)) {
+            if (!receiver->rtpPortRange().isEmpty() && !receiver->uri().isEmpty()) {
+                qCInfo(VideoManagerLog) << "Pod reconnected, restarting" << receiver->name() << receiver->uri();
+                _restartVideo(receiver);
+            }
+        }
+    });
     (void) connect(_videoSettings->aspectRatio(), &Fact::rawValueChanged, this, &VideoManager::aspectRatioChanged);
     (void) connect(_videoSettings->lowLatencyMode(), &Fact::rawValueChanged, this, [this](const QVariant &value) { Q_UNUSED(value); _restartAllVideos(); });
     // rtpJitterLatencyMs needs a pipeline restart; route through _videoSourceChanged so _updateSettings
@@ -684,6 +697,15 @@ bool VideoManager::_updateVideoUri(VideoReceiver *receiver, const QString &uri)
     return true;
 }
 
+static bool _updatePortRange(VideoReceiver *receiver, const QString &range)
+{
+    if (receiver->rtpPortRange() == range) {
+        return false;
+    }
+    receiver->setRtpPortRange(range);
+    return true;
+}
+
 bool VideoManager::_updateSettings(VideoReceiver *receiver)
 {
     if (!receiver) {
@@ -717,6 +739,7 @@ bool VideoManager::_updateSettings(VideoReceiver *receiver)
     if (receiver->isFpv()) {
         const QString fpvUri = SettingsManager::instance()->siyiCameraSettings()
                                    ->fpvRtspUrl()->rawValue().toString().trimmed();
+        settingsChanged |= _updatePortRange(receiver, QLatin1String(PoliceVideoDefaults::kFpvPortRange));
         settingsChanged |= _updateVideoUri(receiver, fpvUri);
         return settingsChanged;
     }
@@ -724,12 +747,14 @@ bool VideoManager::_updateSettings(VideoReceiver *receiver)
     if (receiver->isThermal()) {
         const QGCVideoStreamInfo *const streamInfo = receiver->videoStreamInfo();
         if (streamInfo && !streamInfo->uri().isEmpty()) {
+            settingsChanged |= _updatePortRange(receiver, QString());
             settingsChanged |= _updateAutoStream(receiver);
         } else {
             // The sub stream is the only thermal source there is, and a night search cannot
             // give it up, so the AI feed no longer takes this slot over. It replaces the main
             // panel instead (below): video0 is the main picture with boxes drawn in.
             SiyiCameraSettings *const siyiSettings = SettingsManager::instance()->siyiCameraSettings();
+            settingsChanged |= _updatePortRange(receiver, QLatin1String(PoliceVideoDefaults::kPodSubPortRange));
             settingsChanged |= _updateVideoUri(receiver, siyiSettings->secondaryRtspUrl()->rawValue().toString().trimmed());
         }
         return settingsChanged;
@@ -749,12 +774,15 @@ bool VideoManager::_updateSettings(VideoReceiver *receiver)
     if (siyiAiSettings->aiEnabled()->rawValue().toBool()) {
         const QString aiUri = siyiAiSettings->aiRtspUrl()->rawValue().toString().trimmed();
         if (!aiUri.isEmpty()) {
+            settingsChanged |= _updatePortRange(receiver, QLatin1String(PoliceVideoDefaults::kAiPortRange));
             settingsChanged |= _updateVideoUri(receiver, aiUri);
             return settingsChanged;
         }
     }
 
     const QString source = _videoSettings->videoSource()->rawValue().toString();
+    const bool podMain = (source == VideoSettings::videoSourceRTSP) && PoliceVideoDefaults::isPodMainStream(_videoSettings->rtspUrl()->rawValue().toString());
+    settingsChanged |= _updatePortRange(receiver, podMain ? QLatin1String(PoliceVideoDefaults::kPodMainPortRange) : QString());
     if (source == VideoSettings::videoSourceUDPH264) {
         settingsChanged |= _updateVideoUri(receiver, QStringLiteral("udp://%1").arg(_videoSettings->udpUrl()->rawValue().toString()));
     } else if (source == VideoSettings::videoSourceUDPH265) {

@@ -39,6 +39,9 @@ enum class CommandId : quint8 {
     PhotoAndMode            = 0x0C,
     AcquireGimbalAttitude   = 0x0D,
     AbsoluteZoom            = 0x0F,
+    /// Reads the current sensor routing back. The reply, like the SetCameraImageType ack, is one
+    /// byte: the CameraImageType in effect.
+    GetCameraImageType      = 0x10,
     SetCameraImageType      = 0x11,
     TempAtPoint             = 0x12,
     GetTempFullImage        = 0x14,
@@ -306,6 +309,9 @@ struct RangefinderTarget
 /// 0x32 was confirmed on the airframe, 0x31 was not: the pod may never answer it, in which
 /// case this stays absent while the laser is in fact lit.
 [[nodiscard]] std::optional<bool> parseLaserState(const QByteArray &data);
+
+/// CameraImageType value from a GetCameraImageType reply or a SetCameraImageType ack.
+[[nodiscard]] std::optional<int> parseCameraImageType(const QByteArray &data);
 
 /// Model name decoded from the first two hardware id characters, e.g. "ZT30".
 /// Empty when the id is not one this driver knows.

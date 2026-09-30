@@ -210,7 +210,7 @@ void PoliceWarningsTest::_battery_test()
     warnings.setBatteryLevel(1);
     QCOMPARE(warnings.batteryText(), QStringLiteral("잔량 30%, 복귀를 준비하십시오"));
     QCOMPARE(spoke.count(), 1);
-    QCOMPARE(spoke.takeFirst().at(0).toString(), QStringLiteral("배터리가 부족합니다. 잔량 30퍼센트. 복귀를 준비하십시오."));
+    QCOMPARE(spoke.takeFirst().at(0).toString(), QStringLiteral("Low battery, 30 percent remaining. Prepare to return."));
 
     // The bar going white at 31 % holds the banner; its going orange again says nothing.
     warnings.setBatteryPercent(31);
@@ -228,7 +228,7 @@ void PoliceWarningsTest::_battery_test()
     warnings.setBatteryLevel(2);
     QCOMPARE(warnings.batteryText(), QStringLiteral("잔량 20%, 즉시 복귀하십시오"));
     QCOMPARE(spoke.count(), 1);
-    QCOMPARE(spoke.takeFirst().at(0).toString(), QStringLiteral("배터리가 부족합니다. 잔량 20퍼센트. 즉시 복귀하십시오."));
+    QCOMPARE(spoke.takeFirst().at(0).toString(), QStringLiteral("Low battery, 20 percent remaining. Return immediately."));
     warnings.setBatteryPercent(18.6);
     QCOMPARE(warnings.batteryText(), QStringLiteral("잔량 19%, 즉시 복귀하십시오"));
 
@@ -250,7 +250,7 @@ void PoliceWarningsTest::_battery_test()
     QVERIFY(warnings.batteryText().isEmpty());
     warnings.setBatteryLevel(1);
     QCOMPARE(warnings.batteryText(), QStringLiteral("복귀를 준비하십시오"));
-    QCOMPARE(spoke.takeFirst().at(0).toString(), QStringLiteral("배터리가 부족합니다. 복귀를 준비하십시오."));
+    QCOMPARE(spoke.takeFirst().at(0).toString(), QStringLiteral("Low battery. Prepare to return."));
     warnings.setBatteryLevel(0);
     QVERIFY(warnings.batteryText().isEmpty());
 }
@@ -290,7 +290,7 @@ void PoliceWarningsTest::_dismiss_test()
     QCOMPARE(warnings.batteryText(), QStringLiteral("잔량 18%, 즉시 복귀하십시오"));
     QVERIFY(warnings.batteryCritical());
     QCOMPARE(spoke.count(), 1);
-    QCOMPARE(spoke.takeFirst().at(0).toString(), QStringLiteral("배터리가 부족합니다. 잔량 18퍼센트. 즉시 복귀하십시오."));
+    QCOMPARE(spoke.takeFirst().at(0).toString(), QStringLiteral("Low battery, 18 percent remaining. Return immediately."));
 
     // Critical dismissed, then easing back to low is no escalation and stays hidden; critical
     // again is one.

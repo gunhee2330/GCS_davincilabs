@@ -48,6 +48,7 @@ public:
     bool started() const { return _started; }
     bool lowLatency() const { return _lowLatency; }
     int rtpJitterLatencyMs() const { return _rtpJitterLatencyMs; }
+    QString rtpPortRange() const { return _rtpPortRange; }
     bool autoReconnect() const { return _autoReconnect; }
     bool frameTapEnabled() const { return _frameTapEnabled; }
     QGCVideoStreamInfo *videoStreamInfo() { return _videoStreamInfo; }
@@ -60,6 +61,8 @@ public:
     void setStarted(bool started) { if (started != _started) { _started = started; emit startedChanged(_started); } }
     void setLowLatency(bool lowLatency) { if (lowLatency != _lowLatency) { _lowLatency = lowLatency; emit lowLatencyChanged(_lowLatency); } }
     void setRtpJitterLatencyMs(int ms) { if (ms != _rtpJitterLatencyMs) { _rtpJitterLatencyMs = ms; emit rtpJitterLatencyMsChanged(_rtpJitterLatencyMs); } }
+    /// rtspsrc UDP port range "min-max"; empty keeps random ports. Takes effect on the next start.
+    void setRtpPortRange(const QString &range) { _rtpPortRange = range; }
     void setAutoReconnect(bool enabled) { if (enabled != _autoReconnect) { _autoReconnect = enabled; emit autoReconnectChanged(_autoReconnect); } }
     /// Ask the receiver to branch scaled RGB frames out of the decode path. Takes effect on the
     /// next decoding start; the tap is skipped silently when the pipeline can't take it.
@@ -137,6 +140,7 @@ protected:
     bool _streaming = false;
     bool _lowLatency = false;
     int _rtpJitterLatencyMs = 80;
+    QString _rtpPortRange;
     // Written live on the GUI thread, read on the receiver worker thread.
     std::atomic<bool> _autoReconnect = true;     ///< RTSP/UDP auto-reconnect with exponential backoff on watchdog/error.
     std::atomic<bool> _frameTapEnabled = false;

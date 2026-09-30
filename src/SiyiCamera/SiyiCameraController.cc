@@ -21,6 +21,8 @@ QGC_LOGGING_CATEGORY(SiyiCameraControllerLog, "SiyiCamera.SiyiCameraController")
 namespace {
 
 constexpr int kPollIntervalMs = 100;
+/// Zoom feedback comes in tenths, so anything this close to 1.0 is 1x.
+constexpr double kZoomOneEpsilon = 0.05;
 
 /// The camera is declared offline once this long passes with no valid frame.
 constexpr qint64 kConnectionTimeoutMs = 2000;
@@ -258,6 +260,7 @@ void SiyiCameraController::stop()
     _yawRate = 0;
     _pitchRate = 0;
     _rxBuffer.clear();
+    _linkLost = false;
     _setConnected(false);
     _resetCameraState();
 
@@ -366,12 +369,56 @@ void SiyiCameraController::setMotionMode(int mode)
 
 void SiyiCameraController::zoom(int direction)
 {
+    if (_switchCameraForZoom(direction)) {
+        return;
+    }
+    _zoomingOut = (direction < 0);
     _send(SiyiProtocol::encodeManualZoom(direction, _sequence++));
 }
 
 void SiyiCameraController::setZoom(double multiple)
 {
+    if (_switchCameraForZoom(multiple > 1.0 ? 1 : (multiple < 1.0 ? -1 : 0))) {
+        return;
+    }
+    _zoomingOut = false;
     _send(SiyiProtocol::encodeAbsoluteZoom(static_cast<float>(multiple), _sequence++));
+}
+
+bool SiyiCameraController::_switchCameraForZoom(int direction)
+{
+    // Zooming out past 1x on the zoom camera hands the main stream to the wide camera, and
+    // zooming in on the wide camera hands it back at 1x, so one zoom control covers both lenses.
+    if (!isZT30() || (direction == 0)) {
+        return false;
+    }
+    constexpr int kZoom = static_cast<int>(SiyiProtocol::CameraImageType::MainZoomSubThermal);
+    constexpr int kWide = static_cast<int>(SiyiProtocol::CameraImageType::MainWideAngleSubThermal);
+    if ((_cameraImageType == kWide) && (direction > 0)) {
+        _zoomingOut = false;
+        setCameraImageType(kZoom);
+        _send(SiyiProtocol::encodeAbsoluteZoom(1.0F, _sequence++));
+        // The 0x0F reply is not parsed, so take the 1x just asked for as the zoom.
+        _zoomMultipleKnown = true;
+        if (_zoomMultiple != 1.0) {
+            _zoomMultiple = 1.0;
+            emit zoomMultipleChanged();
+        }
+        return true;
+    }
+    if ((_cameraImageType == kZoom) && (direction < 0) && _zoomMultipleKnown
+        && (_zoomMultiple <= 1.0 + kZoomOneEpsilon)) {
+        SiyiCameraSettings *const settings = SettingsManager::instance()->siyiCameraSettings();
+        if (settings && settings->aiEnabled()->rawValue().toBool()) {
+            // The AI module infers on the main stream and needs the zoom camera there.
+            qCInfo(SiyiCameraControllerLog) << "zoom out at 1x: AI module on, main stream stays on the zoom camera";
+            return false;
+        }
+        _zoomingOut = false;
+        setCameraImageType(kWide);
+        return true;
+    }
+    return false;
 }
 
 void SiyiCameraController::autoFocus()
@@ -386,6 +433,7 @@ void SiyiCameraController::setCameraImageType(int imageType)
         return;
     }
     _sendSingleByte(SiyiProtocol::CommandId::SetCameraImageType, static_cast<quint8>(imageType));
+    _cameraImageTypeSent = true;
 
     if (_cameraImageType != imageType) {
         _cameraImageType = imageType;
@@ -658,7 +706,12 @@ void SiyiCameraController::_handleFrame(const SiyiProtocol::Frame &frame)
         const auto multiple = SiyiProtocol::parseZoomMultiple(frame.data);
         if (multiple) {
             _zoomMultiple = *multiple;
+            _zoomMultipleKnown = true;
             emit zoomMultipleChanged();
+            // Reached 1x while still zooming out: stop and carry on with the wide camera.
+            if (_zoomingOut && (_zoomMultiple <= 1.0 + kZoomOneEpsilon) && _switchCameraForZoom(-1)) {
+                _send(SiyiProtocol::encodeManualZoom(0, _sequence++));
+            }
         }
         break;
     }
@@ -675,6 +728,26 @@ void SiyiCameraController::_handleFrame(const SiyiProtocol::Frame &frame)
                 _laserOn = *state;
                 emit laserStateChanged();
             }
+        }
+        break;
+    }
+
+    case SiyiProtocol::CommandId::GetCameraImageType:
+    case SiyiProtocol::CommandId::SetCameraImageType: {
+        const auto imageType = SiyiProtocol::parseCameraImageType(frame.data);
+        if (!imageType) {
+            break;
+        }
+        _reportedImageType = *imageType;
+        // A lost 0x11, a pod that came back in another mode, or a hand-controller key can all
+        // leave the sub stream on zoom or wide under the thermal window. Only the 0x10 poll
+        // reply triggers the correction: an ack of a refused mode would otherwise ping-pong.
+        if ((frame.commandId == SiyiProtocol::CommandId::GetCameraImageType) && _cameraImageTypeSent
+            && (_reportedImageType != _cameraImageType) && (_imageTypeResendTick != _pollTicks)) {
+            _imageTypeResendTick = _pollTicks;
+            qCInfo(SiyiCameraControllerLog) << "pod image type" << _reportedImageType << "differs from wanted"
+                                            << _cameraImageType << "- re-sending";
+            _sendSingleByte(SiyiProtocol::CommandId::SetCameraImageType, static_cast<quint8>(_cameraImageType));
         }
         break;
     }
@@ -861,6 +934,7 @@ void SiyiCameraController::_poll()
         _yawRate = 0;
         _pitchRate = 0;
         _setConnected(false);
+        _linkLost = true;
         // Identity goes with the link. A pod that comes back may have power-cycled into a
         // different image mode, and the dashboard only re-applies its sensor routing when the
         // model is announced again.
@@ -938,6 +1012,7 @@ void SiyiCameraController::_poll()
         }
         if ((_pollTicks % kConfigInterval) == 0) {
             _sendCommand(SiyiProtocol::CommandId::ReadLaserState);
+            _sendCommand(SiyiProtocol::CommandId::GetCameraImageType);
         }
         if ((_pollTicks % kThermalInterval) == 0) {
             _send(SiyiProtocol::encodeThermalRangeRequest(_sequence++));
@@ -1072,6 +1147,7 @@ void SiyiCameraController::_sendThermalCalibrationIfChanged()
 
 void SiyiCameraController::_resetCameraState()
 {
+    _reportedImageType = -1;
     if (_thermalGain != -1) {
         _thermalGain = -1;
         emit thermalGainChanged();
@@ -1102,6 +1178,8 @@ void SiyiCameraController::_resetCameraState()
         emit attitudeChanged();
     }
 
+    _zoomMultipleKnown = false;
+    _zoomingOut = false;
     if (_zoomMultiple != 1.0) {
         _zoomMultiple = 1.0;
         emit zoomMultipleChanged();
@@ -1173,4 +1251,8 @@ void SiyiCameraController::_setConnected(bool connected)
     _connected = connected;
     qCDebug(SiyiCameraControllerLog) << "connected:" << _connected;
     emit connectedChanged();
+    if (_connected && _linkLost) {
+        _linkLost = false;
+        emit podReconnected();
+    }
 }

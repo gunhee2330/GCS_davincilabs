@@ -35,4 +35,8 @@ public:
     DEFINE_SETTINGFACT(fcDataLayout)
     DEFINE_SETTINGFACT(crowdModerateCount)
     DEFINE_SETTINGFACT(crowdDenseCount)
+    DEFINE_SETTINGFACT(rcKeyFpvChannel)
+    DEFINE_SETTINGFACT(rcKeyZoomChannel)
+    DEFINE_SETTINGFACT(rcKeyWideChannel)
+    DEFINE_SETTINGFACT(rcKeyThermalChannel)
 };

@@ -235,6 +235,54 @@
             "decimalPlaces": 0,
             "label": "밀집도 '밀집' 기준 인원",
             "keywords": "crowd,density,people,밀집도,인원"
+        },
+        {
+            "name": "rcKeyFpvChannel",
+            "shortDesc": "조종기 키가 들어오는 RC 채널입니다. 누르면 전방 카메라가 큰 화면이 됩니다. 기본 13 (L2).",
+            "longDesc": "Handset key RC channel (1-16, 0 = off). A press makes the forward camera the big picture.",
+            "type": "uint32",
+            "default": 13,
+            "min": 0,
+            "max": 16,
+            "decimalPlaces": 0,
+            "label": "전방 키 채널",
+            "keywords": "rc,key,channel,handset,조종기,키,채널"
+        },
+        {
+            "name": "rcKeyZoomChannel",
+            "shortDesc": "누르면 줌 창이 큰 화면이 되고 장치는 줌 카메라를 내보냅니다. 기본 14 (R1).",
+            "longDesc": "Handset key RC channel (1-16, 0 = off). A press makes the zoom window the big picture and routes the zoom camera to the main stream.",
+            "type": "uint32",
+            "default": 14,
+            "min": 0,
+            "max": 16,
+            "decimalPlaces": 0,
+            "label": "줌 키 채널",
+            "keywords": "rc,key,channel,handset,조종기,키,채널"
+        },
+        {
+            "name": "rcKeyWideChannel",
+            "shortDesc": "누르면 줌 창이 큰 화면이 되고 장치는 광각 카메라를 내보냅니다. AI가 켜져 있으면 광각 전환은 건너뜁니다. 기본 15 (R2).",
+            "longDesc": "Handset key RC channel (1-16, 0 = off). A press makes the zoom window the big picture and routes the wide camera to the main stream, except with the AI module on.",
+            "type": "uint32",
+            "default": 15,
+            "min": 0,
+            "max": 16,
+            "decimalPlaces": 0,
+            "label": "광각 키 채널",
+            "keywords": "rc,key,channel,handset,조종기,키,채널"
+        },
+        {
+            "name": "rcKeyThermalChannel",
+            "shortDesc": "누르면 열상이 큰 화면이 됩니다. 기본 16 (R3).",
+            "longDesc": "Handset key RC channel (1-16, 0 = off). A press makes the thermal window the big picture.",
+            "type": "uint32",
+            "default": 16,
+            "min": 0,
+            "max": 16,
+            "decimalPlaces": 0,
+            "label": "열상 키 채널",
+            "keywords": "rc,key,channel,handset,조종기,키,채널"
         }
     ]
 }

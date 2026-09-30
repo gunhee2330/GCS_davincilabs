@@ -29,6 +29,7 @@ set(_generated_qml_names
     MapsSettings.qml
     NTRIPSettings.qml
     PlanViewSettings.qml
+    PayloadSettings.qml
     PX4LogTransferSettings.qml
     RemoteIDSettings.qml
     SettingsPagesModel.qml

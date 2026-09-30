@@ -272,6 +272,9 @@ public:
 
 signals:
     void connectedChanged();
+    /// The pod answered again after the link timed out. Once per return, never on first contact
+    /// and never after stop() (a settings edit restarting the link is not a loss).
+    void podReconnected();
     void modelChanged();
     void firmwareVersionChanged();
     void attitudeChanged();
@@ -282,6 +285,9 @@ signals:
     void rangefinderTargetChanged();
     void laserStateChanged();
     void eoIrViewToggleRequested();
+    /// Asks the dashboard to make \a panel ("primary", "secondary", "shared") the big picture;
+    /// "" gives the map back. Raised by the handset keys (PoliceRcKeys).
+    void mainPictureRequested(QString panel);
     void thermalRangeChanged();
     void thermalGainChanged();
     void thermalCalibrationChanged();
@@ -297,6 +303,9 @@ private slots:
     void _activeVehicleChanged(Vehicle *vehicle);
 
 private:
+    /// Switches between the zoom and wide cameras when a zoom in `direction` crosses 1x; true
+    /// when it did, and the zoom itself must not be sent.
+    bool _switchCameraForZoom(int direction);
     /// False when nothing left this process - no socket, or the write failed. The stop path needs
     /// the difference: a stop that was never sent is not a stop that is waiting for an answer.
     bool _send(const QByteArray &packet);
@@ -335,6 +344,7 @@ private:
     QElapsedTimer _lastRangefinderTargetTimer;
     QElapsedTimer _lastThermalRangeTimer;
     bool _connected = false;
+    bool _linkLost = false;
     bool _initialized = false;
     MissionAutoRecord *_autoRecord = nullptr;
     int _pollTicks = 0;
@@ -347,8 +357,19 @@ private:
     SiyiProtocol::Attitude _attitude;
     SiyiProtocol::ConfigInfo _config;
     double _zoomMultiple = 1.0;
+    /// A manual zoom-out (0x05 -1) is running; cleared by any other zoom command.
+    bool _zoomingOut = false;
+    /// False until a 0x05 reply reports the zoom; the 1.0 default must not trigger the wide switch.
+    bool _zoomMultipleKnown = false;
     /// Sensor routing as last commanded; the pod sends no readback.
     int _cameraImageType = static_cast<int>(SiyiProtocol::CameraImageType::MainZoomSubThermal);
+    /// True once setCameraImageType has sent a routing; until then _cameraImageType is only a
+    /// default and the pod is not pulled towards it.
+    bool _cameraImageTypeSent = false;
+    /// Routing the pod last reported in a 0x10 reply or 0x11 ack, -1 while unknown.
+    int _reportedImageType = -1;
+    /// Poll tick of the last corrective 0x11, so a mismatch is re-sent at most once per tick.
+    int _imageTypeResendTick = -1;
     double _rangefinderDistance = std::numeric_limits<double>::quiet_NaN();
     QGeoCoordinate _rangefinderTarget;
     bool _laserOn = false;
